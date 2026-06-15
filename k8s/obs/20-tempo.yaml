@@ -1,0 +1,150 @@
+# Tempo — distributed trace store (SLICE-21).
+#
+# Plain English: stores the step-by-step "trace" of a request as it moves
+# through the system, so Grafana can show the whole journey by trace ID. The
+# otel-collector forwards traces here. Traces are bursty and write-heavy, so the
+# data sits on the fast SSD on Dell (ssd-hot) and the pod is pinned to Dell.
+#
+# Config is the docker-compose tempo-config.yaml with ONE change: the OTLP
+# receiver binds 0.0.0.0 instead of the old docker container hostname (which
+# does not resolve in Kubernetes). Retention stays env-driven
+# (TEMPO_RETENTION_HOURS) via -config.expand-env.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+  namespace: xf-obs
+data:
+  tempo-config.yaml: |
+    server:
+      http_listen_port: 3200
+
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            http:
+              endpoint: 0.0.0.0:4318
+            grpc:
+              endpoint: 0.0.0.0:4317
+
+    ingester:
+      max_block_duration: 5m
+      trace_idle_period: 10s
+      flush_check_period: 10s
+
+    compactor:
+      compaction:
+        block_retention: ${TEMPO_RETENTION_HOURS}h
+        compacted_block_retention: 1h
+
+    storage:
+      trace:
+        backend: local
+        wal:
+          path: /var/tempo/wal
+        local:
+          path: /var/tempo/blocks
+        pool:
+          max_workers: 50
+          queue_depth: 1000
+
+    metrics_generator:
+      registry:
+        external_labels:
+          source: tempo
+          cluster: xf-k3s
+
+    usage_report:
+      reporting_enabled: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tempo-data
+  namespace: xf-obs
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: ssd-hot
+  resources:
+    requests:
+      storage: 15Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempo
+  namespace: xf-obs
+  labels:
+    app: tempo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tempo
+  template:
+    metadata:
+      labels:
+        app: tempo
+    spec:
+      priorityClassName: xf-obs
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: tempo
+          image: grafana/tempo:2.6.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-config.expand-env=true"
+            - "-config.file=/etc/tempo/tempo-config.yaml"
+          env:
+            - name: TEMPO_RETENTION_HOURS
+              value: "72"
+            - name: GOMEMLIMIT
+              value: "680MiB"
+          ports:
+            - { containerPort: 3200, name: http }
+            - { containerPort: 4317, name: otlp-grpc }
+            - { containerPort: 4318, name: otlp-http }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tempo
+              readOnly: true
+            - name: storage
+              mountPath: /var/tempo
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3200
+            initialDelaySeconds: 10
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: tempo-config
+        - name: storage
+          persistentVolumeClaim:
+            claimName: tempo-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  namespace: xf-obs
+  labels:
+    app: tempo
+spec:
+  selector:
+    app: tempo
+  ports:
+    - { name: http, port: 3200, targetPort: 3200, protocol: TCP }
+    - { name: otlp-grpc, port: 4317, targetPort: 4317, protocol: TCP }
+    - { name: otlp-http, port: 4318, targetPort: 4318, protocol: TCP }

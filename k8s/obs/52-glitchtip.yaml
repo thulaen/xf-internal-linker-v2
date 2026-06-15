@@ -1,0 +1,121 @@
+# GlitchTip — error tracking, web/API (SLICE-21).
+#
+# Plain English: the error-tracking service. The app reports crashes here (via
+# the otel-collector's GlitchTip exporter), and you view them in this dashboard.
+# Reach it during the rehearsal at http://192.168.0.91:30137.
+#
+# ABSOLUTE-protected: GlitchTip's connection settings (database, redis, secret
+# key, DSN) must never be blanked, and all four GlitchTip workloads must stay
+# present. The database is the "glitchtip" database on the Dell host; the cache
+# is the app's redis (Valkey) database 4, reached across namespaces.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: glitchtip
+  namespace: xf-obs
+  labels:
+    app: glitchtip
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: glitchtip
+  template:
+    metadata:
+      labels:
+        app: glitchtip
+    spec:
+      priorityClassName: xf-obs
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: glitchtip
+          image: glitchtip/glitchtip:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.xf-obs.svc.cluster.local:5432/glitchtip"
+            - name: REDIS_URL
+              value: "redis://redis.xf-app.svc.cluster.local:6379/4"
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: glitchtip-secrets
+                  key: SECRET_KEY
+            - name: EMAIL_URL
+              value: "consolemail://"
+            - name: GLITCHTIP_DOMAIN
+              value: "http://192.168.0.91:30137"
+            - name: DEFAULT_FROM_EMAIL
+              value: "glitchtip@localhost"
+            - name: ENABLE_USER_REGISTRATION
+              value: "true"
+            - name: PORT
+              value: "8000"
+            - name: CELERY_WORKER_AUTOSCALE
+              value: "1,3"
+            - name: CELERY_WORKER_MAX_TASKS_PER_CHILD
+              value: "10000"
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              memory: "512Mi"
+          readinessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: glitchtip
+  namespace: xf-obs
+  labels:
+    app: glitchtip
+spec:
+  selector:
+    app: glitchtip
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: glitchtip-ext
+  namespace: xf-obs
+  labels:
+    app: glitchtip
+spec:
+  type: NodePort
+  selector:
+    app: glitchtip
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      nodePort: 30137
+      protocol: TCP

@@ -1,0 +1,135 @@
+# VictoriaMetrics scraper, vmagent (SLICE-21).
+#
+# Plain English: visits each tool's metrics page every 15 seconds and writes
+# what it finds into the VictoriaMetrics store (vmsingle). The list of who to
+# scrape is the ConfigMap below — the same targets as the docker-compose
+# scrape.yml, but pointed at cluster service names instead of docker names.
+#
+# NOTE on the backend scrape: the backend's /metrics/ endpoint is OPEN in the
+# cluster (the METRICS_TOKEN setting is unset), so no X-Metrics-Token header is
+# needed. If a token is ever configured, add a `headers:` block sourced from a
+# Secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vmagent-scrape
+  namespace: xf-obs
+data:
+  scrape.yml: |
+    global:
+      scrape_interval: 15s
+      scrape_timeout: 10s
+
+    scrape_configs:
+      - job_name: backend
+        metrics_path: /metrics/
+        scheme: http
+        static_configs:
+          - targets: ["backend.xf-app.svc.cluster.local:8000"]
+
+      - job_name: otel-collector
+        static_configs:
+          - targets: ["otel-collector:8889"]
+
+      - job_name: postgres-exporter
+        static_configs:
+          - targets: ["postgres-exporter:9187"]
+
+      - job_name: vmsingle
+        static_configs:
+          - targets: ["vmsingle:8428"]
+
+      - job_name: vmagent
+        static_configs:
+          - targets: ["vmagent:8429"]
+
+      - job_name: vmalert
+        static_configs:
+          - targets: ["vmalert:8880"]
+
+      - job_name: loki
+        static_configs:
+          - targets: ["loki:3100"]
+
+      - job_name: tempo
+        static_configs:
+          - targets: ["tempo:3200"]
+
+      - job_name: pyroscope
+        static_configs:
+          - targets: ["pyroscope:4040"]
+
+      - job_name: alloy
+        static_configs:
+          - targets: ["alloy:12345"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vmagent
+  namespace: xf-obs
+  labels:
+    app: vmagent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vmagent
+  template:
+    metadata:
+      labels:
+        app: vmagent
+    spec:
+      priorityClassName: xf-obs
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: vmagent
+          image: victoriametrics/vmagent:v1.106.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-promscrape.config=/etc/vmagent/scrape.yml"
+            - "-remoteWrite.url=http://vmsingle:8428/api/v1/write"
+            - "-httpListenAddr=:8429"
+          env:
+            - name: GOMEMLIMIT
+              value: "220MiB"
+          ports:
+            - containerPort: 8429
+              name: http
+          volumeMounts:
+            - name: scrape-config
+              mountPath: /etc/vmagent
+              readOnly: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8429
+            initialDelaySeconds: 5
+            periodSeconds: 15
+      volumes:
+        - name: scrape-config
+          configMap:
+            name: vmagent-scrape
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmagent
+  namespace: xf-obs
+  labels:
+    app: vmagent
+spec:
+  selector:
+    app: vmagent
+  ports:
+    - name: http
+      port: 8429
+      targetPort: 8429
+      protocol: TCP

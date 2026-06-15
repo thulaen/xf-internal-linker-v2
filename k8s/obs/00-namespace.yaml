@@ -1,0 +1,18 @@
+# Observability namespace (SLICE-21).
+#
+# Plain English: a separate, walled-off section of the cluster that holds the
+# monitoring tools — the things that record logs, traces, metrics, error
+# reports, and the dashboards you look at. Keeping them in their own namespace
+# (not mixed in with the app) means they get their own safety caps, their own
+# firewall rules, and their own service account, exactly like the app namespace.
+#
+# Kubernetes automatically stamps every namespace with the label
+# `kubernetes.io/metadata.name: xf-obs`. The cross-namespace firewall rules
+# (see 03-netpol.yaml and k8s/network/xf-app-allow-obs-ingress.yaml) match on
+# that auto-label, so nothing extra has to be set here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: xf-obs
+  labels:
+    app.kubernetes.io/part-of: xf-observability

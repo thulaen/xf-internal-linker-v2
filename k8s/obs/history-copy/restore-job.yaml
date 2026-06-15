@@ -1,0 +1,175 @@
+# SLICE-21 GO-LIVE STEP — restore one monitoring-history tarball into its
+# cluster disk (PersistentVolumeClaim).
+#
+# Plain English: scripts/obs-history-copy.ps1 packed the OLD monitoring history
+# off the Windows machine into compressed tarballs and copied them to the Mint
+# NFS staging folder, each with a SHA-256 fingerprint. This Job does the cluster
+# side: it reads ONE tarball from that staging folder, RE-CHECKS the fingerprint
+# inside the cluster (to catch any corruption that happened after the first
+# copy), unpacks it into the matching cluster disk, and drops a ".copy-complete"
+# marker so the tool knows its history is in place.
+#
+# THIS FILE IS NOT PART OF THE REHEARSAL APPLY SET. It lives in the
+# k8s/obs/history-copy/ SUBDIRECTORY on purpose: a rehearsal runs
+#   kubectl apply -f k8s/obs/        (NON-recursive — no -R)
+# which does NOT descend into subdirectories, so this Job is never applied by
+# accident. It runs ONLY at the real go-live, by hand, ONCE PER VOLUME, after
+# scripts/obs-history-copy.ps1 has staged and verified every tarball.
+#
+# ASSUMPTION — staging location: the tarballs live on the Mint NFS export at
+#   server 10.10.10.91 (Mint's wired backbone IP), path
+#   /srv/nfs/cluster/obs-history-staging
+# This matches the cluster's existing NFS export (see
+# k8s/storage/nfs-cold-provisioner.yaml: NFS_SERVER=10.10.10.91,
+# NFS_PATH=/srv/nfs/cluster). The Job mounts that staging subfolder read-only.
+#
+# ============================ HOW TO RUN ============================
+# Run once for EACH file-backed volume. Set three env values per run:
+#   VOL_NAME  — the staged tarball stem (e.g. vmsingle_data -> vmsingle_data.tar.gz)
+#   PVC_NAME  — the destination PersistentVolumeClaim in namespace xf-obs
+#   DEST_NODE — the node the destination PVC is bound to (Dell for most, Mint
+#               for pyroscope) so the Job runs where the disk actually is
+#
+# Volume -> PVC -> mount -> node map (namespace xf-obs):
+#   VOL_NAME=vmsingle_data   PVC_NAME=vmsingle-data   (tool mount /storage)        DEST_NODE=dell
+#   VOL_NAME=loki_data       PVC_NAME=loki-data       (tool mount /loki)           DEST_NODE=dell
+#   VOL_NAME=tempo_data      PVC_NAME=tempo-data      (tool mount /var/tempo)      DEST_NODE=dell
+#   VOL_NAME=grafana_data    PVC_NAME=grafana-data    (tool mount /var/lib/grafana) DEST_NODE=dell
+#   VOL_NAME=pyroscope_data  PVC_NAME=pyroscope-data  (tool mount /data)           DEST_NODE=mint
+#
+#   (alloy is SKIPPED — emptyDir in the cluster, reconstructable. GlitchTip has
+#    no file volume — its data rides the SLICE-13 Postgres dump/restore.)
+#
+# Example (run per volume; the sed swaps the three values and the node hostname):
+#   DELL=dell-ubuntu-01-optiplex-micro-7010
+#   MINT=minthelper01-lenovo-c50-30
+#   sed -e 's/__VOL_NAME__/vmsingle_data/' \
+#       -e 's/__PVC_NAME__/vmsingle-data/' \
+#       -e "s/__DEST_NODE__/$DELL/" \
+#       k8s/obs/history-copy/restore-job.yaml | kubectl apply -f -
+#
+#   # then loki / tempo / grafana the same way with $DELL, and pyroscope with $MINT:
+#   sed -e 's/__VOL_NAME__/pyroscope_data/' \
+#       -e 's/__PVC_NAME__/pyroscope-data/' \
+#       -e "s/__DEST_NODE__/$MINT/" \
+#       k8s/obs/history-copy/restore-job.yaml | kubectl apply -f -
+#
+# NOTE: the Job NAME uses __PVC_NAME__ (e.g. vmsingle-data), NOT __VOL_NAME__.
+# Kubernetes object names must be DNS-safe (lowercase letters, digits, hyphens —
+# no underscores), and the Docker volume names contain underscores
+# (vmsingle_data). The PVC names are already hyphenated, so they are safe to use
+# in the name. __VOL_NAME__ (with its underscore) is still used for the env var
+# and the tarball lookup, where the underscore is correct.
+#
+# Watch it:   kubectl -n xf-obs logs -f job/obs-history-restore-<PVC_NAME>
+# Re-run:     kubectl -n xf-obs delete job obs-history-restore-<PVC_NAME> --ignore-not-found
+#             then apply again. It is a no-op if the marker already matches.
+# ===================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: obs-history-restore-__PVC_NAME__
+  namespace: xf-obs
+  labels:
+    app: obs-history-restore
+    xf-go-live-only: "true"
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: obs-history-restore
+        xf-go-live-only: "true"
+    spec:
+      restartPolicy: Never
+      priorityClassName: xf-obs
+      # Run where the destination PVC lives so we write to the local disk, not
+      # across the network. Dell for ssd-hot PVCs; Mint for pyroscope.
+      nodeSelector:
+        kubernetes.io/hostname: __DEST_NODE__
+      # Runs as root so it can write into the PVC regardless of the tool's own
+      # uid (Grafana=472, others=0). The marker + extracted files are owned by
+      # root; the tools that run as 472/0 can still read them.
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      containers:
+        - name: restore
+          image: alpine:3.20
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: VOL_NAME
+              value: "__VOL_NAME__"
+          command: ["sh", "-eu", "-c"]
+          args:
+            - |
+              TAR="/staging/${VOL_NAME}.tar.gz"
+              SHA="/staging/${VOL_NAME}.tar.gz.sha256"
+              MARKER="/dest/.copy-complete"
+
+              echo "=== GO-LIVE restore: ${VOL_NAME} -> PVC (mounted at /dest) ==="
+
+              # The staged tarball + its fingerprint must both be present.
+              if [ ! -f "$TAR" ] || [ ! -f "$SHA" ]; then
+                echo "FAIL: missing $TAR or $SHA in the staging folder." >&2
+                echo "      Run scripts/obs-history-copy.ps1 on Windows first." >&2
+                exit 1
+              fi
+
+              WANT="$(awk '{print $1}' "$SHA")"
+              if [ -z "$WANT" ]; then
+                echo "FAIL: staged fingerprint file is empty: $SHA" >&2
+                exit 1
+              fi
+
+              # Re-verify INSIDE the cluster, catching post-copy corruption.
+              GOT="$(sha256sum "$TAR" | awk '{print $1}')"
+              echo "want=$WANT"
+              echo "got =$GOT"
+              if [ "$GOT" != "$WANT" ]; then
+                echo "FAIL: tarball fingerprint mismatch — refusing to extract a corrupt copy." >&2
+                exit 1
+              fi
+              echo "fingerprint verified."
+
+              # Idempotent: if a matching marker already exists, do nothing.
+              if [ -f "$MARKER" ] && grep -q "$WANT" "$MARKER" 2>/dev/null; then
+                echo "marker already present with matching fingerprint — no-op."
+                exit 0
+              fi
+
+              echo "extracting into /dest ..."
+              tar xzf "$TAR" -C /dest
+
+              # Write the completion marker the go-live initContainer waits on.
+              {
+                echo "sha256=$WANT"
+                echo "volume=$VOL_NAME"
+                echo "note=SLICE-21 monitoring-history restore; written by obs-history-restore Job"
+                echo "restored_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              } > "$MARKER"
+
+              echo "wrote marker:"
+              cat "$MARKER"
+              echo "DONE: ${VOL_NAME} restored and marked complete."
+          volumeMounts:
+            - name: staging
+              mountPath: /staging
+              readOnly: true
+            - name: dest
+              mountPath: /dest
+      volumes:
+        # Mint NFS staging folder holding the tarballs + fingerprints. Mounted
+        # directly (read-only) — matches the cluster's NFS export coordinates in
+        # k8s/storage/nfs-cold-provisioner.yaml.
+        - name: staging
+          nfs:
+            server: 10.10.10.91
+            path: /srv/nfs/cluster/obs-history-staging
+            readOnly: true
+        # Destination cluster disk — the SAME PVC the tool mounts in normal use.
+        - name: dest
+          persistentVolumeClaim:
+            claimName: __PVC_NAME__

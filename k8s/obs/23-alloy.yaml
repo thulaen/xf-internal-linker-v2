@@ -1,0 +1,178 @@
+# Grafana Alloy — log shipper (SLICE-21).
+#
+# Plain English: collects every pod's logs and sends them to Loki. On the
+# Windows stack Alloy found containers through the Docker socket; the cluster
+# has no Docker socket, so this version asks the Kubernetes API "which pods run
+# on MY machine?" and streams their logs. It runs as a DaemonSet (one copy per
+# machine), each copy handling only its own node's pods (field selector on
+# NODE_NAME). The browser error receiver (Faro, port 12347) is kept unchanged.
+#
+# The read-only Kubernetes permission Alloy needs is granted in 01-rbac.yaml
+# (the `alloy` ServiceAccount + a pods/pods-log read ClusterRole).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-config
+  namespace: xf-obs
+data:
+  config.alloy: |
+    logging {
+      level  = "info"
+      format = "logfmt"
+    }
+
+    // Discover pods running on THIS node only (NODE_NAME from the downward API).
+    discovery.kubernetes "pods" {
+      role = "pod"
+      selectors {
+        role  = "pod"
+        field = "spec.nodeName=" + sys.env("NODE_NAME")
+      }
+    }
+
+    // Map Kubernetes metadata to readable Loki labels.
+    discovery.relabel "pods" {
+      targets = discovery.kubernetes.pods.targets
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_container_name"]
+        target_label  = "container"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app"]
+        target_label  = "service"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_node_name"]
+        target_label  = "node"
+      }
+    }
+
+    // Stream each discovered pod's logs via the Kubernetes API (no docker.sock).
+    loki.source.kubernetes "pods" {
+      targets    = discovery.relabel.pods.output
+      forward_to = [loki.write.default.receiver]
+    }
+
+    loki.write "default" {
+      endpoint {
+        url = "http://loki:3100/loki/api/v1/push"
+      }
+      external_labels = {
+        cluster = "xf-k3s",
+      }
+    }
+
+    // Faro receiver — browser RUM events from the Faro Web SDK (unchanged).
+    faro.receiver "default" {
+      server {
+        listen_address       = "0.0.0.0"
+        listen_port          = 12347
+        cors_allowed_origins = ["*"]
+      }
+      output {
+        logs = [loki.write.faro.receiver]
+      }
+    }
+
+    loki.write "faro" {
+      endpoint {
+        url = "http://loki:3100/loki/api/v1/push"
+      }
+      external_labels = {
+        cluster = "xf-k3s",
+        service = "frontend",
+        source  = "faro",
+      }
+    }
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: alloy
+  namespace: xf-obs
+  labels:
+    app: alloy
+spec:
+  selector:
+    matchLabels:
+      app: alloy
+  template:
+    metadata:
+      labels:
+        app: alloy
+    spec:
+      serviceAccountName: alloy
+      priorityClassName: xf-obs
+      tolerations:
+        # so a copy also runs on the Mint control-plane node if it is tainted.
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: alloy
+          image: grafana/alloy:v1.5.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - "run"
+            - "--server.http.listen-addr=0.0.0.0:12345"
+            - "--storage.path=/var/lib/alloy/data"
+            - "/etc/alloy/config.alloy"
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: GOMEMLIMIT
+              value: "170MiB"
+          ports:
+            - { containerPort: 12345, name: http }
+            - { containerPort: 12347, name: faro }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/alloy/data
+            - name: config
+              mountPath: /etc/alloy
+              readOnly: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 12345
+            initialDelaySeconds: 8
+            periodSeconds: 15
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: alloy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alloy
+  namespace: xf-obs
+  labels:
+    app: alloy
+spec:
+  selector:
+    app: alloy
+  ports:
+    - { name: http, port: 12345, targetPort: 12345, protocol: TCP }
+    - { name: faro, port: 12347, targetPort: 12347, protocol: TCP }

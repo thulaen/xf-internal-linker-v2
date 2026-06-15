@@ -45,6 +45,14 @@ data:
   # --- This node's identity in the cluster ---
   NODE_ROLE: "k8s"
 
+  # --- Telemetry: where the backend + workers send traces/metrics/profiles ---
+  # The in-cluster OpenTelemetry collector lives in the xf-obs namespace
+  # (SLICE-21). It fans traces out to GlitchTip + Tempo, profiles to Pyroscope,
+  # and exposes app metrics for vmagent. Instrumentation is opt-in: the backend
+  # only turns it on when this endpoint is set AND resolves, so leaving it unset
+  # is safe. The cross-namespace allow for OTLP is in k8s/obs/03-netpol.yaml.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.xf-obs.svc.cluster.local:4318"
+
   # --- Cluster runs non-debug by default ---
   DJANGO_DEBUG: "False"
 

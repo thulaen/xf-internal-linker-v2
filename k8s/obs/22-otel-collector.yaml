@@ -1,0 +1,169 @@
+# OpenTelemetry Collector (SLICE-21).
+#
+# Plain English: the hub that receives telemetry (traces, metrics, profiles)
+# from the app and fans it out — traces go to BOTH GlitchTip (error tracking,
+# ABSOLUTE-protected, kept FIRST) and Tempo; profiles go to Pyroscope; metrics
+# are exposed for scraping on :8889.
+#
+# Translated from otelcol-config.yaml with these cluster changes:
+#   * the GlitchTip DSN comes from an env var (Secret-sourced) instead of being
+#     hard-coded, so it can be set to the cluster GlitchTip's real DSN without a
+#     config edit and is never committed in plaintext;
+#   * tempo / pyroscope / postgres-exporter endpoints use cluster service names;
+#   * the `filelog/nginx` receiver is REMOVED — in the cluster, nginx logs to
+#     stdout and Alloy collects them, so there is no shared nginx-log volume.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otelcol-config
+  namespace: xf-obs
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+          grpc:
+            endpoint: 0.0.0.0:4317
+      prometheus/postgres:
+        config:
+          scrape_configs:
+            - job_name: 'postgres-exporter'
+              scrape_interval: 15s
+              static_configs:
+                - targets: ['postgres-exporter:9187']
+
+    processors:
+      batch:
+        timeout: 2s
+        send_batch_size: 1024
+        send_batch_max_size: 2048
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 75
+        spike_limit_percentage: 15
+      attributes/scrub:
+        actions:
+          - key: http.request.header.authorization
+            action: delete
+          - key: http.request.header.cookie
+            action: delete
+          - key: db.statement
+            action: delete
+
+    exporters:
+      # ABSOLUTE-protected GlitchTip exporter — stays FIRST in the traces
+      # pipeline. DSN injected from the GLITCHTIP_DSN env (Secret-sourced).
+      sentry:
+        dsn: ${env:GLITCHTIP_DSN}
+        environment: production
+        insecure_skip_verify: true
+      otlp/tempo:
+        endpoint: tempo:4317
+        tls:
+          insecure: true
+      otlp/pyroscope:
+        endpoint: pyroscope:4040
+        tls:
+          insecure: true
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        namespace: xf_linker
+        send_timestamps: true
+        metric_expiration: 5m
+      debug:
+        verbosity: basic
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, attributes/scrub, batch]
+          exporters: [sentry, otlp/tempo, debug]
+        metrics:
+          receivers: [otlp, prometheus/postgres]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, attributes/scrub, batch]
+          exporters: [debug]
+        profiles:
+          receivers: [otlp]
+          exporters: [otlp/pyroscope]
+      telemetry:
+        logs:
+          level: info
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: xf-obs
+  labels:
+    app: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      priorityClassName: xf-obs
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.112.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--config=/etc/otelcol/config.yaml"
+            - "--feature-gates=service.profilesSupport"
+          env:
+            - name: GLITCHTIP_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: glitchtip-dsn
+                  key: GLITCHTIP_DSN
+          ports:
+            - { containerPort: 4317, name: otlp-grpc }
+            - { containerPort: 4318, name: otlp-http }
+            - { containerPort: 8889, name: prom }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+              readOnly: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              memory: "512Mi"
+          readinessProbe:
+            tcpSocket:
+              port: 4318
+            initialDelaySeconds: 8
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: otelcol-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: xf-obs
+  labels:
+    app: otel-collector
+spec:
+  selector:
+    app: otel-collector
+  ports:
+    - { name: otlp-grpc, port: 4317, targetPort: 4317, protocol: TCP }
+    - { name: otlp-http, port: 4318, targetPort: 4318, protocol: TCP }
+    - { name: prom, port: 8889, targetPort: 8889, protocol: TCP }

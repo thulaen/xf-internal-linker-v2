@@ -1,0 +1,63 @@
+# Namespace resource governance for observability (SLICE-21).
+#
+# Plain English: two safety nets, mirroring the app namespace
+# (k8s/scheduling/resource-limits.yaml).
+#
+#   1. LimitRange — fills in sensible defaults if a pod or disk claim forgets to
+#      say how much it needs, and sets a per-container memory ceiling and a
+#      per-disk-claim size ceiling so no single item can be absurd.
+#
+#   2. ResourceQuota — a ceiling for the WHOLE monitoring namespace so it can
+#      never, in total, starve the worker machine of CPU/memory or drain the
+#      fast SSD on Dell / the shared NFS drive on Mint. Each storage tier has
+#      its own cap.
+#
+# Sized for the 15 monitoring workloads with generous headroom — these are
+# runaway ceilings, not tight packing. No CPU *limit* is quota'd (the pods run
+# CPU-burstable, same choice as the app), so quota'ing limits.cpu would force an
+# unwanted throttle.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: xf-obs-defaults
+  namespace: xf-obs
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: "50m"
+        memory: "64Mi"
+      default:
+        memory: "512Mi"
+      max:
+        memory: "2Gi"
+    - type: PersistentVolumeClaim
+      defaultRequest:
+        storage: "1Gi"
+      default:
+        storage: "1Gi"
+      max:
+        storage: "50Gi"
+      min:
+        storage: "100Mi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: xf-obs-quota
+  namespace: xf-obs
+spec:
+  hard:
+    # Compute ceilings (well above the ~3-4 GiB the 15 tools request today).
+    requests.cpu: "8"
+    requests.memory: "6Gi"
+    limits.memory: "12Gi"
+    # Object-count ceilings.
+    pods: "30"
+    persistentvolumeclaims: "15"
+    # Storage ceilings — overall, then per tier so neither disk can be drained.
+    requests.storage: "120Gi"
+    ssd-hot.storageclass.storage.k8s.io/requests.storage: "55Gi"
+    ssd-hot.storageclass.storage.k8s.io/persistentvolumeclaims: "8"
+    nfs-cold.storageclass.storage.k8s.io/requests.storage: "60Gi"
+    nfs-cold.storageclass.storage.k8s.io/persistentvolumeclaims: "8"

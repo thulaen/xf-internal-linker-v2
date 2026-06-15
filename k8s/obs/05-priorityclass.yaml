@@ -1,0 +1,20 @@
+# Scheduling priority for the monitoring tools (SLICE-21).
+#
+# Plain English: when the worker machine (Dell) runs low on memory, Kubernetes
+# decides which pods to push out first. We want this order: test jobs go first,
+# then the monitoring tools, then the real app, and the broker/cache last.
+#
+# The app already has three classes (k8s/scheduling/priorityclasses.yaml):
+#   xf-infra (100000) > xf-app (10000) > xf-test (100).
+# Monitoring should sit BELOW the app (losing a dashboard is better than losing
+# the app) but ABOVE throwaway test jobs. So this adds xf-obs at 5000 — between
+# xf-test and xf-app. preemptionPolicy: Never means a monitoring pod never
+# shoves a running pod aside just to get scheduled.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: xf-obs
+value: 5000
+preemptionPolicy: Never
+globalDefault: false
+description: "Observability/monitoring pods (metrics, logs, traces, dashboards, error tracking). Below the app, above test jobs; evicted before the app under node pressure, never preempts."

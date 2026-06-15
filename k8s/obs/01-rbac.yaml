@@ -1,0 +1,52 @@
+# Service-account posture for the observability namespace (SLICE-21).
+#
+# Plain English: two parts.
+#
+#   1. The namespace's DEFAULT account is handed a key to phone the Kubernetes
+#      control system. The monitoring pods (Grafana, Loki, Tempo, the metrics
+#      tools, GlitchTip) never use it, so we turn it OFF — same defence-in-depth
+#      posture as the app namespace (k8s/network/xf-app-rbac.yaml).
+#
+#   2. ONE tool genuinely needs to read the control system: Alloy, the log
+#      shipper. In the cluster there is no Docker socket to discover containers
+#      through, so Alloy asks the Kubernetes API "which pods run on my machine,
+#      and what are their log streams?" That needs READ-ONLY access to pods,
+#      pod logs, nodes, and namespaces — nothing else, no write, no exec. Alloy
+#      gets its OWN account with that narrow permission; the default account
+#      stays powerless.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: xf-obs
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alloy
+  namespace: xf-obs
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: xf-obs-alloy-logs
+rules:
+  # Read-only discovery of pods + their logs + node/namespace metadata so Alloy
+  # can tail every container's stdout and label it (namespace/pod/container).
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "namespaces", "nodes", "nodes/proxy"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: xf-obs-alloy-logs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: xf-obs-alloy-logs
+subjects:
+  - kind: ServiceAccount
+    name: alloy
+    namespace: xf-obs

@@ -1,0 +1,92 @@
+# GlitchTip database migrations (SLICE-21).
+#
+# Plain English: sets up / updates the tables inside the "glitchtip" database.
+# Runs GlitchTip's shipped migration script. Kubernetes Jobs have no "wait for
+# the other job" feature, so an init container here blocks until the glitchtip
+# database actually exists before migrations run — that enforces the
+# init -> migrate order even if both are applied together.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: glitchtip-migrate
+  namespace: xf-obs
+  labels:
+    app: glitchtip-migrate
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: glitchtip-migrate
+    spec:
+      restartPolicy: Never
+      priorityClassName: xf-obs
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      initContainers:
+        - name: wait-for-db
+          image: postgres:17-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              until psql -tAc "SELECT 1 FROM pg_database WHERE datname='glitchtip'" | grep -q 1; do
+                echo "waiting for glitchtip database..."
+                sleep 3
+              done
+              echo "glitchtip database is present"
+          env:
+            - name: PGHOST
+              value: postgres.xf-obs.svc.cluster.local
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              value: postgres
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+      containers:
+        - name: migrate
+          image: glitchtip/glitchtip:latest
+          imagePullPolicy: IfNotPresent
+          command: ["./bin/run-migrate.sh"]
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.xf-obs.svc.cluster.local:5432/glitchtip"
+            - name: REDIS_URL
+              value: "redis://redis.xf-app.svc.cluster.local:6379/4"
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: glitchtip-secrets
+                  key: SECRET_KEY
+            - name: EMAIL_URL
+              value: "consolemail://"
+            - name: GLITCHTIP_DOMAIN
+              value: "http://192.168.0.91:30137"
+            - name: DEFAULT_FROM_EMAIL
+              value: "glitchtip@localhost"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              memory: "512Mi"

@@ -1,0 +1,81 @@
+# VictoriaMetrics alert evaluator, vmalert (SLICE-21).
+#
+# Plain English: runs the alert rules (in the cm-vmalert-rules ConfigMap)
+# against the metrics store every 30 seconds. The rules describe unhealthy
+# situations (import failures high, queue too deep, disk low, etc.). There is
+# no Alertmanager: -notifier.blackhole=true means a firing alert is recorded
+# but not paged out — the project promotes alerts into AutoIssues separately.
+# The rule file is generated unchanged from config/vmalert/rules.yml (see
+# k8s/obs/cm-vmalert-rules.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vmalert
+  namespace: xf-obs
+  labels:
+    app: vmalert
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vmalert
+  template:
+    metadata:
+      labels:
+        app: vmalert
+    spec:
+      priorityClassName: xf-obs
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: vmalert
+          image: victoriametrics/vmalert:v1.106.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-rule=/etc/vmalert/rules.yml"
+            - "-datasource.url=http://vmsingle:8428"
+            - "-remoteWrite.url=http://vmsingle:8428"
+            - "-notifier.blackhole=true"
+            - "-httpListenAddr=:8880"
+          env:
+            - name: GOMEMLIMIT
+              value: "170MiB"
+          ports:
+            - containerPort: 8880
+              name: http
+          volumeMounts:
+            - name: rules
+              mountPath: /etc/vmalert
+              readOnly: true
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "96Mi"
+            limits:
+              memory: "192Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8880
+            initialDelaySeconds: 5
+            periodSeconds: 15
+      volumes:
+        - name: rules
+          configMap:
+            name: vmalert-rules
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmalert
+  namespace: xf-obs
+  labels:
+    app: vmalert
+spec:
+  selector:
+    app: vmalert
+  ports:
+    - name: http
+      port: 8880
+      targetPort: 8880
+      protocol: TCP

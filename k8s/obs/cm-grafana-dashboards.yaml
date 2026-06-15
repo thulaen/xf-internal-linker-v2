@@ -1,0 +1,121 @@
+# Generated from source config for SLICE-21 (unchanged from the docker-compose version).
+# Regenerate: kubectl create configmap grafana-dashboards -n xf-obs --from-file=grafana/dashboards --dry-run=client -o yaml
+apiVersion: v1
+data:
+  traces-overview.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "Trace browser + service map + Tempo-to-Loki cross-link panel. Added 2026-05-11 per plan ~/.claude/plans/objective-deploy-and-integrate-zany-bee.md Stream 2.",
+      "editable": false,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {"type": "tempo", "uid": "tempo"},
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 0},
+          "id": 1,
+          "title": "Recent traces (last 1 h)",
+          "type": "table",
+          "targets": [
+            {
+              "datasource": {"type": "tempo", "uid": "tempo"},
+              "queryType": "traceqlSearch",
+              "filters": [],
+              "limit": 50,
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "showHeader": true
+          }
+        },
+        {
+          "datasource": {"type": "tempo", "uid": "tempo"},
+          "gridPos": {"h": 12, "w": 24, "x": 0, "y": 10},
+          "id": 2,
+          "title": "Service map",
+          "type": "nodeGraph",
+          "targets": [
+            {
+              "datasource": {"type": "tempo", "uid": "tempo"},
+              "queryType": "serviceMap",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 22},
+          "id": 3,
+          "title": "Error log lines (last 1 h, all containers)",
+          "type": "logs",
+          "targets": [
+            {
+              "datasource": {"type": "loki", "uid": "loki"},
+              "expr": "{container_name=~\".+\"} |~ \"(?i)(error|exception|critical|traceback)\"",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "showLabels": false,
+            "showCommonLabels": false,
+            "wrapLogMessage": false,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none"
+          }
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["xf-linker", "tempo", "loki"],
+      "templating": {"list": []},
+      "time": {"from": "now-1h", "to": "now"},
+      "timepicker": {},
+      "timezone": "",
+      "title": "XF Linker — Traces Overview",
+      "uid": "xf-linker-traces",
+      "version": 1,
+      "weekStart": ""
+    }
+  xf-app-health.json: |
+    {"uid":"xf-app-health","title":"XF App Health","schemaVersion":39,"version":1,"refresh":"30s","tags":["xf","application","prometheus"],"time":{"from":"now-1h","to":"now"},"panels":[{"type":"stat","title":"Request Rate","description":"HTTP requests per second across all Django modules (5-min rate).","targets":[{"expr":"sum(rate(xf_module_request_total[5m]))","legendFormat":"req/s","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"reqps","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":50},{"color":"red","value":200}]}}},"gridPos":{"x":0,"y":0,"w":4,"h":4}},{"type":"stat","title":"Error Rate","description":"HTTP 5xx errors per second (5-min rate).","targets":[{"expr":"sum(rate(xf_module_request_total{status=~\"5..\"}[5m]))","legendFormat":"err/s","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"reqps","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":0.1},{"color":"red","value":1}]}}},"gridPos":{"x":4,"y":0,"w":4,"h":4}},{"type":"stat","title":"API Latency p95","description":"95th-percentile request latency in seconds (5-min window).","targets":[{"expr":"histogram_quantile(0.95, sum(rate(xf_module_request_duration_seconds_bucket[5m])) by (le))","legendFormat":"p95","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"s","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":1},{"color":"red","value":2}]}}},"gridPos":{"x":8,"y":0,"w":4,"h":4}},{"type":"stat","title":"DB Connections","description":"Total active Postgres connections across all non-template databases.","targets":[{"expr":"sum(pg_stat_database_numbackends{datname!~\"^template.*\"})","legendFormat":"connections","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"short","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":60},{"color":"red","value":80}]}}},"gridPos":{"x":12,"y":0,"w":4,"h":4}},{"type":"stat","title":"Ranking Latency p95","description":"95th-percentile Rust ranking engine batch latency in seconds.","targets":[{"expr":"histogram_quantile(0.95, sum(rate(xf_scoring_latency_seconds_bucket[5m])) by (le))","legendFormat":"p95","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"s","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":2},{"color":"red","value":5}]}}},"gridPos":{"x":16,"y":0,"w":4,"h":4}},{"type":"stat","title":"Embedding Queue","description":"Current pipeline/embedding queue depth. Alert fires above 500.","targets":[{"expr":"xf_queue_depth{queue=\"pipeline\"}","legendFormat":"items","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"short","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":200},{"color":"red","value":500}]}}},"gridPos":{"x":20,"y":0,"w":4,"h":4}},{"type":"timeseries","title":"Request Rate Over Time","description":"HTTP request rate split by module and status code. Watch for sudden drops (worker crash) or spikes (traffic burst).","targets":[{"expr":"sum by (module)(rate(xf_module_request_total[5m]))","legendFormat":"{{module}}","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"reqps"}},"gridPos":{"x":0,"y":4,"w":12,"h":8}},{"type":"timeseries","title":"API Latency p50 / p95 / p99","description":"Request latency percentiles. p50=median experience, p95=worst common case, p99=worst 1-in-100.","targets":[{"expr":"histogram_quantile(0.50, sum(rate(xf_module_request_duration_seconds_bucket[5m])) by (le))","legendFormat":"p50","datasource":{"uid":"victoriametrics","type":"prometheus"}},{"expr":"histogram_quantile(0.95, sum(rate(xf_module_request_duration_seconds_bucket[5m])) by (le))","legendFormat":"p95","datasource":{"uid":"victoriametrics","type":"prometheus"}},{"expr":"histogram_quantile(0.99, sum(rate(xf_module_request_duration_seconds_bucket[5m])) by (le))","legendFormat":"p99","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"s"}},"gridPos":{"x":12,"y":4,"w":12,"h":8}},{"type":"timeseries","title":"Ranking Latency p50 / p95 / p99","description":"Rust ranking-engine batch latency percentiles. Each observation = one call to rank_candidates(). p95 alert threshold = 5s.","targets":[{"expr":"histogram_quantile(0.50, sum(rate(xf_scoring_latency_seconds_bucket[5m])) by (le))","legendFormat":"p50","datasource":{"uid":"victoriametrics","type":"prometheus"}},{"expr":"histogram_quantile(0.95, sum(rate(xf_scoring_latency_seconds_bucket[5m])) by (le))","legendFormat":"p95","datasource":{"uid":"victoriametrics","type":"prometheus"}},{"expr":"histogram_quantile(0.99, sum(rate(xf_scoring_latency_seconds_bucket[5m])) by (le))","legendFormat":"p99","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"s"}},"gridPos":{"x":0,"y":12,"w":12,"h":8}},{"type":"timeseries","title":"Score Distribution (median)","description":"Median composite score from score_destination_matches. Shifts here indicate weight-profile or signal changes.","targets":[{"expr":"histogram_quantile(0.50, sum(rate(xf_scoring_score_bucket[30m])) by (le))","legendFormat":"score p50","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"short","min":0,"max":1}},"gridPos":{"x":12,"y":12,"w":12,"h":8}},{"type":"timeseries","title":"Embedding Jobs & Latency","description":"Embedding jobs completed per minute (left axis) and per-batch latency p95 (right axis).","targets":[{"expr":"sum(rate(xf_embedding_jobs_total[5m])) * 60","legendFormat":"jobs/min","datasource":{"uid":"victoriametrics","type":"prometheus"}},{"expr":"histogram_quantile(0.95, sum(rate(xf_embedding_latency_seconds_bucket[5m])) by (le))","legendFormat":"latency p95 (s)","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"short"}},"gridPos":{"x":0,"y":20,"w":12,"h":8}},{"type":"timeseries","title":"Retriever Search Latency p95","description":"Stage-1 candidate retrieval latency (FAISS semantic + BM25 lexical) p95 per 5-min window. Feeds the FaissSearchLatencyHigh alert.","targets":[{"expr":"histogram_quantile(0.95, sum(rate(xf_index_search_seconds_bucket[5m])) by (le))","legendFormat":"retrieval p95 (s)","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"s"}},"gridPos":{"x":12,"y":20,"w":12,"h":8}},{"type":"timeseries","title":"Postgres Connections Over Time","description":"Active backend connections. Alert fires above 80 (near max_connections=100).","targets":[{"expr":"sum(pg_stat_database_numbackends{datname!~\"^template.*\"})","legendFormat":"connections","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"short"}},"gridPos":{"x":0,"y":28,"w":12,"h":8}},{"type":"timeseries","title":"Worker Task Duration by Status","description":"Celery task execution rate split by success vs failure. A rising failure line means workers are crash-looping.","targets":[{"expr":"sum by (status)(rate(xf_celery_task_duration_seconds_count[5m]))","legendFormat":"{{status}}","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"fieldConfig":{"defaults":{"unit":"ops"}},"gridPos":{"x":12,"y":28,"w":12,"h":8}}]}
+  xf-cleaning.json: |
+    {"uid":"xf-cleaning","title":"XF Cleaning","schemaVersion":39,"version":1,"refresh":"30s","panels":[{"type":"timeseries","title":"Documents cleaned","targets":[{"expr":"rate(xf_cleaning_documents_total[5m])","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":0,"y":0,"w":12,"h":8}},{"type":"timeseries","title":"Cleaning failures","targets":[{"expr":"rate(xf_cleaning_failures_total[5m])","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":12,"y":0,"w":12,"h":8}}]}
+  xf-crawlers.json: |
+    {"uid":"xf-crawlers","title":"XF Crawlers","schemaVersion":39,"version":1,"refresh":"30s","panels":[{"type":"timeseries","title":"Pages crawled","targets":[{"expr":"rate(xf_crawl_pages_total[5m])","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":0,"y":0,"w":12,"h":8}},{"type":"timeseries","title":"Crawler failures","targets":[{"expr":"rate(xf_crawl_failures_total[5m])","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":12,"y":0,"w":12,"h":8}}]}
+  xf-embeddings.json: |
+    {"uid":"xf-embeddings","title":"XF Embeddings","schemaVersion":39,"version":1,"refresh":"30s","panels":[{"type":"timeseries","title":"Embedding jobs","targets":[{"expr":"rate(xf_embedding_jobs_total[5m])","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":0,"y":0,"w":12,"h":8}},{"type":"timeseries","title":"Embedding latency p95","targets":[{"expr":"histogram_quantile(0.95, rate(xf_embedding_latency_seconds_bucket[5m]))","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":12,"y":0,"w":12,"h":8}}]}
+  xf-import.json: |
+    {"uid":"xf-import","title":"XF Import","schemaVersion":39,"version":1,"refresh":"30s","panels":[{"type":"timeseries","title":"Posts imported","targets":[{"expr":"rate(xf_import_posts_total[5m])","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":0,"y":0,"w":12,"h":8}},{"type":"timeseries","title":"Import failures","targets":[{"expr":"rate(xf_import_failures_total[5m])","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":12,"y":0,"w":12,"h":8}}]}
+  xf-indexing.json: |
+    {"uid":"xf-indexing","title":"XF Indexing","schemaVersion":39,"version":1,"refresh":"30s","panels":[{"type":"timeseries","title":"Index build seconds","targets":[{"expr":"histogram_quantile(0.95, rate(xf_index_build_seconds_bucket[5m]))","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":0,"y":0,"w":12,"h":8}},{"type":"timeseries","title":"Index size","targets":[{"expr":"xf_index_size_bytes","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":12,"y":0,"w":12,"h":8}}]}
+  xf-review.json: |
+    {"uid":"xf-review","title":"XF Review","schemaVersion":39,"version":1,"refresh":"30s","panels":[{"type":"timeseries","title":"Pending review","targets":[{"expr":"xf_review_pending_count","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":0,"y":0,"w":12,"h":8}},{"type":"timeseries","title":"Review throughput","targets":[{"expr":"xf_review_throughput_per_hour","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":12,"y":0,"w":12,"h":8}}]}
+  xf-scoring.json: |
+    {"uid":"xf-scoring","title":"XF Scoring","schemaVersion":39,"version":1,"refresh":"30s","panels":[{"type":"timeseries","title":"Score distribution","targets":[{"expr":"histogram_quantile(0.5, rate(xf_scoring_score_bucket[5m]))","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":0,"y":0,"w":12,"h":8}},{"type":"timeseries","title":"Rejected candidates","targets":[{"expr":"rate(xf_scoring_rejected_total[5m])","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":12,"y":0,"w":12,"h":8}}]}
+  xf-sentence-split.json: |
+    {"uid":"xf-sentence-split","title":"XF Sentence Split","schemaVersion":39,"version":1,"refresh":"30s","panels":[{"type":"timeseries","title":"Sentences per document","targets":[{"expr":"histogram_quantile(0.95, rate(xf_sentence_split_sentences_per_doc_bucket[5m]))","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":0,"y":0,"w":12,"h":8}},{"type":"timeseries","title":"Bad sentence ratio","targets":[{"expr":"xf_sentence_split_bad_sentence_ratio","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":12,"y":0,"w":12,"h":8}}]}
+  xf-suggestions.json: |
+    {"uid":"xf-suggestions","title":"XF Suggestions","schemaVersion":39,"version":1,"refresh":"30s","panels":[{"type":"timeseries","title":"Suggestions saved","targets":[{"expr":"rate(xf_suggestions_saved_total[5m])","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":0,"y":0,"w":12,"h":8}},{"type":"timeseries","title":"Suggestion confidence","targets":[{"expr":"histogram_quantile(0.5, rate(xf_suggestions_confidence_bucket[5m]))","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":12,"y":0,"w":12,"h":8}}]}
+  xf-system-health.json: |
+    {"uid":"xf-system-health","title":"XF System Health","schemaVersion":39,"version":1,"refresh":"30s","panels":[{"type":"timeseries","title":"CPU seconds","targets":[{"expr":"rate(xf_system_cpu_seconds_total[5m])","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":0,"y":0,"w":12,"h":8}},{"type":"timeseries","title":"Queue depth","targets":[{"expr":"xf_queue_depth","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":12,"y":0,"w":12,"h":8}},{"type":"timeseries","title":"Observability targets","targets":[{"expr":"up","datasource":{"uid":"victoriametrics","type":"prometheus"}}],"gridPos":{"x":0,"y":8,"w":24,"h":8}}]}
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: xf-obs

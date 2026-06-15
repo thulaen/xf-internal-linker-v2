@@ -1,0 +1,171 @@
+# Generated from source config for SLICE-21 (unchanged from the docker-compose version).
+# Regenerate: kubectl create configmap vmalert-rules -n xf-obs --from-file=rules.yml=config/vmalert/rules.yml --dry-run=client -o yaml
+apiVersion: v1
+data:
+  rules.yml: |
+    groups:
+      - name: xf-stack-up
+        interval: 30s
+        rules:
+          - alert: StackUp
+            expr: up{job="vmsingle"} == 1
+            for: 30s
+            labels:
+              severity: low
+            annotations:
+              summary: "VictoriaMetrics is being scraped"
+              description: "The metrics database is reachable through vmagent."
+              trap: "The stack can look broken if vmagent is down, even when vmsingle is up."
+              fix_shape: "Check vmagent scrape status before changing metric producers."
+
+      - name: xf-reserved-alerts
+        interval: 30s
+        rules:
+          - alert: ImportFailuresHigh
+            expr: rate(xf_import_failures_total[10m]) > 0.5
+            for: 5m
+            labels:
+              severity: high
+            annotations:
+              summary: "Import failures are high"
+              description: "The import failure rate is above 0.5 per second."
+              trap: "A source outage can look like a parser bug."
+              fix_shape: "Check source API health, then importer error labels."
+          - alert: WebhookBacklogGrowing
+            expr: increase(xf_import_webhook_events_total[5m]) - increase(xf_import_posts_total[5m]) > 100
+            for: 5m
+            labels:
+              severity: medium
+            annotations:
+              summary: "Webhook backlog is growing"
+              description: "Webhook events are arriving faster than posts are imported."
+              trap: "Counting received webhooks alone hides processing lag."
+              fix_shape: "Compare webhook and import counters over the same window."
+          - alert: EmbeddingQueueAgeHigh
+            expr: xf_queue_depth{queue="pipeline"} > 500
+            for: 10m
+            labels:
+              severity: high
+            annotations:
+              summary: "Embedding queue is too deep"
+              description: "The pipeline queue has stayed above 500 jobs."
+              trap: "Queue depth can rise from a paused worker rather than slow model code."
+              fix_shape: "Check worker liveness before tuning embedding code."
+          - alert: FaissSearchLatencyHigh
+            expr: histogram_quantile(0.95, sum(rate(xf_index_search_seconds_bucket[5m])) by (le)) > 1.0
+            for: 5m
+            labels:
+              severity: high
+            annotations:
+              summary: "FAISS search latency is high"
+              description: "The 95th percentile search latency is above one second."
+              trap: "Slow search can come from a stale or oversized index."
+              fix_shape: "Check index size and rebuild age before changing query logic."
+          - alert: SuggestionGenerationStopped
+            expr: rate(xf_suggestions_saved_total[10m]) == 0
+            for: 15m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Suggestion generation stopped"
+              description: "No suggestions have been saved for 15 minutes."
+              trap: "A quiet source can mimic a broken suggestion pipeline."
+              fix_shape: "Compare import rate, queue depth, and suggestion saves together."
+          - alert: DatabaseWriteErrors
+            expr: rate(xf_db_latency_seconds_count{operation=~"INSERT|UPDATE|DELETE",status="error"}[5m]) > 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Database write errors detected"
+              description: "At least one database write operation failed recently."
+              trap: "Retrying blindly can duplicate work."
+              fix_shape: "Find the exact operation label and make the write idempotent."
+          - alert: DiskSpaceLow
+            expr: xf_system_disk_usage_bytes / xf_system_disk_capacity_bytes > 0.85
+            for: 10m
+            labels:
+              severity: high
+            annotations:
+              summary: "Disk space is low"
+              description: "A monitored disk is above 85 percent usage."
+              trap: "Deleting random Docker volumes can destroy protected data."
+              fix_shape: "Use the disk-pressure circuit breaker and protected-store list."
+          - alert: ReviewBacklogTooLarge
+            expr: xf_review_pending_count > 1000
+            for: 30m
+            labels:
+              severity: medium
+            annotations:
+              summary: "Review backlog is too large"
+              description: "More than 1000 suggestions are waiting for review."
+              trap: "Generating more suggestions can make the user-facing backlog worse."
+              fix_shape: "Pause generation or prioritize review before expanding intake."
+
+      - name: xf-anomaly-and-budget
+        interval: 30s
+        rules:
+          - alert: VictoriaMetricsStorageOverflow
+            expr: vm_data_size_bytes > 2147483648
+            for: 5m
+            labels:
+              severity: high
+            annotations:
+              summary: "VictoriaMetrics storage exceeded 2 GB"
+              description: "Metrics storage crossed the planned laptop cap."
+              trap: "Retention deletes old samples but does not fix high-cardinality producers."
+              fix_shape: "Find the highest-cardinality metric before raising the cap."
+          - alert: ImportRateDropPredicted
+            expr: predict_linear(xf_import_posts_total[1h], 600) < 0
+            for: 10m
+            labels:
+              severity: medium
+            annotations:
+              summary: "Import rate is predicted to drop"
+              description: "The import trend suggests a near-term stall."
+              trap: "A trend alert is a warning, not proof of a crash."
+              fix_shape: "Draft a ticket and wait for confirmation before marking it proven."
+          - alert: CardinalityBudgetExceeded
+            expr: xf_active_series_per_tenant > 20000
+            for: 10m
+            labels:
+              severity: high
+            annotations:
+              summary: "A tenant is using too many metric series"
+              description: "One tenant crossed the reserved active-series budget."
+              trap: "High-cardinality labels usually look harmless in one request."
+              fix_shape: "Bucket or remove the label before increasing storage limits."
+          - alert: EmbeddingLatencyDrift
+            expr: histogram_quantile(0.95, sum(rate(xf_embedding_latency_seconds_bucket[5m])) by (le)) > 2 * histogram_quantile(0.95, sum(rate(xf_embedding_latency_seconds_bucket[1w] offset 1w)) by (le))
+            for: 10m
+            labels:
+              severity: high
+            annotations:
+              summary: "Embedding latency drifted upward"
+              description: "Current embedding latency is more than double the same window last week."
+              trap: "A model slowdown can be caused by queue pressure or CPU fallback."
+              fix_shape: "Compare runtime mode, queue depth, and model errors before tuning code."
+          - alert: ReservedMetricStale
+            expr: absent_over_time(xf_import_posts_total[6h]) or absent_over_time(xf_embedding_jobs_total[6h]) or absent_over_time(xf_suggestions_saved_total[6h])
+            for: 15m
+            labels:
+              severity: medium
+            annotations:
+              summary: "A reserved metric stopped emitting"
+              description: "One of the core reserved metrics has been absent long enough to hide failures."
+              trap: "A silent metric can make the stack look healthy while data is missing."
+              fix_shape: "Repair the producer or scrape target before changing alert thresholds."
+          - alert: ScoreDistributionShift
+            expr: abs(histogram_quantile(0.5, sum(rate(xf_scoring_score_bucket[30m])) by (le)) - histogram_quantile(0.5, sum(rate(xf_scoring_score_bucket[30m] offset 7d)) by (le))) > 0.1
+            for: 30m
+            labels:
+              severity: medium
+            annotations:
+              summary: "Scoring distribution shifted"
+              description: "The median score moved by more than 0.1 compared with the same window last week."
+              trap: "Score shifts can be intended after a ranking change."
+              fix_shape: "Correlate the shift with recent code and weight changes before filing a bug."
+kind: ConfigMap
+metadata:
+  name: vmalert-rules
+  namespace: xf-obs

@@ -1,0 +1,99 @@
+# VictoriaMetrics single-node store (SLICE-21).
+#
+# Plain English: the database that holds numeric metrics (how many imports ran,
+# queue depths, latencies, disk usage). Everything that produces metrics writes
+# here; Grafana and the alerter read from here. 30-day retention.
+#
+# Single replica, so a plain Deployment with "Recreate" (stop the old pod
+# before starting the new one) avoids two pods fighting over the same disk.
+# The disk is the fast SSD on Dell (ssd-hot), because metrics are written
+# continuously and must be fast — so the pod is pinned to Dell.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vmsingle-data
+  namespace: xf-obs
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: ssd-hot
+  resources:
+    requests:
+      storage: 30Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vmsingle
+  namespace: xf-obs
+  labels:
+    app: vmsingle
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vmsingle
+  template:
+    metadata:
+      labels:
+        app: vmsingle
+    spec:
+      priorityClassName: xf-obs
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: vmsingle
+          image: victoriametrics/victoria-metrics:v1.106.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-storageDataPath=/storage"
+            - "-retentionPeriod=30d"
+            - "-httpListenAddr=:8428"
+          env:
+            - name: GOMEMLIMIT
+              value: "450MiB"
+          ports:
+            - containerPort: 8428
+              name: http
+          volumeMounts:
+            - name: storage
+              mountPath: /storage
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8428
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8428
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: vmsingle-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmsingle
+  namespace: xf-obs
+  labels:
+    app: vmsingle
+spec:
+  selector:
+    app: vmsingle
+  ports:
+    - name: http
+      port: 8428
+      targetPort: 8428
+      protocol: TCP

@@ -1,0 +1,86 @@
+# Baseline network isolation for the observability namespace (SLICE-21).
+#
+# Plain English: by default nothing may open a connection INTO the monitoring
+# pods. We then open exactly the sources that are needed:
+#   1. other monitoring pods in THIS namespace (so vmagent -> vmsingle,
+#      otel-collector -> tempo, grafana -> loki/tempo all keep talking);
+#   2. the cluster's own wired network 10.10.10.0/24 (so each node's kubelet
+#      can run health probes, and so you can reach the Grafana/GlitchTip
+#      NodePorts from your machines);
+#   3. the APP namespace (xf-app), but ONLY on the telemetry ports — so the
+#      rehearsal backend + workers can push traces/metrics into the collector
+#      and browser error events into Alloy's Faro receiver.
+#
+# Like the app namespace, we restrict INGRESS only and leave EGRESS open: the
+# monitoring tools must reach OUT to the database pooler + cache in xf-app and
+# the Postgres host on Dell. The matching "let xf-obs reach in" rules live on
+# the xf-app side in k8s/network/xf-app-allow-obs-ingress.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: xf-obs
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cluster-ingress
+  namespace: xf-obs
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # other monitoring pods in THIS namespace
+        - podSelector: {}
+        # the wired cluster backbone — node kubelets (health probes) + reaching
+        # the Grafana/GlitchTip NodePorts from your machines on 10.10.10.x.
+        - ipBlock:
+            cidr: 10.10.10.0/24
+---
+# Telemetry intake from the app namespace. The app pods send from a pod IP
+# (10.42.x), which is NOT in 10.10.10.0/24, so they need this explicit
+# cross-namespace allow. Scoped to the telemetry ports only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-xf-app-telemetry
+  namespace: xf-obs
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: xf-app
+      ports:
+        - { protocol: TCP, port: 4317 }   # OTLP gRPC  -> otel-collector
+        - { protocol: TCP, port: 4318 }   # OTLP HTTP  -> otel-collector
+        - { protocol: TCP, port: 12347 }  # Faro RUM   -> alloy (browser events)
+---
+# Public NodePort access for the Grafana + GlitchTip dashboards. Like the app's
+# allow-frontend-web policy: NodePort traffic from your machines arrives with a
+# source that is NOT on the wired backbone, so it needs an explicit "allow from
+# anywhere" on the dashboard ports. Scoped to the two dashboard pods only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-obs-nodeports
+  namespace: xf-obs
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app, operator: In, values: ["grafana", "glitchtip"] }
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - { protocol: TCP, port: 3000 }   # Grafana UI
+        - { protocol: TCP, port: 8000 }   # GlitchTip UI

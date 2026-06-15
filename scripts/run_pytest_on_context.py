@@ -75,6 +75,8 @@ _SYNC_ROOTS = (
     "otelcol-config.yaml",
     # Read by apps.auto_issues.tests_loki_config (retention-window assertion).
     "loki-config.yaml",
+    # Read by apps.audit.tests_glitchtip_k8s_integrity (SLICE-21 manifest guard).
+    "k8s",
     "frontend/src/app",
     "scripts",
 )

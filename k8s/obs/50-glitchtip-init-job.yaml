@@ -1,0 +1,66 @@
+# GlitchTip database bootstrap (SLICE-21).
+#
+# Plain English: GlitchTip (error tracking) stores its data in its OWN database,
+# "glitchtip", inside the same Postgres on the Dell host that the app uses. This
+# one-shot job creates that database if it does not already exist (safe to run
+# again — it checks first, exactly like the docker-compose glitchtip-init step).
+#
+# GlitchTip is ABSOLUTE-protected: this job must keep the idempotent
+# "create the glitchtip database" behaviour, and the four GlitchTip workloads
+# (init, migrate, web, worker) must all stay present.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: glitchtip-init
+  namespace: xf-obs
+  labels:
+    app: glitchtip-init
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: glitchtip-init
+    spec:
+      restartPolicy: Never
+      priorityClassName: xf-obs
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      containers:
+        - name: init
+          image: postgres:17-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              if psql -tAc "SELECT 1 FROM pg_database WHERE datname='glitchtip'" | grep -q 1; then
+                echo "glitchtip database already exists"
+              else
+                psql -c "CREATE DATABASE glitchtip OWNER \"$PGUSER\""
+                echo "created glitchtip database"
+              fi
+          env:
+            - name: PGHOST
+              value: postgres.xf-obs.svc.cluster.local
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              value: postgres
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              memory: "128Mi"

@@ -1,0 +1,105 @@
+# Pyroscope — continuous profiling store (SLICE-21).
+#
+# Plain English: stores CPU/memory "profiles" (which functions are hot). The
+# otel-collector forwards profiles here, and Grafana shows them. This is the one
+# monitoring tool pinned to the MINT helper (the original design keeps profiling
+# off the worker machine). Because it runs on Mint and nfs-cold IS Mint's own
+# NFS disk, the pod and its data are co-located on Mint — no cross-node I/O.
+#
+# Config is generated unchanged from pyroscope.yaml (see cm-pyroscope-config.yaml):
+# single-node (target=all), filesystem storage, 30-day retention. Reached
+# in-cluster by its Service DNS (pyroscope:4040) — the old MINT_OBSERVABILITY_HOST
+# LAN-IP indirection is gone now that everything is inside the cluster.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pyroscope-data
+  namespace: xf-obs
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: nfs-cold
+  resources:
+    requests:
+      storage: 15Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pyroscope
+  namespace: xf-obs
+  labels:
+    app: pyroscope
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: pyroscope
+  template:
+    metadata:
+      labels:
+        app: pyroscope
+    spec:
+      priorityClassName: xf-obs
+      # Pinned to the Mint helper per the migration design.
+      nodeSelector:
+        kubernetes.io/hostname: minthelper01-lenovo-c50-30
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      containers:
+        - name: pyroscope
+          image: grafana/pyroscope:1.18.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-config.file=/etc/pyroscope/pyroscope.yaml"
+            - "-target=all"
+          env:
+            - name: GOMEMLIMIT
+              value: "450MiB"
+          ports:
+            - containerPort: 4040
+              name: http
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pyroscope
+              readOnly: true
+            - name: storage
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4040
+            initialDelaySeconds: 10
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: pyroscope-config
+        - name: storage
+          persistentVolumeClaim:
+            claimName: pyroscope-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pyroscope
+  namespace: xf-obs
+  labels:
+    app: pyroscope
+spec:
+  selector:
+    app: pyroscope
+  ports:
+    - name: http
+      port: 4040
+      targetPort: 4040
+      protocol: TCP

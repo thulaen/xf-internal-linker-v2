@@ -1,0 +1,33 @@
+# Let the observability namespace reach INTO the app namespace (SLICE-21).
+#
+# Plain English: the monitoring tools live in xf-obs but two of them must reach
+# pods that live in xf-app:
+#   * vmagent (the metrics scraper) reads the backend's /metrics/ on port 8000;
+#   * GlitchTip (error tracking) uses the cache (Valkey/redis) on port 6379.
+#
+# (The database is reached through xf-obs's OWN postgres Service, which points
+# straight at the Dell host — not through an xf-app pod — so no port-5432 rule
+# is needed here.)
+#
+# Those callers come from a pod IP (10.42.x), which the app's baseline policy
+# does NOT allow in. This additive policy opens exactly those two ports to the
+# xf-obs namespace and nothing else. It is kept in its own file so the SLICE-21
+# change does not edit the app's baseline policy. NetworkPolicies are additive
+# allow-lists, so this only widens, never narrows.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-obs-ingress
+  namespace: xf-app
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: xf-obs
+      ports:
+        - { protocol: TCP, port: 8000 }   # backend /metrics/  <- vmagent
+        - { protocol: TCP, port: 6379 }   # redis db 4         <- glitchtip

@@ -1,0 +1,101 @@
+# Loki — log store (SLICE-21).
+#
+# Plain English: the database that holds log lines. Alloy ships every pod's
+# logs here; Grafana reads them. 7-day retention. Logs are large but written at
+# a moderate rate and durability matters, so the data lives on the shared NFS
+# drive on Mint (nfs-cold). The pod runs on Dell and writes to that NFS share
+# over the wired backbone.
+#
+# Config is generated unchanged from loki-config.yaml (see cm-loki-config.yaml)
+# — all paths + retention are internal, nothing to rewrite. Runs as root so it
+# can write into the NFS-provisioned directory (matches the docker-compose
+# `user: "0:0"`).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-data
+  namespace: xf-obs
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: nfs-cold
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  namespace: xf-obs
+  labels:
+    app: loki
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+    spec:
+      priorityClassName: xf-obs
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      containers:
+        - name: loki
+          image: grafana/loki:3.3.2
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-config.file=/etc/loki/loki-config.yaml"
+          env:
+            - name: GOMEMLIMIT
+              value: "450MiB"
+          ports:
+            - { containerPort: 3100, name: http }
+            - { containerPort: 9096, name: grpc }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki
+              readOnly: true
+            - name: storage
+              mountPath: /loki
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3100
+            initialDelaySeconds: 15
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: loki-config
+        - name: storage
+          persistentVolumeClaim:
+            claimName: loki-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  namespace: xf-obs
+  labels:
+    app: loki
+spec:
+  selector:
+    app: loki
+  ports:
+    - { name: http, port: 3100, targetPort: 3100, protocol: TCP }
+    - { name: grpc, port: 9096, targetPort: 9096, protocol: TCP }
