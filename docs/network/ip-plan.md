@@ -56,3 +56,9 @@ Known MACs: Mint `enp2s0 = 98:ee:cb:26:46:c6`, Mint `wlp1s0 = 30:52:cb:97:c8:ab`
   Windows-era firewall rule `XF-Cluster-LAN` (allow `10.10.10.0/24`) is superseded by Ubuntu's setup.
 - Cross-node name resolution + clock-sync are recorded in `docs/network/time-and-name-resolution.md`
   (SLICE-04): both nodes resolve each other by name over the wired link, both clocks are NTP-synced.
+- **flannel backend = VXLAN, accepted (SLICE-07).** The plan preferred `host-gw` (no encapsulation, a
+  little faster). We keep **VXLAN** because switching a *live remote* cluster's network backend restarts
+  networking on both nodes (it would risk cutting off the only remote control path mid-migration) for a
+  ~5–10% encapsulation saving that does not matter on a 1 Gbps wired link this workload never saturates.
+  `host-gw` stays viable (both nodes are layer-2 adjacent on `10.10.10.0/24`); revisit only in a
+  maintenance window with console access if measured throughput ever proves insufficient.

@@ -1,0 +1,22 @@
+# Least-privilege service-account posture for the app namespace (SLICE-07).
+#
+# Plain English: every pod is handed a key to phone the Kubernetes control system
+# (the "API server"). Our app pods — the backend, the workers, the website, the
+# cache, the broker — never phone it. A key they never use is just extra risk if a
+# pod is ever broken into. This turns that key OFF for the namespace's default
+# account, so pods come up without one.
+#
+# It is safe: this account already has ZERO permissions (no RoleBindings), so the
+# key could not do anything useful anyway — this removes it entirely as defence in
+# depth. Any future pod that genuinely needs API access gets its OWN account with
+# an explicit, narrow Role (none exists today because nothing needs it).
+#
+# Existing pods keep their token until their next restart; new pods are tokenless
+# immediately. Restarts happen routinely across this migration, so the running set
+# converges on the tokenless posture without a forced, gratuitous rollout here.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: xf-app
+automountServiceAccountToken: false
