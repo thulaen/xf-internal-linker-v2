@@ -1,0 +1,69 @@
+# Namespace resource governance for the app (SLICE-09).
+#
+# Plain English: two safety nets for the app namespace.
+#
+#   1. LimitRange — fills in sensible defaults. If anyone ever launches a pod or
+#      asks for disk WITHOUT saying how much it needs, Kubernetes injects a small
+#      default instead of letting it ask for nothing (which would dodge the caps
+#      below) or everything. It also sets a hard per-container memory ceiling and
+#      a per-disk-claim size ceiling so one item can't be absurd.
+#
+#   2. ResourceQuota — a ceiling for the WHOLE namespace. The app can't, in total,
+#      reserve more CPU/memory than the worker machine can give, can't open more
+#      disk claims than expected, and — most importantly — can't exhaust the small
+#      fast SSD on Dell or the shared NFS drive on Mint, because each storage tier
+#      has its own cap.
+#
+# Sized from measured live usage (requests ~1.15 CPU / ~4 GiB, memory limits
+# ~16.5 GiB, storage ~3 GiB) with generous headroom so normal rollouts and the
+# future test runners are never rejected; these are runaway ceilings, not tight
+# packing. NOTE: no CPU *limit* is quota'd, because the app pods deliberately run
+# CPU-burstable (they set CPU requests but no CPU limit); quota'ing limits.cpu
+# would force a throttle on them.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: xf-app-defaults
+  namespace: xf-app
+spec:
+  limits:
+    - type: Container
+      # Injected only when a container omits the value (the real app containers
+      # all set their own). No default CPU *limit* -> stays burstable.
+      defaultRequest:
+        cpu: "50m"
+        memory: "64Mi"
+      default:
+        memory: "512Mi"
+      max:
+        memory: "8Gi"   # accommodates the 5Gi celery-default ceiling + headroom
+    - type: PersistentVolumeClaim
+      defaultRequest:
+        storage: "1Gi"
+      default:
+        storage: "1Gi"
+      max:
+        storage: "100Gi"
+      min:
+        storage: "100Mi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: xf-app-quota
+  namespace: xf-app
+spec:
+  hard:
+    # Compute ceilings (well above the ~1.15 CPU / ~4 GiB requested today).
+    requests.cpu: "16"
+    requests.memory: "12Gi"
+    limits.memory: "32Gi"
+    # Object-count ceilings.
+    pods: "40"
+    persistentvolumeclaims: "20"
+    # Storage ceilings — overall, then per tier so neither disk can be drained.
+    requests.storage: "160Gi"
+    ssd-hot.storageclass.storage.k8s.io/requests.storage: "60Gi"
+    ssd-hot.storageclass.storage.k8s.io/persistentvolumeclaims: "12"
+    nfs-cold.storageclass.storage.k8s.io/requests.storage: "100Gi"
+    nfs-cold.storageclass.storage.k8s.io/persistentvolumeclaims: "12"
