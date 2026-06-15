@@ -67,20 +67,26 @@ healthy gigabit cable.
 - **Scenario 5 — addresses survive a reboot.** Given the static wired IPs and DHCP-reserved WiFi IPs,
   When each machine reboots, Then it returns to the same address.
 
-## Test entry points (implemented in SLICE-02)
+## Test entry points (implemented 2026-06-15, now Dell runs Linux)
 
-The reachability matrix above was captured by hand on 2026-06-14 (commands in the AGENT-HANDOFF entry).
-The repeatable scripts land in **SLICE-02**, once Dell runs Linux. Drafting them in this slice surfaced
-two things to settle first, both clean on a Linux Dell with stable addressing:
+The reachability matrix above was first captured by hand on 2026-06-14. The repeatable scripts were
+drafted to land "in SLICE-02"; they are now written and **pass on the live two-node cluster** (Dell is
+Linux, addresses stable). Two things settled during drafting, both clean now:
 
-1. **Dell's Windows firewall now drops ICMP** — `ping` to Dell fails even though TCP/SSH works, so
-   reachability checks must probe a **TCP port** (e.g. 22), not only `ping`.
-2. **From MSI the Mint SSH target must be Mint's WiFi** (`192.168.0.91` / the `mint-wifi` alias) — the
-   old cable IP `10.10.10.91` is no longer reachable from MSI now that the cable moved to Dell↔Mint.
+1. **ICMP is no longer blocked** — Dell ran Windows (which dropped `ping`) at draft time; on Ubuntu
+   `ping` works both ways. The scripts still also probe a **TCP port** to prove more than ping.
+2. **From MSI the control path is `kubectl`** to Mint's WiFi (`192.168.0.91` / the `mint-wifi` alias);
+   the old cable IP `10.10.10.91` is reachable only between the nodes over the wire.
 
-- `tools/preflight/test_lan_matrix.sh` — ping/TCP reachability matrix + `iperf3` Dell↔Mint throughput.
-- `tools/preflight/test_drop_resilience.sh` — checksum-verified, retried transfer to a cluster node.
-- Shared probes extend `tools/preflight/lib.sh`.
+- `tools/preflight/test_lan_matrix.sh` — MSI→API control path, gigabit wired link-speed check, ping +
+  TCP reachability matrix, and a best-effort `iperf3` Dell↔Mint throughput measurement
+  (**measured 941 Mbit/s on the 1 Gbps cable, 2026-06-15**).
+- `tools/preflight/test_drop_resilience.sh` — checksum-verified, retried transfer to a cluster node
+  that deliberately corrupts the remote copy to prove the checksum catches it (never a false pass).
+- `tools/preflight/test_cluster_time_and_names.sh` — the SLICE-04 clock-sync + name-resolution check.
+- Shared probes live in `tools/preflight/cluster_lib.sh` (the cluster-era library; the older `lib.sh`
+  is the superseded WSL2-on-Dell preflight library). All three scripts run under git-bash (they refuse
+  to run under WSL, whose `ssh` cannot see the Windows host aliases).
 
 ## Out of scope
 

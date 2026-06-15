@@ -7,37 +7,18 @@
 # its number, over the private wired cable. Run it from MSI; it logs into both
 # machines over SSH (aliases "dell" and "mint-wifi") and checks read-only state.
 #
-# Usage:  bash tools/preflight/test_cluster_time_and_names.sh
+# Run with git-bash (NOT WSL):
+#   /bin/bash tools/preflight/test_cluster_time_and_names.sh
 # Exit 0 = every check passed; non-zero = at least one failed (message on stderr).
 
-set -u
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=cluster_lib.sh
+. "$HERE/cluster_lib.sh"
+cluster_require_gitbash "$0"
 
-# Must run under git-bash, NOT the WSL bash. WSL's ssh reads a different config
-# and cannot see the Windows ~/.ssh/config host aliases (dell, mint-wifi), so
-# every remote check would silently return empty. Fail loudly with the fix.
-if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
-    printf 'FAIL: run this under git-bash, not WSL.\n' >&2
-    printf '  WHY: WSL ssh lacks the Windows ~/.ssh/config aliases (dell, mint-wifi),\n' >&2
-    printf '       so every remote check returns empty ("no answer").\n' >&2
-    printf '  FIX: re-run with git-bash:  /bin/bash %s\n' "$0" >&2
-    exit 2
-fi
-
-DELL_SSH="${DELL_SSH:-dell}"
-MINT_SSH="${MINT_SSH:-mint-wifi}"
 MINT_NODE="${MINT_NODE:-minthelper01-lenovo-c50-30}"
 DELL_NODE="${DELL_NODE:-dell-ubuntu-01-optiplex-micro-7010}"
-MINT_WIRED_IP="${MINT_WIRED_IP:-10.10.10.91}"
-DELL_WIRED_IP="${DELL_WIRED_IP:-10.10.10.92}"
 MAX_CLOCK_OFFSET_SECONDS="${MAX_CLOCK_OFFSET_SECONDS:-2}"
-
-failures=0
-pass() { printf 'PASS: %s\n' "$1"; }
-fail() { printf 'FAIL: %s\n' "$1" >&2; failures=$((failures + 1)); }
-
-ssh_host() {
-    ssh -o BatchMode=yes -o ConnectTimeout=8 "$1" "$2" 2>/dev/null
-}
 
 # A host's clock is healthy when systemd reports it synchronized AND chrony's
 # own offset from true time is under the tolerance.
@@ -78,9 +59,4 @@ assert_resolves_peer "Mint" "$MINT_SSH" "$DELL_NODE" "$DELL_WIRED_IP"
 assert_reaches_peer "Dell" "$DELL_SSH" "$MINT_NODE" 6443
 assert_reaches_peer "Mint" "$MINT_SSH" "$DELL_NODE" 5432
 
-if [ "$failures" -eq 0 ]; then
-    printf '\nALL CHECKS PASSED: cluster clocks agree and both nodes resolve each other by name.\n'
-    exit 0
-fi
-printf '\n%d CHECK(S) FAILED.\n' "$failures" >&2
-exit 1
+cluster_exit
