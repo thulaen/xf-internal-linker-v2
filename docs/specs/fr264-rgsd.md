@@ -22,7 +22,7 @@ We could not verify the originally-cited title (*Geodesic Semantic Search: Carto
 | **Full citation** | Nickel, M., & Kiela, D. (2017). *Poincaré Embeddings for Learning Hierarchical Representations.* Advances in Neural Information Processing Systems 30 (NeurIPS 2017). arXiv:1705.08039. https://arxiv.org/abs/1705.08039 |
 | **Why this reference** | This is the seminal demonstration that embedding-space distance is more accurate when measured along a curved Riemannian manifold than along a flat Euclidean/cosine line, especially where the data is dense or hierarchical. That is exactly the blind spot RGSD corrects. |
 | **What we faithfully reproduce** | The core principle: the true distance between two points should grow where the surrounding space is "warped" by local density, rather than being read straight off a flat cosine line. |
-| **What we deliberately diverge on** | We do not learn a full hyperbolic embedding or integrate a differential-equation solver on the hot path. We use a cheap first-order algebraic correction, `D_geo = D_flat * (1 + k * density_gradient)`, where `density_gradient` is a precomputed local-density scalar that stands in for the manifold curvature. |
+| **What we deliberately diverge on** | We do not learn a full hyperbolic embedding or integrate a differential-equation solver on the hot path. We use a cheap first-order algebraic correction, `D_geo = D_flat * (1 + k * density_gradient)`, where `density_gradient` is the stored graph local-clustering value for the destination page and stands in for local density. The flat distance comes from the already-computed semantic score for the candidate. |
 
 ---
 
@@ -31,8 +31,8 @@ We could not verify the originally-cited title (*Geodesic Semantic Search: Carto
 | Concept | Meaning | Code identifier | File |
 |---|---|---|---|
 | `x, y` | Node embeddings | `dense_embeddings` | existing pipeline matrix |
-| curvature / local density | The "warping" of the space near each node | `density_gradients` | precomputed Python-side, passed to the kernel |
-| `D_flat` | Flat cosine distance in `[0, 1]` between the pair | `flat_distances` | precomputed Python-side, passed to the kernel |
+| curvature / local density | The "warping" of the space near each node | `NodeGraphSignal.local_clustering` loaded into `density_gradients` | stored by `graph_signal_job.py`, loaded by `pipeline_data.py` |
+| `D_flat` | Flat cosine distance in `[0, 1]` between the pair | `1 - score_semantic` | resolved in `ranker.py` / `advanced_graph_signals.py` |
 | `k` | Curvature penalty (strength of the correction) | `rgsd_curvature_penalty` | `recommended_weights.py` |
 | `D_geo` → score | Geodesic distance, then inverted to a relevance score | `evaluate_advanced_graph_signals_core()` (RGSD branch) | `rust/extensions/advanced_graph_signals/src/lib.rs` |
 
@@ -93,7 +93,7 @@ RGSD returns `0.0` when:
 | Decision | Choice | Justification |
 |---|---|---|
 | **Language** | Rust via PyO3 | SIMD-accelerated vector math combined with gradient lookups is perfectly suited for Rust on the hot-path. |
-| **Precompute** | `embedding_density_gradients` | Computed in python via SciPy during the pipeline run using nearest-neighbors. |
+| **Precompute** | `local_clustering` | Computed in the daily graph-signal snapshot and reused as RGSD's density scalar. |
 | **Module location** | `rust/extensions/advanced_graph_signals` | High-performance compiled library. |
 
 ---
@@ -101,6 +101,7 @@ RGSD returns `0.0` when:
 ## Hardware Budget
 - RAM: ~1.5 MB for density gradient scalars.
 - CPU: < 10 μs per candidate (vector dot products + scalar adjustments).
+- Dell proof, 2026-06-16: request-time RGSD semantic-distance resolution benchmarked at 502 us for 100 candidates, 4.92 ms for 1,000 candidates, and 55.89 ms for 10,000 candidates.
 
 ---
 
@@ -110,7 +111,7 @@ Outputs `rgsd_diagnostics` JSON field containing `flat_distance`, `geodesic_dist
 ---
 
 ## Benchmark Plan
-Criterion benchmarks ensuring < 10 μs per evaluation.
+Criterion benchmarks ensure < 10 μs per kernel evaluation. Pytest benchmark coverage proves the Python request-time distance-resolution path at 100, 1,000, and 10,000 candidates.
 
 ---
 
@@ -125,6 +126,7 @@ All Gate A boxes pass.
 ---
 
 ## Pending
-- [ ] Precompute logic for density gradients.
-- [ ] Rust kernel implementation using SIMD (e.g., `std::arch` or `ndarray`).
-- [ ] Python dispatcher integration.
+- [x] Stored density-gradient loading from the current graph snapshot.
+- [x] Rust kernel implementation.
+- [x] Python dispatcher integration.
+- [x] Production ranker passes candidate semantic scores for flat-distance resolution.

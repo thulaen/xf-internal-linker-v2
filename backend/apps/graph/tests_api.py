@@ -6,6 +6,7 @@ from apps.content.models import ContentItem
 from apps.graph.api import (
     current_icpc_degrees,
     current_node_communities,
+    current_rgsd_density_gradients,
     current_sbma_blocks,
     current_tosd_lambdas,
     get_current_run,
@@ -140,3 +141,21 @@ class GraphAPITests(TestCase):
         )
 
         self.assertEqual(current_tosd_lambdas(), {(self.item1.pk, "1"): 0.25})
+
+    def test_current_rgsd_density_gradients_returns_current_local_density(self):
+        """Given a current run, When callers ask for RGSD, Then stored density is returned."""
+        run = GraphSignalRun.objects.create(
+            graph_hash="hash",
+            signal_version="v1",
+            node_count=1,
+            edge_count=1,
+            status=GraphSignalRun.STATUS_CURRENT,
+        )
+        NodeGraphSignal.objects.create(
+            run=run,
+            content_item=self.item1,
+            community_id=1,
+            local_clustering=0.4,
+        )
+
+        self.assertEqual(current_rgsd_density_gradients(), {(self.item1.pk, "1"): 0.4})

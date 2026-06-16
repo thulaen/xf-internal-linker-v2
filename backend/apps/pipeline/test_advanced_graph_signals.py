@@ -137,6 +137,21 @@ class DispatcherInputRoutingTests(SimpleTestCase):
             )
         self.assertEqual(kernel.evaluate_batch.call_args.args[ARG_FLAT][0], 1.0)
 
+    def test_rgsd_uses_semantic_score_as_flat_distance_when_pair_cache_missing(self):
+        kernel = _mock_kernel()
+        caches = _caches()
+        caches.flat_distances.clear()
+        with mock.patch(KERNEL_PATH, return_value=kernel):
+            evaluate_advanced_graph_signals_batch(
+                [(HOST, DEST)],
+                caches,
+                AdvancedGraphSignalsSettings(),
+                [False],
+                semantic_scores=[0.8],
+            )
+
+        self.assertAlmostEqual(kernel.evaluate_batch.call_args.args[ARG_FLAT][0], 0.2)
+
 
 class DispatcherFallbackTests(SimpleTestCase):
     def test_missing_node_forces_neutral_zero(self):

@@ -519,6 +519,8 @@ When you must mention a technical concept, use the plain-English version from th
 | Stochastic Block Model Affinity — a ranking signal that scores a possible link by the stored chance that the host page's structural block links to the destination page's structural block | SBMA |
 | a stored table where each row and column is a page block, and each cell is the learned chance of links from one block to another | block transition matrix |
 | a saved block number for a page, used by SBMA so request-time ranking can do a direct lookup instead of recomputing graph structure | page block assignment |
+| Riemannian Geodesic Semantic Distance — a ranking signal that lowers a candidate when semantic distance is made worse by dense local graph structure | RGSD |
+| the candidate's flat semantic distance, computed as one minus the existing semantic score | flat semantic distance |
 | the MIT open-source software license | MIT |
 | an internal identifier for a Rust correctness bug record | RUSTBUG-CORR-004 |
 | an internal identifier for a Rust correctness bug record | RUSTBUG-CORR-007 |

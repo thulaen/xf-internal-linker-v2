@@ -303,6 +303,9 @@ def _build_advanced_graph_signals_caches(
     node_blocks, block_transition_matrix = _build_sbma_block_arrays(
         node_to_index=node_to_index,
     )
+    density_gradients = _build_rgsd_density_array(
+        node_to_index=node_to_index,
+    )
     size = len(node_to_index)
     return AdvancedGraphSignalsCaches(
         node_to_index=node_to_index,
@@ -313,7 +316,7 @@ def _build_advanced_graph_signals_caches(
         global_degrees=global_degrees,
         block_probabilities={},
         flat_distances={},
-        density_gradients=np.zeros(size, dtype=np.float64),
+        density_gradients=density_gradients,
         persona_matches={},
         node_blocks=node_blocks,
         block_transition_matrix=block_transition_matrix,
@@ -380,6 +383,26 @@ def _build_sbma_block_arrays(
         if index is not None:
             node_blocks[index] = int(block_id)
     return node_blocks, matrix
+
+
+def _build_rgsd_density_array(
+    *,
+    node_to_index: dict[ContentKey, int],
+) -> np.ndarray:
+    """Return RGSD density values from the current graph run."""
+    try:
+        from apps.graph.api import current_rgsd_density_gradients
+
+        precomputed = current_rgsd_density_gradients()
+    except Exception:
+        logger.exception("Failed to load current RGSD graph density values.")
+        precomputed = {}
+    density_gradients = np.zeros(len(node_to_index), dtype=np.float64)
+    for key, value in precomputed.items():
+        index = node_to_index.get(key)
+        if index is not None:
+            density_gradients[index] = float(value)
+    return density_gradients
 
 
 # ---------------------------------------------------------------------------

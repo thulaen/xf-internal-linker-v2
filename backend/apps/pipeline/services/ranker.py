@@ -801,6 +801,10 @@ def score_destination_matches(
             advanced_graph_signals_caches,
             advanced_graph_signals_settings,
             is_cross_silo,
+            semantic_scores=[
+                float(candidate["match"].score_semantic)
+                for candidate in pending_candidates
+            ],
         )
 
     # W3c graph-signal contribution (picks #29 / #30 / #36).

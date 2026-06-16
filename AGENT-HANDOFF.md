@@ -1,3 +1,37 @@
+## 2026-06-16 - Codex - FR260-265 Slice 5 RGSD ranker wiring
+
+[HANDOFF READ: 2026-06-15 by Codex - FR260-265 Slice 2 ICPC work was implemented and verified, but the commit was blocked by scheduled-updates database connection failures.]
+[PROGRESS: Slice 3 SBMA committed as 25f77d7. Slice 4 TOSD committed as 7b9376d. Slice 5 RGSD is implemented and verified for commit. The remaining mission still needs Slice 6 CSBR, Slice 7 DSTP, the Dell Rust chip, and Bazel phases 2-6. Nothing was pushed.]
+
+**What I did (plain English):** I made RGSD, the curved-distance semantic correction, use real request-time inputs. It now reuses the graph snapshot's stored local-clustering value as the density value, and the production ranker passes each candidate's semantic score so the dispatcher can compute the flat semantic distance as `1 - score_semantic`.
+
+**What now works that did not before:**
+- The graph public API exposes current RGSD density values from stored graph snapshot data.
+- The pipeline loads RGSD density values into `density_gradients` instead of using an all-zero array.
+- The dispatcher resolves flat semantic distance from the candidate semantic score when no pair-distance cache exists.
+- The production ranker passes candidate semantic scores into the advanced graph dispatcher.
+- The RGSD spec and glossary now match the shipped implementation.
+
+**Files changed:** `backend/apps/graph/api.py`, `backend/apps/graph/tests_api.py`, `backend/apps/pipeline/services/advanced_graph_signals.py`, `backend/apps/pipeline/services/pipeline_data.py`, `backend/apps/pipeline/services/ranker.py`, `backend/apps/pipeline/test_advanced_graph_ranker_wiring.py`, `backend/apps/pipeline/test_advanced_graph_signals.py`, `backend/benchmarks/test_bench_advanced_graph_signals.py`, `docs/specs/fr264-rgsd.md`, `PLAIN-ENGLISH-RULE.md`, and this handoff file.
+
+**Direct verification done:**
+- Focused Dell pytest first failed before code because the RGSD graph API did not exist. turbo=used.
+- Focused Dell pytest passed for RGSD API loading, cache loading, dispatcher flat-distance resolution, and production ranker semantic-score passing. turbo=used.
+- Dell benchmark discovery passed for RGSD semantic-distance resolution at 100, 1,000, and 10,000 candidates. turbo=used.
+- Direct Dell pytest-benchmark passed. turbo=used. Mean times were about 502 microseconds, 4.92 milliseconds, and 55.89 milliseconds.
+- Dell Ruff passed for touched Python files. turbo=used.
+- Dell mypy passed for touched production Python files. turbo=used; Mint probe timed out but no work was assigned there.
+- Dell Bandit passed for touched production Python files. turbo=used.
+- Django `makemigrations --check --dry-run` reported `No changes detected`.
+
+**Issues filed or resolved:** No new AutoIssue was needed.
+
+**What has issues or errors:** The mypy machine probe for Mint timed out, but the actual type-check work ran on Dell and passed. The split pytest runner disables benchmark timing, so I used the split runner for discovery and a direct Dell benchmark command for timing evidence. The wider mission is not complete yet; this entry covers Slice 5 only.
+
+**Tech-debt delta:** Net positive. RGSD reuses existing graph snapshot storage instead of adding duplicate density storage.
+
+[COVERAGE SUMMARY: target=90% actual=0% measured - not met; focused behavior tests passed, but line coverage was not measured for this slice.]
+
 ## 2026-06-16 - Codex - FR260-265 Slice 4 TOSD precompute and ranker wiring
 
 [HANDOFF READ: 2026-06-15 by Codex - FR260-265 Slice 2 ICPC work was implemented and verified, but the commit was blocked by scheduled-updates database connection failures.]

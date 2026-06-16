@@ -71,6 +71,21 @@ def current_tosd_lambdas() -> dict[tuple[int, str], float]:
     }
 
 
+def current_rgsd_density_gradients() -> dict[tuple[int, str], float]:
+    """Return current RGSD density values keyed by content key."""
+    run = get_current_run()
+    if not run:
+        return {}
+    rows = NodeGraphSignal.objects.filter(
+        run=run,
+        local_clustering__isnull=False,
+    ).values_list("content_item_id", "content_item__content_type", "local_clustering")
+    return {
+        (pk, str(content_type)): float(local_clustering)
+        for pk, content_type, local_clustering in rows
+    }
+
+
 def current_sbma_blocks() -> tuple[dict[tuple[int, str], int], dict[tuple[int, int], float]]:
     """Return current SBMA node blocks and block transition probabilities."""
     run = get_current_run()

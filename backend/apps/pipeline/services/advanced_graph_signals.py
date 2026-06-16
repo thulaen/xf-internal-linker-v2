@@ -129,6 +129,7 @@ def evaluate_advanced_graph_signals_batch(
     caches: AdvancedGraphSignalsCaches | None,
     settings: AdvancedGraphSignalsSettings,
     is_cross_silo: list[bool],
+    semantic_scores: list[float] | None = None,
 ) -> list[AdvancedGraphSignalsEvaluation]:
     """Evaluate the 6 advanced graph signals for a batch of host -> dest pairs."""
     n = len(host_dest_pairs)
@@ -137,7 +138,12 @@ def evaluate_advanced_graph_signals_batch(
     if caches is None:
         return [_inactive_eval("cold_start_no_graph") for _ in range(n)]
 
-    inputs, resolved = _resolve_signal_inputs(host_dest_pairs, caches, is_cross_silo)
+    inputs, resolved = _resolve_signal_inputs(
+        host_dest_pairs,
+        caches,
+        is_cross_silo,
+        semantic_scores,
+    )
 
     try:
         kernel = load_kernel("extensions.advanced_graph_signals", "evaluate_batch")
@@ -170,6 +176,7 @@ def _resolve_signal_inputs(
     host_dest_pairs: list[tuple[ContentKey, ContentKey]],
     caches: AdvancedGraphSignalsCaches,
     is_cross_silo: list[bool],
+    semantic_scores: list[float] | None = None,
 ) -> tuple[dict[str, np.ndarray], list[bool]]:
     """Gather per-candidate kernel inputs from the caches.
 
@@ -221,7 +228,7 @@ def _resolve_signal_inputs(
                 sbma_resolved[i] = 1
         elif (h, d) in caches.block_probabilities:
             sbma_resolved[i] = 1
-        flat[i] = caches.flat_distances.get((h, d), 1.0)
+        flat[i] = _resolve_flat_distance(caches, h, d, semantic_scores, i)
         persona[i] = caches.persona_matches.get((h, d), 0.0)
 
     inputs = {
@@ -240,6 +247,22 @@ def _resolve_signal_inputs(
         "is_cross_silo": np.asarray(is_cross_silo, dtype=np.uint8),
     }
     return inputs, resolved
+
+
+def _resolve_flat_distance(
+    caches: AdvancedGraphSignalsCaches,
+    host_index: int,
+    dest_index: int,
+    semantic_scores: list[float] | None,
+    position: int,
+) -> float:
+    """Resolve RGSD flat distance from cache or the current semantic score."""
+    cached = caches.flat_distances.get((host_index, dest_index))
+    if cached is not None:
+        return cached
+    if semantic_scores is None or position >= len(semantic_scores):
+        return 1.0
+    return 1.0 - min(1.0, max(0.0, float(semantic_scores[position])))
 
 
 def _resolve_sbma_probability(

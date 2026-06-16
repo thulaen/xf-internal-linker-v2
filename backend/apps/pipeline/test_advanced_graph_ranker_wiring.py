@@ -181,6 +181,46 @@ class AdvancedGraphCacheBuilderTests(TestCase):
         self.assertEqual(caches.spectral_scores[host_index], 0.75)
         self.assertEqual(caches.spectral_scores[dest_index], 0.25)
 
+    def test_rgsd_cache_uses_current_graph_snapshot_density(self):
+        host = ContentItem.objects.create(content_id=41, content_type="thread")
+        dest = ContentItem.objects.create(content_id=42, content_type="thread")
+        run = GraphSignalRun.objects.create(
+            graph_hash="hash",
+            signal_version="v1",
+            node_count=2,
+            edge_count=1,
+            status=GraphSignalRun.STATUS_CURRENT,
+        )
+        NodeGraphSignal.objects.create(
+            run=run,
+            content_item=host,
+            community_id=1,
+            local_clustering=0.8,
+        )
+        NodeGraphSignal.objects.create(
+            run=run,
+            content_item=dest,
+            community_id=2,
+            local_clustering=0.3,
+        )
+        records = {
+            (host.pk, "thread"): _record(host.pk),
+            (dest.pk, "thread"): _record(dest.pk),
+        }
+
+        caches = _build_advanced_graph_signals_caches(
+            content_records=records,
+            advanced_graph_signals_settings=AdvancedGraphSignalsSettings(),
+            progress_fn=lambda *_args, **_kwargs: None,
+        )
+
+        if caches is None:
+            self.fail("Expected advanced graph signal caches to be built.")
+        host_index = caches.node_to_index[(host.pk, "thread")]
+        dest_index = caches.node_to_index[(dest.pk, "thread")]
+        self.assertEqual(caches.density_gradients[host_index], 0.8)
+        self.assertEqual(caches.density_gradients[dest_index], 0.3)
+
 
 class AdvancedGraphRankerWiringTests(TestCase):
     def test_ranker_adds_advanced_graph_scores_and_uses_host_silo(self):
@@ -198,7 +238,7 @@ class AdvancedGraphRankerWiringTests(TestCase):
         }
         matches = [
             SentenceSemanticMatch(same_host.content_id, "thread", 1, 0.8),
-            SentenceSemanticMatch(cross_host.content_id, "thread", 2, 0.8),
+            SentenceSemanticMatch(cross_host.content_id, "thread", 2, 0.6),
         ]
         evals = [
             AdvancedGraphSignalsEvaluation(
@@ -236,6 +276,7 @@ class AdvancedGraphRankerWiringTests(TestCase):
             )
 
         self.assertEqual(mock_eval.call_args.args[3], [False, True])
+        self.assertEqual(mock_eval.call_args.kwargs["semantic_scores"], [0.8, 0.6])
         by_host = {candidate.host_content_id: candidate for candidate in scored}
         self.assertAlmostEqual(by_host[200].score_icpc, 0.7)
         self.assertEqual(by_host[200].icpc_diagnostics, {"score": 0.7})
