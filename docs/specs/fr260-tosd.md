@@ -21,7 +21,7 @@ Scope:
 | **Citation note** | The earlier draft named a paper *"TimeMM: Time-as-Operator Spectral Filtering for Dynamic Multimodal Recommendation" (2026, arXiv)* with no arXiv ID, DOI, or URL. A web search on 2026-06-15 could not find any paper by that title on arXiv or anywhere else, so it is treated as unverifiable and is NOT used as the citation. Instead we cite the verified foundational graph-signal-processing reference above, which defines the spectral graph filtering framework — including the low-pass filter `H(λ) = 1 / (1 + αλ)` (graph Tikhonov / low-pass form) — that TOSD actually implements. |
 | **Relevant sections** | Shuman et al. §III "Graph Spectral Filtering" (defining a graph filter as a function `H(λ)` applied to the Laplacian eigenvalues) and §IV (polynomial / Chebyshev approximation of graph filters). |
 | **What we faithfully reproduce** | We use the low-pass spectral graph filtering function `H(λ) = 1 / (1 + αλ)`, where `λ` are the eigenvalues of the normalized graph Laplacian and `α` is the filter strength. This is the standard graph Tikhonov low-pass filter: larger `λ` (faster, more erratic variation across the graph) is attenuated more, while `λ = 0` (a perfectly stable, low-frequency component) passes through unchanged at `H(0) = 1.0`. |
-| **What we deliberately diverge on** | The foundational reference describes graph spectral filtering on a single static graph. For the hot-path latency budget we approximate the spectral operator using a fast low-order polynomial (Chebyshev) expansion on a static snapshot of the graph, evaluating it directly during ranking via our Rust kernel rather than performing a full eigendecomposition. |
+| **What we deliberately diverge on** | The foundational reference describes graph spectral filtering over full graph signals. For the hot-path latency budget, the daily graph job stores a bounded normalized-Laplacian local variation value per page. Request-time ranking looks up that stored value and sends it to the Rust kernel, which applies the low-pass filter directly. |
 
 ---
 
@@ -29,9 +29,9 @@ Scope:
 
 | Paper symbol | Paper meaning | Code identifier | File |
 |---|---|---|---|
-| `L` | Normalized Graph Laplacian | `laplacian_csr` | precomputed in `pipeline_data.py` |
+| `L` | Normalized Graph Laplacian | `_compute_tosd_lambdas` | precomputed in `graph_signal_job.py` |
 | `α` | Low-pass filter strength | `tosd.filter_strength` | `recommended_weights.py` |
-| `s(t)` | Time-filtered score | `evaluate_tosd()` | `advanced_graph_signals` Rust kernel |
+| `s(t)` | Time-filtered score | `NodeGraphSignal.tosd_lambda` loaded into `spectral_scores` | stored by `graph_signal_job.py`, loaded by `pipeline_data.py`, scored by the Rust kernel |
 
 ---
 
@@ -74,14 +74,15 @@ So a `0.0` with `fallback_triggered = true` is "no data"; a low score with `fall
 | Decision | Choice | Justification |
 |---|---|---|
 | **Language** | Rust via PyO3 | Spectral operator approximations on sparse matrices require zero-overhead math tight loops. |
-| **Precompute** | `laplacian_csr` | Built once per pipeline run. |
+| **Precompute** | `tosd_lambda` | Built once per graph-signal snapshot, stored on `NodeGraphSignal`, then loaded into request-time arrays. |
 | **Module location** | `rust/extensions/advanced_graph_signals` | High-performance compiled library. |
 
 ---
 
 ## Hardware Budget
-- RAM: ~50 MB for `laplacian_csr` (scales as `O(nnz)`).
+- RAM: one float per page plus temporary neighbor sets during the daily graph job.
 - CPU: < 20 μs per candidate evaluation using 1st-order Chebyshev approximation.
+- Dell proof, 2026-06-16: offline TOSD precompute benchmarked at 151 us for 100 nodes, 1.69 ms for 1,000 nodes, and 19.70 ms for 10,000 nodes.
 
 ---
 
@@ -91,7 +92,7 @@ Outputs `tosd_diagnostics` JSON field containing `raw_spectral_score`, `filter_s
 ---
 
 ## Benchmark Plan
-Criterion benchmarks in `rust/extensions/advanced_graph_signals/benches/signal_benches.rs` ensuring < 20 μs per evaluation.
+Criterion benchmarks in `rust/extensions/advanced_graph_signals/benches/signal_benches.rs` ensure < 20 μs per evaluation. Pytest benchmark coverage proves the daily TOSD precompute path at 100, 1,000, and 10,000 nodes.
 
 ---
 
@@ -109,6 +110,7 @@ All Gate A boxes pass.
 ---
 
 ## Pending
-- [ ] Rust kernel implementation.
-- [ ] Python dispatcher integration.
-- [ ] UI sliders and tooltips.
+- [x] Rust kernel implementation.
+- [x] Python dispatcher integration.
+- [x] Stored graph-snapshot precompute and request-time cache loading.
+- [x] UI sliders and tooltips.

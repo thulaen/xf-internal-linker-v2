@@ -294,6 +294,9 @@ def _build_advanced_graph_signals_caches(
     node_to_index = {key: index for index, key in enumerate(content_records)}
     if not node_to_index:
         return None
+    spectral_scores = _build_tosd_lambda_array(
+        node_to_index=node_to_index,
+    )
     local_degrees, global_degrees = _build_icpc_degree_arrays(
         node_to_index=node_to_index,
     )
@@ -303,7 +306,7 @@ def _build_advanced_graph_signals_caches(
     size = len(node_to_index)
     return AdvancedGraphSignalsCaches(
         node_to_index=node_to_index,
-        spectral_scores=np.zeros(size, dtype=np.float64),
+        spectral_scores=spectral_scores,
         transition_counts={},
         out_degrees=np.zeros(size, dtype=np.int32),
         local_degrees=local_degrees,
@@ -315,6 +318,26 @@ def _build_advanced_graph_signals_caches(
         node_blocks=node_blocks,
         block_transition_matrix=block_transition_matrix,
     )
+
+
+def _build_tosd_lambda_array(
+    *,
+    node_to_index: dict[ContentKey, int],
+) -> np.ndarray:
+    """Return TOSD spectral values from the current graph run."""
+    try:
+        from apps.graph.api import current_tosd_lambdas
+
+        precomputed = current_tosd_lambdas()
+    except Exception:
+        logger.exception("Failed to load current TOSD graph lambdas.")
+        precomputed = {}
+    spectral_scores = np.zeros(len(node_to_index), dtype=np.float64)
+    for key, value in precomputed.items():
+        index = node_to_index.get(key)
+        if index is not None:
+            spectral_scores[index] = float(value)
+    return spectral_scores
 
 
 def _build_icpc_degree_arrays(

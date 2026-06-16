@@ -1,3 +1,36 @@
+## 2026-06-16 - Codex - FR260-265 Slice 4 TOSD precompute and ranker wiring
+
+[HANDOFF READ: 2026-06-15 by Codex - FR260-265 Slice 2 ICPC work was implemented and verified, but the commit was blocked by scheduled-updates database connection failures.]
+[PROGRESS: Slice 3 SBMA committed as 25f77d7. Slice 4 TOSD is implemented and verified for commit. The remaining mission still needs Slice 5 RGSD, Slice 6 CSBR, Slice 7 DSTP, the Dell Rust chip, and Bazel phases 2-6. Nothing was pushed.]
+
+**What I did (plain English):** I made TOSD, the graph-stability signal, active instead of feeding zeros at request time. The graph snapshot job now stores a normalized-Laplacian local variation value for each page. The pipeline loads that stored value into the existing advanced graph cache, and the existing Rust kernel applies the low-pass formula during ranking.
+
+**What now works that did not before:**
+- The current graph snapshot stores `tosd_lambda` on each page signal row.
+- The graph API exposes the current TOSD values through the public graph module boundary.
+- The pipeline loads current TOSD values into `spectral_scores` instead of using an all-zero array.
+- Full graph-job storage, direct API loading, request-time cache loading, known-answer helper tests, and three-size benchmarks now cover the TOSD path.
+- The TOSD spec and glossary now match the shipped implementation.
+
+**Files changed:** `backend/apps/graph/api.py`, `backend/apps/graph/models.py`, `backend/apps/graph/migrations/0008_nodegraphsignal_tosd_lambda.py`, `backend/apps/graph/services/graph_signal_job.py`, `backend/apps/graph/tests_api.py`, `backend/apps/graph/tests_graph_signal_job.py`, `backend/apps/pipeline/services/pipeline_data.py`, `backend/apps/pipeline/test_advanced_graph_ranker_wiring.py`, `backend/benchmarks/test_bench_advanced_graph_signals.py`, `docs/specs/fr260-tosd.md`, `PLAIN-ENGLISH-RULE.md`, and this handoff file.
+
+**Direct verification done:**
+- Focused Dell pytest first failed before code because the TOSD helper and API did not exist. turbo=used.
+- Focused Dell pytest passed for TOSD helper known answers, graph API loading, production cache wiring, benchmark discovery, and full graph-job storage. turbo=used.
+- Dell Ruff passed for touched Python files. turbo=used.
+- Dell mypy passed for touched production Python files after one timeout was rerun with a longer timeout. turbo=used.
+- Dell Bandit passed for touched production Python files. turbo=used.
+- Django `makemigrations --check --dry-run` reported `No changes detected`.
+- Direct Dell pytest-benchmark for TOSD precompute passed at 100, 1,000, and 10,000 nodes. turbo=used. Mean times were about 151 microseconds, 1.69 milliseconds, and 19.70 milliseconds.
+
+**Issues filed or resolved:** No new AutoIssue was needed.
+
+**What has issues or errors:** The first mypy attempt timed out before returning a result; the longer rerun passed. The split pytest runner disables benchmark timing, so I used the split runner for discovery and a direct Dell benchmark command for timing evidence. The wider mission is not complete yet; this entry covers Slice 4 only.
+
+**Tech-debt delta:** Net positive. TOSD reuses the existing graph snapshot and existing Rust kernel instead of adding a duplicate scoring path.
+
+[COVERAGE SUMMARY: target=90% actual=0% measured - not met; focused behavior tests passed, but line coverage was not measured for this slice.]
+
 ## 2026-06-16 - Codex - FR260-265 Slice 3 SBMA precompute and ranker wiring
 
 [HANDOFF READ: 2026-06-15 by Codex - FR260-265 Slice 2 ICPC work was implemented and verified, but the commit was blocked by scheduled-updates database connection failures.]

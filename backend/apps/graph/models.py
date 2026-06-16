@@ -321,6 +321,11 @@ class NodeGraphSignal(models.Model):
         default=0,
         help_text="All incoming links to this content item in the graph snapshot.",
     )
+    tosd_lambda = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="TOSD normalized-Laplacian variation value for this content item.",
+    )
     sbma_block_id = models.IntegerField(
         null=True,
         blank=True,

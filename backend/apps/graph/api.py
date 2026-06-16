@@ -56,6 +56,21 @@ def current_icpc_degrees() -> dict[tuple[int, str], tuple[int, int]]:
     }
 
 
+def current_tosd_lambdas() -> dict[tuple[int, str], float]:
+    """Return current TOSD spectral values keyed by content key."""
+    run = get_current_run()
+    if not run:
+        return {}
+    rows = NodeGraphSignal.objects.filter(
+        run=run,
+        tosd_lambda__isnull=False,
+    ).values_list("content_item_id", "content_item__content_type", "tosd_lambda")
+    return {
+        (pk, str(content_type)): float(tosd_lambda)
+        for pk, content_type, tosd_lambda in rows
+    }
+
+
 def current_sbma_blocks() -> tuple[dict[tuple[int, str], int], dict[tuple[int, int], float]]:
     """Return current SBMA node blocks and block transition probabilities."""
     run = get_current_run()

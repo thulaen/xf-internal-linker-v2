@@ -514,6 +514,8 @@ When you must mention a technical concept, use the plain-English version from th
 | the running production copy of the app | LIVE |
 | a specific large language model version name from OpenAI | GPT-5 |
 | a coverage report file format produced by the LLVM toolchain | LCOV |
+| Time-as-Operator Spectral Decay — a ranking signal that rewards graph-stable destination pages and lowers the score for pages with irregular local graph structure | TOSD |
+| a graph value that compares one page's neighbours with the normalized graph shape; zero means isolated or locally regular, and higher means more irregular local structure | normalized-Laplacian local variation |
 | Stochastic Block Model Affinity — a ranking signal that scores a possible link by the stored chance that the host page's structural block links to the destination page's structural block | SBMA |
 | a stored table where each row and column is a page block, and each cell is the learned chance of links from one block to another | block transition matrix |
 | a saved block number for a page, used by SBMA so request-time ranking can do a direct lookup instead of recomputing graph structure | page block assignment |

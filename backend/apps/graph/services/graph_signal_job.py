@@ -5,6 +5,7 @@ from collections import Counter
 import hashlib
 import json
 import logging
+import math
 from typing import Optional
 
 from django.db import transaction
@@ -143,6 +144,7 @@ def run_signals(
         community_ids=community_ids,
         min_community_size=icpc_min_community_size,
     )
+    tosd_lambdas = _compute_tosd_lambdas(edges=edges, id_to_idx=id_to_idx)
     sbma_blocks, sbma_matrix = _compute_sbma_blocks(
         edges=edges,
         id_to_idx=id_to_idx,
@@ -190,6 +192,7 @@ def run_signals(
             community_id=community_ids.get(idx),
             icpc_local_indegree=icpc_local.get(idx, 0),
             icpc_global_indegree=icpc_global.get(idx, 0),
+            tosd_lambda=tosd_lambdas.get(idx),
             sbma_block_id=sbma_blocks.get(idx),
             betweenness=betweenness_scores.get(idx),
             click_depth=r_depth if inbound_reachable else None,
@@ -282,6 +285,46 @@ def _compute_icpc_degrees(
         ):
             local[destination_idx] += 1
     return dict(local), dict(global_)
+
+
+def _compute_tosd_lambdas(
+    *,
+    edges: list[tuple[int, int]],
+    id_to_idx: dict[int, int],
+) -> dict[int, float]:
+    """Compute a bounded normalized-Laplacian local variation value per node."""
+    neighbors = _build_undirected_neighbor_sets(edges=edges, id_to_idx=id_to_idx)
+    lambdas = {}
+    for idx in id_to_idx.values():
+        node_neighbors = neighbors.get(idx, set())
+        degree = len(node_neighbors)
+        if degree == 0:
+            lambdas[idx] = 0.0
+            continue
+        normalized_sum = sum(
+            1.0 / math.sqrt(degree * len(neighbors[neighbor_idx]))
+            for neighbor_idx in node_neighbors
+            if neighbors.get(neighbor_idx)
+        )
+        lambdas[idx] = min(2.0, abs(1.0 - normalized_sum))
+    return lambdas
+
+
+def _build_undirected_neighbor_sets(
+    *,
+    edges: list[tuple[int, int]],
+    id_to_idx: dict[int, int],
+) -> dict[int, set[int]]:
+    """Return undirected neighbor sets for every graph node."""
+    neighbors = {idx: set() for idx in id_to_idx.values()}
+    for source_id, destination_id in set(edges):
+        source_idx = id_to_idx.get(source_id)
+        destination_idx = id_to_idx.get(destination_id)
+        if source_idx is None or destination_idx is None or source_idx == destination_idx:
+            continue
+        neighbors[source_idx].add(destination_idx)
+        neighbors[destination_idx].add(source_idx)
+    return neighbors
 
 
 def _compute_sbma_blocks(

@@ -7,6 +7,7 @@ from apps.graph.models import ExistingLink, GraphSignalRun, NodeGraphSignal, Lin
 from apps.graph.services.graph_signal_job import (
     _compute_icpc_degrees,
     _compute_sbma_blocks,
+    _compute_tosd_lambdas,
     load_active_edges,
     compute_graph_hash,
     run_signals,
@@ -61,6 +62,7 @@ def test_run_signals_changed_graph():
     assert run.node_count == 2
     assert run.edge_count == 1
     assert NodeGraphSignal.objects.filter(run=run).count() == 2
+    assert not NodeGraphSignal.objects.filter(run=run, tosd_lambda__isnull=True).exists()
     
     # Run 2 with changed graph
     ci3 = _create_content_item("3")
@@ -168,3 +170,25 @@ def test_compute_sbma_blocks_respects_single_block_limit():
 
     assert set(blocks.values()) == {0}
     assert set(matrix) == {(0, 0)}
+
+
+def test_compute_tosd_lambdas_marks_regular_pairs_as_stable():
+    """Given a regular pair, When TOSD runs, Then both pages get zero variation."""
+    lambdas = _compute_tosd_lambdas(
+        edges=[(1, 2)],
+        id_to_idx={1: 0, 2: 1},
+    )
+
+    assert lambdas == {0: 0.0, 1: 0.0}
+
+
+def test_compute_tosd_lambdas_scores_irregular_star_structure():
+    """Given an irregular star, When TOSD runs, Then the center has higher variation."""
+    lambdas = _compute_tosd_lambdas(
+        edges=[(1, 2), (1, 3), (1, 4)],
+        id_to_idx={1: 0, 2: 1, 3: 2, 4: 3},
+    )
+
+    assert 0.7 < lambdas[0] < 0.8
+    assert 0.4 < lambdas[1] < 0.5
+    assert lambdas[0] > lambdas[1]

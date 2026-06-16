@@ -141,6 +141,46 @@ class AdvancedGraphCacheBuilderTests(TestCase):
         self.assertEqual(caches.node_blocks[dest_index], 1)
         self.assertEqual(caches.block_transition_matrix[(0, 1)], 0.75)
 
+    def test_tosd_cache_uses_current_graph_snapshot_lambdas(self):
+        host = ContentItem.objects.create(content_id=31, content_type="thread")
+        dest = ContentItem.objects.create(content_id=32, content_type="thread")
+        run = GraphSignalRun.objects.create(
+            graph_hash="hash",
+            signal_version="v1",
+            node_count=2,
+            edge_count=1,
+            status=GraphSignalRun.STATUS_CURRENT,
+        )
+        NodeGraphSignal.objects.create(
+            run=run,
+            content_item=host,
+            community_id=1,
+            tosd_lambda=0.75,
+        )
+        NodeGraphSignal.objects.create(
+            run=run,
+            content_item=dest,
+            community_id=2,
+            tosd_lambda=0.25,
+        )
+        records = {
+            (host.pk, "thread"): _record(host.pk),
+            (dest.pk, "thread"): _record(dest.pk),
+        }
+
+        caches = _build_advanced_graph_signals_caches(
+            content_records=records,
+            advanced_graph_signals_settings=AdvancedGraphSignalsSettings(),
+            progress_fn=lambda *_args, **_kwargs: None,
+        )
+
+        if caches is None:
+            self.fail("Expected advanced graph signal caches to be built.")
+        host_index = caches.node_to_index[(host.pk, "thread")]
+        dest_index = caches.node_to_index[(dest.pk, "thread")]
+        self.assertEqual(caches.spectral_scores[host_index], 0.75)
+        self.assertEqual(caches.spectral_scores[dest_index], 0.25)
+
 
 class AdvancedGraphRankerWiringTests(TestCase):
     def test_ranker_adds_advanced_graph_scores_and_uses_host_silo(self):

@@ -7,6 +7,7 @@ from apps.graph.api import (
     current_icpc_degrees,
     current_node_communities,
     current_sbma_blocks,
+    current_tosd_lambdas,
     get_current_run,
     latest_node_signal,
     link_prediction_candidates,
@@ -121,3 +122,21 @@ class GraphAPITests(TestCase):
 
         self.assertEqual(blocks, {(self.item1.pk, "1"): 0})
         self.assertEqual(matrix, {(0, 1): 0.75})
+
+    def test_current_tosd_lambdas_returns_current_run_values(self):
+        """Given a current run, When callers ask for TOSD, Then stored values are returned."""
+        run = GraphSignalRun.objects.create(
+            graph_hash="hash",
+            signal_version="v1",
+            node_count=1,
+            edge_count=1,
+            status=GraphSignalRun.STATUS_CURRENT,
+        )
+        NodeGraphSignal.objects.create(
+            run=run,
+            content_item=self.item1,
+            community_id=1,
+            tosd_lambda=0.25,
+        )
+
+        self.assertEqual(current_tosd_lambdas(), {(self.item1.pk, "1"): 0.25})

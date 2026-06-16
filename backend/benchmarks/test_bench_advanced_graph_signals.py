@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from apps.graph.services.graph_signal_job import _compute_icpc_degrees, _compute_sbma_blocks
+from apps.graph.services.graph_signal_job import (
+    _compute_icpc_degrees,
+    _compute_sbma_blocks,
+    _compute_tosd_lambdas,
+)
 
 
 def _icpc_inputs(size: int) -> tuple[list[tuple[int, int]], dict[int, int], dict[int, int]]:
@@ -53,3 +57,18 @@ def test_bench_sbma_block_precompute(benchmark, size: int):
     assert len(blocks) == size
     assert len(matrix) == 400
     assert matrix[(0, 0)] >= 0.0
+
+
+@pytest.mark.benchmark(group="advanced-graph-tosd")
+@pytest.mark.parametrize("size", [100, 1_000, 10_000])
+def test_bench_tosd_lambda_precompute(benchmark, size: int):
+    edges, id_to_idx, _community_ids = _icpc_inputs(size)
+
+    lambdas = benchmark(
+        _compute_tosd_lambdas,
+        edges=edges,
+        id_to_idx=id_to_idx,
+    )
+
+    assert len(lambdas) == size
+    assert all(0.0 <= value <= 2.0 for value in lambdas.values())
