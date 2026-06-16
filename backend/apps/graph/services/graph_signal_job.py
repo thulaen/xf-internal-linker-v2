@@ -63,11 +63,15 @@ def run_signals(
     signal_version: str = "v1.0",
     dry_run: bool = False,
     icpc_min_community_size: int = 10,
+    sbma_num_blocks: int = 20,
 ) -> tuple[GraphSignalRun, Optional[tuple[nk.Graph, dict[int, int], list[int]]]]:
     """
     Orchestrates building the NetworKit graph and computing all signals.
     """
-    params = {"icpc_min_community_size": int(icpc_min_community_size)}
+    params = {
+        "icpc_min_community_size": int(icpc_min_community_size),
+        "sbma_num_blocks": int(sbma_num_blocks),
+    }
     edges, extra_nodes = load_active_edges()
     current_hash = compute_graph_hash(edges)
     
@@ -139,6 +143,12 @@ def run_signals(
         community_ids=community_ids,
         min_community_size=icpc_min_community_size,
     )
+    sbma_blocks, sbma_matrix = _compute_sbma_blocks(
+        edges=edges,
+        id_to_idx=id_to_idx,
+        community_ids=community_ids,
+        num_blocks=sbma_num_blocks,
+    )
     
     # 2. Heavy signals
     embeddings = structural_embedding.compute_structural_embeddings(nk_graph)
@@ -180,6 +190,7 @@ def run_signals(
             community_id=community_ids.get(idx),
             icpc_local_indegree=icpc_local.get(idx, 0),
             icpc_global_indegree=icpc_global.get(idx, 0),
+            sbma_block_id=sbma_blocks.get(idx),
             betweenness=betweenness_scores.get(idx),
             click_depth=r_depth if inbound_reachable else None,
             inbound_reachable=inbound_reachable,
@@ -217,7 +228,8 @@ def run_signals(
         # Flip to current
         run.status = GraphSignalRun.STATUS_CURRENT
         run.computed_at = timezone.now()
-        run.save(update_fields=["status", "computed_at"])
+        run.sbma_matrix_json = _encode_sbma_matrix(sbma_matrix)
+        run.save(update_fields=["status", "computed_at", "sbma_matrix_json"])
         
         # Supersede old ones
         GraphSignalRun.objects.filter(
@@ -270,3 +282,70 @@ def _compute_icpc_degrees(
         ):
             local[destination_idx] += 1
     return dict(local), dict(global_)
+
+
+def _compute_sbma_blocks(
+    *,
+    edges: list[tuple[int, int]],
+    id_to_idx: dict[int, int],
+    community_ids: dict[int, int],
+    num_blocks: int,
+) -> tuple[dict[int, int], dict[tuple[int, int], float]]:
+    """Compute SBMA block assignments and observed block transition probabilities."""
+    block_count = max(1, int(num_blocks))
+    community_to_block = _community_to_sbma_block(community_ids, block_count)
+    node_blocks = {
+        idx: community_to_block[community_id]
+        for idx, community_id in community_ids.items()
+        if community_id in community_to_block
+    }
+    transition_counts: Counter[tuple[int, int]] = Counter()
+    source_totals: Counter[int] = Counter()
+    for source_id, destination_id in set(edges):
+        source_idx = id_to_idx.get(source_id)
+        destination_idx = id_to_idx.get(destination_id)
+        if source_idx is None or destination_idx is None:
+            continue
+        source_block = node_blocks.get(source_idx)
+        destination_block = node_blocks.get(destination_idx)
+        if source_block is None or destination_block is None:
+            continue
+        transition_counts[(source_block, destination_block)] += 1
+        source_totals[source_block] += 1
+    matrix = {}
+    for source_block in range(block_count):
+        total = source_totals.get(source_block, 0)
+        for destination_block in range(block_count):
+            count = transition_counts.get((source_block, destination_block), 0)
+            matrix[(source_block, destination_block)] = count / total if total else 0.0
+    return node_blocks, matrix
+
+
+def _community_to_sbma_block(
+    community_ids: dict[int, int],
+    num_blocks: int,
+) -> dict[int, int]:
+    """Map Louvain communities into a bounded number of SBMA blocks."""
+    community_sizes = Counter(community_ids.values())
+    ordered = sorted(community_sizes, key=lambda item: (-community_sizes[item], item))
+    if num_blocks <= 1:
+        return {community_id: 0 for community_id in ordered}
+    if len(ordered) <= num_blocks:
+        return {community_id: block for block, community_id in enumerate(ordered)}
+    direct_blocks = max(1, num_blocks - 1)
+    mapping = {
+        community_id: block
+        for block, community_id in enumerate(ordered[:direct_blocks])
+    }
+    overflow_block = direct_blocks
+    for community_id in ordered[direct_blocks:]:
+        mapping[community_id] = overflow_block
+    return mapping
+
+
+def _encode_sbma_matrix(matrix: dict[tuple[int, int], float]) -> dict[str, float]:
+    """Encode tuple matrix keys into JSON-safe strings."""
+    return {
+        f"{source}:{destination}": float(value)
+        for (source, destination), value in matrix.items()
+    }

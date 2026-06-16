@@ -6,6 +6,7 @@ from apps.content.models import ContentItem
 from apps.graph.models import ExistingLink, GraphSignalRun, NodeGraphSignal, LinkPredictionCandidate
 from apps.graph.services.graph_signal_job import (
     _compute_icpc_degrees,
+    _compute_sbma_blocks,
     load_active_edges,
     compute_graph_hash,
     run_signals,
@@ -140,3 +141,30 @@ def test_compute_icpc_degrees_respects_community_size_floor():
     )
 
     assert local_small.get(2, 0) == 0
+
+
+def test_compute_sbma_blocks_returns_known_transition_probabilities():
+    """Given block assignments, When SBMA runs, Then block probabilities match observed links."""
+    blocks, matrix = _compute_sbma_blocks(
+        edges=[(1, 2), (1, 3), (4, 3)],
+        id_to_idx={1: 0, 2: 1, 3: 2, 4: 3},
+        community_ids={0: 10, 1: 20, 2: 20, 3: 10},
+        num_blocks=2,
+    )
+
+    assert blocks == {0: 0, 1: 1, 2: 1, 3: 0}
+    assert matrix[(0, 1)] == 1.0
+    assert matrix[(1, 1)] == 0.0
+
+
+def test_compute_sbma_blocks_respects_single_block_limit():
+    """Given one configured block, When SBMA runs, Then every page uses block zero."""
+    blocks, matrix = _compute_sbma_blocks(
+        edges=[(1, 2), (3, 4)],
+        id_to_idx={1: 0, 2: 1, 3: 2, 4: 3},
+        community_ids={0: 10, 1: 20, 2: 30, 3: 40},
+        num_blocks=1,
+    )
+
+    assert set(blocks.values()) == {0}
+    assert set(matrix) == {(0, 0)}

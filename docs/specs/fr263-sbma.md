@@ -25,7 +25,7 @@ on which blocks they belong to.
 | **Foundational citation (degree-corrected SBM)** | Karrer, B., & Newman, M. E. J. (2011). "Stochastic blockmodels and community structure in networks." *Physical Review E*, 83(1), 016107. DOI: [10.1103/PhysRevE.83.016107](https://doi.org/10.1103/PhysRevE.83.016107) (arXiv preprint [1008.3926](https://arxiv.org/abs/1008.3926)). |
 | **Inspiration (adapted from)** | *TGSBM: Transformer-Guided Stochastic Block Model for Link Prediction* (2026). arXiv: [2601.20646](https://arxiv.org/abs/2601.20646). Used only as inspiration for treating the block-to-block matrix as a link-affinity lookup; this recent preprint is not relied on as the proof for any default value. The defaults are anchored to the two foundational citations above. |
 | **What we faithfully reproduce** | The probability lookup `P(A → B) = BlockMatrix[Block(A), Block(B)]`. The block assignments and the inter-block probability matrix are computed offline; the host and destination are mapped to their blocks **before** the kernel runs, so the kernel sees a single already-resolved probability per candidate. |
-| **What we deliberately diverge on** | We skip the transformer-guided block generation. We rely on a standard SBM partition computed offline in a daily job and use the raw block-transition probability matrix as the source for the lookup during ranking. |
+| **What we deliberately diverge on** | We skip the transformer-guided block generation. The first production implementation reuses the already-computed graph communities as bounded structural blocks, then stores the observed block-to-block link probability matrix for request-time lookup. This keeps the daily job deterministic, testable, and fast while preserving the SBM scoring shape: page block plus destination block selects one learned probability. |
 
 ---
 
@@ -33,8 +33,8 @@ on which blocks they belong to.
 
 | Paper symbol | Paper meaning | Code identifier | File |
 |---|---|---|---|
-| `z_i` | Block assignment of node i | `node_block_assignments` | precomputed in `pipeline_data.py` |
-| `B_rs` | Probability of edge between block r and block s | `block_transition_matrix` | precomputed in `pipeline_data.py` |
+| `z_i` | Block assignment of node i | `NodeGraphSignal.sbma_block_id` | stored by `graph_signal_job.py`, loaded by `pipeline_data.py` |
+| `B_rs` | Probability of edge between block r and block s | `GraphSignalRun.sbma_matrix_json` / `block_transition_matrix` | stored by `graph_signal_job.py`, loaded by `pipeline_data.py` |
 | `P(i, j)` | Link affinity | `evaluate_advanced_graph_signals_core` (writes `score_sbma`) | `advanced_graph_signals` Rust kernel |
 
 ---
@@ -72,7 +72,7 @@ SBMA returns the neutral value `0.0` when:
 | Decision | Choice | Justification |
 |---|---|---|
 | **Language** | Rust via PyO3 | O(1) array lookups; keeping it in the unified advanced graph crate. |
-| **Precompute** | `block_transition_matrix` | Graph-tool or networkx SBM inference running in the daily W1 job. |
+| **Precompute** | `sbma_block_id` and `sbma_matrix_json` | The daily graph-signals job stores bounded page blocks and the block-to-block probability table; request-time ranking only loads arrays and performs an O(1) lookup. |
 | **Module location** | `rust/extensions/advanced_graph_signals` | High-performance compiled library. |
 
 ---
@@ -80,6 +80,7 @@ SBMA returns the neutral value `0.0` when:
 ## Hardware Budget
 - RAM: ~200 KB for an integer array of size 50k (node->block map) + trivial 20x20 float matrix.
 - CPU: < 1 μs per candidate (two array lookups).
+- Dell proof, 2026-06-16: offline block precompute benchmarked at 167 us for 100 nodes, 1.31 ms for 1,000 nodes, and 12.48 ms for 10,000 nodes.
 
 ---
 
@@ -89,7 +90,7 @@ Outputs `sbma_diagnostics` JSON field containing `host_block`, `dest_block`, `bl
 ---
 
 ## Benchmark Plan
-Criterion benchmarks ensuring < 1 μs per evaluation.
+Pytest benchmark coverage proves the daily precompute path at 100, 1,000, and 10,000 nodes. The Rust kernel benchmark remains the proof for per-candidate O(1) evaluation, because the kernel only clamps the already-resolved probability.
 
 ---
 
@@ -106,6 +107,6 @@ All Gate A boxes pass.
 ---
 
 ## Pending
-- [ ] W1 batch job to compute SBM assignments and transition matrix.
-- [ ] Rust kernel implementation.
-- [ ] Python dispatcher integration.
+- [x] W1 batch job computes and stores page block assignments plus the transition matrix through the daily graph-signals job.
+- [x] Rust kernel implementation.
+- [x] Python dispatcher integration.

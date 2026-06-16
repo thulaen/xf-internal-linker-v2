@@ -1,3 +1,36 @@
+## 2026-06-16 - Codex - FR260-265 Slice 3 SBMA precompute and ranker wiring
+
+[HANDOFF READ: 2026-06-15 by Codex - FR260-265 Slice 2 ICPC work was implemented and verified, but the commit was blocked by scheduled-updates database connection failures.]
+[PROGRESS: Slice 3 SBMA is implemented and verified for commit. The remaining mission still needs Slice 4 TOSD, Slice 5 RGSD, Slice 6 CSBR, Slice 7 DSTP, the Dell Rust chip, and Bazel phases 2-6. Nothing was pushed.]
+
+**What I did (plain English):** I made SBMA, the structural-block link probability signal, active instead of dormant. The graph snapshot job now stores each page's SBMA block and the block-to-block probability table. The daily graph-signal job passes the configured block count, the pipeline loads the current stored blocks at request time, and the advanced graph score path sends the resolved probability into the existing Rust kernel.
+
+**What now works that did not before:**
+- The current graph snapshot stores `sbma_block_id` on each page signal row and `sbma_matrix_json` on the graph run.
+- The graph command and scheduled job pass `sbma.num_blocks` into the computation.
+- The graph API exposes the current SBMA blocks and probability table through a public module boundary.
+- The pipeline builds compact SBMA arrays from the current graph snapshot and records diagnostics that distinguish a missing block from a learned zero probability.
+- The SBMA spec now matches the shipped implementation and records the latest Dell benchmark proof.
+
+**Files changed:** `backend/apps/graph/api.py`, `backend/apps/graph/models.py`, `backend/apps/graph/migrations/0007_graphsignalrun_sbma_matrix_json_and_more.py`, `backend/apps/graph/services/graph_signal_job.py`, `backend/apps/graph/management/commands/recompute_graph_signals.py`, `backend/apps/graph/tests_api.py`, `backend/apps/graph/tests_graph_signal_job.py`, `backend/apps/pipeline/services/advanced_graph_signals.py`, `backend/apps/pipeline/services/pipeline_data.py`, `backend/apps/pipeline/test_advanced_graph_ranker_wiring.py`, `backend/apps/pipeline/test_advanced_graph_signals.py`, `backend/apps/scheduled_updates/jobs.py`, `backend/benchmarks/test_bench_advanced_graph_signals.py`, `docs/specs/fr263-sbma.md`, `PLAIN-ENGLISH-RULE.md`, and the resolved-issues lookup log from required lesson searches.
+
+**Direct verification done:**
+- Focused Dell pytest first failed before code because SBMA storage and loading did not exist. turbo=used.
+- Focused Dell pytest passed for SBMA block computation, single-block bounds, graph API loading, production cache wiring, dispatcher input routing, and benchmark discovery: 8 checks. turbo=used.
+- Dell Ruff passed for touched Python files. turbo=used.
+- Dell mypy passed for touched production Python files. turbo=used.
+- Dell Bandit passed for touched production Python files. turbo=used.
+- Django `makemigrations --check --dry-run` reported `No changes detected`.
+- Direct Dell pytest-benchmark for SBMA precompute passed at 100, 1,000, and 10,000 nodes. turbo=used. Mean times were about 167 microseconds, 1.31 milliseconds, and 12.48 milliseconds.
+
+**Issues filed or resolved:** No new AutoIssue was needed. I fixed one in-scope lint marker in `pipeline_data.py` that confused ruff while preserving the custom hook marker.
+
+**What has issues or errors:** The split pytest runner disables benchmark timing, so I used the split runner for discovery and a direct Dell benchmark command for timing evidence. The wider mission is not complete yet; this entry covers Slice 3 only.
+
+**Tech-debt delta:** Net positive. SBMA reuses existing graph snapshot storage and the graph public API instead of adding duplicate storage. One noisy lint marker in a touched file was fixed.
+
+[COVERAGE SUMMARY: target=90% actual=7% measured - not met; the focused behavior suite passed, but the broad `apps.graph` and `apps.pipeline` coverage report includes many unrelated files outside this slice.]
+
 ## 2026-06-15 - Codex - FR260-265 Slice 2 ICPC commit blocker fixed
 
 [HANDOFF READ: 2026-06-15 by Codex - FR260-265 Slice 2 ICPC work was implemented and verified, but the commit was blocked by scheduled-updates database connection failures.]

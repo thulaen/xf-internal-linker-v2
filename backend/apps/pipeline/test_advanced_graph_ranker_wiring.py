@@ -12,6 +12,7 @@ from apps.pipeline.services.advanced_graph_signals import (
     AdvancedGraphSignalsEvaluation,
     AdvancedGraphSignalsSettings,
     ICPCSettings,
+    SBMASettings,
 )
 from apps.pipeline.services.pipeline_data import _build_advanced_graph_signals_caches
 from apps.pipeline.services.ranker import score_destination_matches
@@ -95,6 +96,50 @@ class AdvancedGraphCacheBuilderTests(TestCase):
         dest_index = caches.node_to_index[(items[0].pk, "thread")]
         self.assertEqual(caches.global_degrees[dest_index], 3)
         self.assertEqual(caches.local_degrees[dest_index], 2)
+
+    def test_sbma_cache_uses_current_graph_snapshot_blocks(self):
+        host = ContentItem.objects.create(content_id=21, content_type="thread")
+        dest = ContentItem.objects.create(content_id=22, content_type="thread")
+        run = GraphSignalRun.objects.create(
+            graph_hash="hash",
+            signal_version="v1",
+            node_count=2,
+            edge_count=1,
+            status=GraphSignalRun.STATUS_CURRENT,
+            sbma_matrix_json={"0:1": 0.75},
+        )
+        NodeGraphSignal.objects.create(
+            run=run,
+            content_item=host,
+            community_id=1,
+            sbma_block_id=0,
+        )
+        NodeGraphSignal.objects.create(
+            run=run,
+            content_item=dest,
+            community_id=2,
+            sbma_block_id=1,
+        )
+        records = {
+            (host.pk, "thread"): _record(host.pk),
+            (dest.pk, "thread"): _record(dest.pk),
+        }
+
+        caches = _build_advanced_graph_signals_caches(
+            content_records=records,
+            advanced_graph_signals_settings=AdvancedGraphSignalsSettings(
+                sbma=SBMASettings(num_blocks=2)
+            ),
+            progress_fn=lambda *_args, **_kwargs: None,
+        )
+
+        if caches is None:
+            self.fail("Expected advanced graph signal caches to be built.")
+        host_index = caches.node_to_index[(host.pk, "thread")]
+        dest_index = caches.node_to_index[(dest.pk, "thread")]
+        self.assertEqual(caches.node_blocks[host_index], 0)
+        self.assertEqual(caches.node_blocks[dest_index], 1)
+        self.assertEqual(caches.block_transition_matrix[(0, 1)], 0.75)
 
 
 class AdvancedGraphRankerWiringTests(TestCase):

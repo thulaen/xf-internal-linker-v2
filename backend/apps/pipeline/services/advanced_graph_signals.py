@@ -112,6 +112,8 @@ class AdvancedGraphSignalsCaches:
     flat_distances: dict[tuple[int, int], float]
     density_gradients: np.ndarray
     persona_matches: dict[tuple[int, int], float]
+    node_blocks: np.ndarray | None = None
+    block_transition_matrix: dict[tuple[int, int], float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,6 +183,9 @@ def _resolve_signal_inputs(
     local = np.zeros(n, dtype=np.int32)
     glob = np.zeros(n, dtype=np.int32)
     block = np.zeros(n, dtype=np.float64)
+    host_blocks = np.full(n, -1, dtype=np.int32)
+    dest_blocks = np.full(n, -1, dtype=np.int32)
+    sbma_resolved = np.zeros(n, dtype=np.uint8)
     flat = np.ones(n, dtype=np.float64)  # missing pair = farthest -> neutral RGSD
     density = np.zeros(n, dtype=np.float64)
     persona = np.zeros(n, dtype=np.float64)
@@ -206,7 +211,16 @@ def _resolve_signal_inputs(
             out_deg[i] = caches.out_degrees[h]
         # Pair lookups keyed (host_index, dest_index).
         transition[i] = caches.transition_counts.get((h, d), 0)
-        block[i] = caches.block_probabilities.get((h, d), 0.0)
+        block[i] = _resolve_sbma_probability(caches, h, d)
+        if caches.node_blocks is not None:
+            if h < len(caches.node_blocks):
+                host_blocks[i] = int(caches.node_blocks[h])
+            if d < len(caches.node_blocks):
+                dest_blocks[i] = int(caches.node_blocks[d])
+            if host_blocks[i] >= 0 and dest_blocks[i] >= 0:
+                sbma_resolved[i] = 1
+        elif (h, d) in caches.block_probabilities:
+            sbma_resolved[i] = 1
         flat[i] = caches.flat_distances.get((h, d), 1.0)
         persona[i] = caches.persona_matches.get((h, d), 0.0)
 
@@ -217,12 +231,32 @@ def _resolve_signal_inputs(
         "local_degrees": local,
         "global_degrees": glob,
         "block_probabilities": block,
+        "host_blocks": host_blocks,
+        "dest_blocks": dest_blocks,
+        "sbma_resolved": sbma_resolved,
         "flat_distances": flat,
         "density_gradients": density,
         "persona_matches": persona,
         "is_cross_silo": np.asarray(is_cross_silo, dtype=np.uint8),
     }
     return inputs, resolved
+
+
+def _resolve_sbma_probability(
+    caches: AdvancedGraphSignalsCaches,
+    host_index: int,
+    dest_index: int,
+) -> float:
+    """Resolve one SBMA block probability from compact block cache data."""
+    if caches.node_blocks is None:
+        return caches.block_probabilities.get((host_index, dest_index), 0.0)
+    if host_index >= len(caches.node_blocks) or dest_index >= len(caches.node_blocks):
+        return 0.0
+    host_block = int(caches.node_blocks[host_index])
+    dest_block = int(caches.node_blocks[dest_index])
+    if host_block < 0 or dest_block < 0:
+        return 0.0
+    return caches.block_transition_matrix.get((host_block, dest_block), 0.0)
 
 
 def _build_evaluation(
@@ -299,9 +333,11 @@ def _build_diagnostics(
         },
         "sbma_diagnostics": {
             "enabled": settings.sbma.enabled,
-            "fallback_triggered": fallback,
+            "fallback_triggered": fallback or not bool(inputs["sbma_resolved"][i]),
             "score": scores["score_sbma"],
             "block_probability": float(inputs["block_probabilities"][i]),
+            "host_block": int(inputs["host_blocks"][i]),
+            "dest_block": int(inputs["dest_blocks"][i]),
             "num_blocks": settings.sbma.num_blocks,
         },
         "rgsd_diagnostics": {

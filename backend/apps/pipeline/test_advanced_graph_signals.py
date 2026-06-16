@@ -102,6 +102,31 @@ class DispatcherInputRoutingTests(SimpleTestCase):
         self.assertEqual(args[ARG_FLAT][0], 0.2)
         self.assertEqual(args[ARG_PERSONA][0], 0.85)
 
+    def test_sbma_uses_node_blocks_and_transition_matrix_when_available(self):
+        caches = AdvancedGraphSignalsCaches(
+            node_to_index={HOST: 0, DEST: 1},
+            spectral_scores=np.zeros(2, dtype=np.float64),
+            transition_counts={},
+            out_degrees=np.zeros(2, dtype=np.int32),
+            local_degrees=np.zeros(2, dtype=np.int32),
+            global_degrees=np.zeros(2, dtype=np.int32),
+            block_probabilities={},
+            flat_distances={},
+            density_gradients=np.zeros(2, dtype=np.float64),
+            persona_matches={},
+            node_blocks=np.array([0, 1], dtype=np.int32),
+            block_transition_matrix={(0, 1): 0.75},
+        )
+
+        kernel = _mock_kernel()
+        with mock.patch(KERNEL_PATH, return_value=kernel):
+            evaluate_advanced_graph_signals_batch(
+                [(HOST, DEST)], caches, AdvancedGraphSignalsSettings(), [False]
+            )
+
+        args = kernel.evaluate_batch.call_args.args
+        self.assertEqual(args[ARG_BLOCK][0], 0.75)
+
     def test_missing_pair_defaults_to_farthest_distance(self):
         kernel = _mock_kernel()
         caches = _caches()

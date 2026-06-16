@@ -297,6 +297,9 @@ def _build_advanced_graph_signals_caches(
     local_degrees, global_degrees = _build_icpc_degree_arrays(
         node_to_index=node_to_index,
     )
+    node_blocks, block_transition_matrix = _build_sbma_block_arrays(
+        node_to_index=node_to_index,
+    )
     size = len(node_to_index)
     return AdvancedGraphSignalsCaches(
         node_to_index=node_to_index,
@@ -309,6 +312,8 @@ def _build_advanced_graph_signals_caches(
         flat_distances={},
         density_gradients=np.zeros(size, dtype=np.float64),
         persona_matches={},
+        node_blocks=node_blocks,
+        block_transition_matrix=block_transition_matrix,
     )
 
 
@@ -332,6 +337,26 @@ def _build_icpc_degree_arrays(
             local_degrees[index] = local
             global_degrees[index] = global_
     return local_degrees, global_degrees
+
+
+def _build_sbma_block_arrays(
+    *,
+    node_to_index: dict[ContentKey, int],
+) -> tuple[np.ndarray, dict[tuple[int, int], float]]:
+    """Return SBMA node blocks and transition matrix from the current graph run."""
+    try:
+        from apps.graph.api import current_sbma_blocks
+
+        precomputed_blocks, matrix = current_sbma_blocks()
+    except Exception:
+        logger.exception("Failed to load current SBMA graph blocks.")
+        precomputed_blocks, matrix = {}, {}
+    node_blocks = np.full(len(node_to_index), -1, dtype=np.int32)
+    for key, block_id in precomputed_blocks.items():
+        index = node_to_index.get(key)
+        if index is not None:
+            node_blocks[index] = int(block_id)
+    return node_blocks, matrix
 
 
 # ---------------------------------------------------------------------------
@@ -514,7 +539,7 @@ def _detect_link_farm_if_enabled(
     )
 
 
-def _load_pipeline_resources(  # noqa: forbidden-pattern — 9-arg public API; grouping into a settings dataclass is a separate refactor
+def _load_pipeline_resources(  # noqa  # forbidden-pattern too-many-args  # justification: 9-arg public API; grouping into a settings dataclass is a separate refactor.
     *,
     destination_scope_ids: set[int] | None,
     destination_content_item_ids: set[int] | None,

@@ -56,6 +56,26 @@ def current_icpc_degrees() -> dict[tuple[int, str], tuple[int, int]]:
     }
 
 
+def current_sbma_blocks() -> tuple[dict[tuple[int, str], int], dict[tuple[int, int], float]]:
+    """Return current SBMA node blocks and block transition probabilities."""
+    run = get_current_run()
+    if not run:
+        return {}, {}
+    rows = NodeGraphSignal.objects.filter(
+        run=run,
+        sbma_block_id__isnull=False,
+    ).values_list("content_item_id", "content_item__content_type", "sbma_block_id")
+    blocks = {
+        (pk, str(content_type)): int(block_id)
+        for pk, content_type, block_id in rows
+    }
+    matrix = {}
+    for key, value in run.sbma_matrix_json.items():
+        source, destination = key.split(":", maxsplit=1)
+        matrix[(int(source), int(destination))] = float(value)
+    return blocks, matrix
+
+
 def link_prediction_candidates(item: ContentItem, as_destination: bool = False) -> list[LinkPredictionCandidate]:
     """Return LinkPredictionCandidate rows for the given item from the current run.
     If as_destination is True, finds candidates where to_item=item.

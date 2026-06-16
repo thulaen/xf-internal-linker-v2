@@ -273,6 +273,11 @@ class GraphSignalRun(TimestampedModel):
         blank=True,
         help_text="Configuration and hyperparameter snapshot used for this run.",
     )
+    sbma_matrix_json = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="SBMA block-to-block link probability matrix for this run.",
+    )
 
     class Meta:
         verbose_name = "Graph Signal Run"
@@ -315,6 +320,11 @@ class NodeGraphSignal(models.Model):
     icpc_global_indegree = models.PositiveIntegerField(
         default=0,
         help_text="All incoming links to this content item in the graph snapshot.",
+    )
+    sbma_block_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="SBMA structural block assigned to this content item.",
     )
     betweenness = models.FloatField(
         null=True, blank=True, help_text="Betweenness centrality score."

@@ -2012,5 +2012,6 @@ def run_graph_signals_compute_all(job, checkpoint) -> None:
     run_signals(
         force=False,
         icpc_min_community_size=settings.icpc.min_community_size,
+        sbma_num_blocks=settings.sbma.num_blocks,
     )
     checkpoint(progress_pct=100.0, message="Graph signals computation complete.")

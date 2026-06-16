@@ -4,8 +4,9 @@ from django.test import TestCase
 
 from apps.content.models import ContentItem
 from apps.graph.api import (
-    current_node_communities,
     current_icpc_degrees,
+    current_node_communities,
+    current_sbma_blocks,
     get_current_run,
     latest_node_signal,
     link_prediction_candidates,
@@ -98,3 +99,25 @@ class GraphAPITests(TestCase):
         )
 
         self.assertEqual(current_icpc_degrees(), {(self.item1.pk, "1"): (2, 3)})
+
+    def test_current_sbma_blocks_returns_current_run_blocks_and_matrix(self):
+        """Given a current run, When callers ask for SBMA blocks, Then the matrix is parsed."""
+        run = GraphSignalRun.objects.create(
+            graph_hash="hash",
+            signal_version="v1",
+            node_count=1,
+            edge_count=1,
+            status=GraphSignalRun.STATUS_CURRENT,
+            sbma_matrix_json={"0:1": 0.75},
+        )
+        NodeGraphSignal.objects.create(
+            run=run,
+            content_item=self.item1,
+            community_id=1,
+            sbma_block_id=0,
+        )
+
+        blocks, matrix = current_sbma_blocks()
+
+        self.assertEqual(blocks, {(self.item1.pk, "1"): 0})
+        self.assertEqual(matrix, {(0, 1): 0.75})

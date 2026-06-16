@@ -21,21 +21,30 @@ class Command(BaseCommand):
             default=10,
             help="Minimum Louvain community size used when computing ICPC local in-degree.",
         )
+        parser.add_argument(
+            "--sbma-num-blocks",
+            type=int,
+            default=20,
+            help="Number of structural blocks used when computing SBMA probabilities.",
+        )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
         force = options["force"]
         icpc_min_community_size = options["icpc_min_community_size"]
+        sbma_num_blocks = options["sbma_num_blocks"]
 
         self.stdout.write(
             "Starting graph signal computation "
             f"(dry_run={dry_run}, force={force}, "
-            f"icpc_min_community_size={icpc_min_community_size})..."
+            f"icpc_min_community_size={icpc_min_community_size}, "
+            f"sbma_num_blocks={sbma_num_blocks})..."
         )
         run, result = run_signals(
             force=force,
             dry_run=dry_run,
             icpc_min_community_size=icpc_min_community_size,
+            sbma_num_blocks=sbma_num_blocks,
         )
         
         if result is None:

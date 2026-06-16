@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from apps.graph.services.graph_signal_job import _compute_icpc_degrees
+from apps.graph.services.graph_signal_job import _compute_icpc_degrees, _compute_sbma_blocks
 
 
 def _icpc_inputs(size: int) -> tuple[list[tuple[int, int]], dict[int, int], dict[int, int]]:
@@ -35,3 +35,21 @@ def test_bench_icpc_degree_precompute(benchmark, size: int):
     assert len(global_) == size
     assert sum(global_.values()) == len(set(edges))
     assert sum(local.values()) > 0
+
+
+@pytest.mark.benchmark(group="advanced-graph-sbma")
+@pytest.mark.parametrize("size", [100, 1_000, 10_000])
+def test_bench_sbma_block_precompute(benchmark, size: int):
+    edges, id_to_idx, community_ids = _icpc_inputs(size)
+
+    blocks, matrix = benchmark(
+        _compute_sbma_blocks,
+        edges=edges,
+        id_to_idx=id_to_idx,
+        community_ids=community_ids,
+        num_blocks=20,
+    )
+
+    assert len(blocks) == size
+    assert len(matrix) == 400
+    assert matrix[(0, 0)] >= 0.0

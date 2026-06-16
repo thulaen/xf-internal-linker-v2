@@ -2780,3 +2780,5 @@
 {"file_path": "backend/apps/scheduled_updates", "lookup_at": "2026-06-15T20:59:31Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
 {"file_path": "backend/apps/scheduled_updates", "lookup_at": "2026-06-15T21:01:47Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
 {"file_path": "scripts", "lookup_at": "2026-06-15T21:17:58Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 8, "result_ids": [22895, 20164, 20396, 1802, 22884, 20174, 22862, 1842]}
+{"file_path": "backend/apps/graph", "lookup_at": "2026-06-16T00:47:31Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/pipeline", "lookup_at": "2026-06-16T00:47:31Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 6, "result_ids": [23275, 19803, 19804, 20424, 20166, 20230]}
