@@ -1,0 +1,87 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_METRICS",
+      "label": "Metrics (Prometheus / VictoriaMetrics)",
+      "description": "Where the elcv_* metrics are scraped.",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "title": "ELCV — Effective Logical Code Volume (multi-scope)",
+  "uid": "elcv-overview",
+  "tags": ["elcv", "code-quality", "ranklab", "aegis"],
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "30m",
+  "time": { "from": "now-180d", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "${DS_METRICS}", "value": "${DS_METRICS}" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Global ELCV (current)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [ { "expr": "elcv_global_current", "refId": "A" } ]
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "RankLab → 28M (%)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "targets": [ { "expr": "elcv_scope_percent{scope=\"ranklab\"}", "refId": "A" } ]
+    },
+    {
+      "id": 3,
+      "type": "gauge",
+      "title": "Aegis → 5M (%)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "targets": [ { "expr": "elcv_scope_percent{scope=\"aegis\"}", "refId": "A" } ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Scopes — current vs target",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 5 },
+      "targets": [
+        { "expr": "elcv_scope_total", "legendFormat": "{{scope}}", "format": "table", "instant": true, "refId": "A" },
+        { "expr": "elcv_scope_target", "legendFormat": "{{scope}}", "format": "table", "instant": true, "refId": "B" },
+        { "expr": "elcv_scope_percent", "legendFormat": "{{scope}}", "format": "table", "instant": true, "refId": "C" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "ELCV per scope over time",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 5 },
+      "targets": [ { "expr": "elcv_scope_total", "legendFormat": "{{scope}}", "refId": "A" } ]
+    },
+    {
+      "id": 6,
+      "type": "barchart",
+      "title": "ELCV by area (repo, Python)",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 12 },
+      "options": { "orientation": "horizontal" },
+      "targets": [ { "expr": "topk(15, elcv_by_area)", "legendFormat": "{{area}}", "refId": "A" } ]
+    }
+  ]
+}

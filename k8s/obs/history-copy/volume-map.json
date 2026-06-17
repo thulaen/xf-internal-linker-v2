@@ -1,0 +1,45 @@
+{
+  "_comment": "SLICE-21 monitoring-history source map. The copy, restore, proof, and retirement helpers read this file instead of keeping separate volume lists.",
+  "volumes": [
+    {
+      "volume": "vmsingle_data",
+      "pvc": "vmsingle-data",
+      "mount": "/storage",
+      "node": "dell"
+    },
+    {
+      "volume": "loki_data",
+      "pvc": "loki-data",
+      "mount": "/loki",
+      "node": "dell"
+    },
+    {
+      "volume": "tempo_data",
+      "pvc": "tempo-data",
+      "mount": "/var/tempo",
+      "node": "dell"
+    },
+    {
+      "volume": "grafana_data",
+      "pvc": "grafana-data",
+      "mount": "/var/lib/grafana",
+      "node": "dell"
+    },
+    {
+      "volume": "pyroscope_data",
+      "pvc": "pyroscope-data",
+      "mount": "/data",
+      "node": "mint"
+    }
+  ],
+  "skipped": [
+    {
+      "volume": "alloy_data",
+      "reason": "Alloy uses emptyDir in the cluster; positions and buffers are reconstructable."
+    },
+    {
+      "volume": "glitchtip_data",
+      "reason": "GlitchTip has no file volume; its data is in Postgres and moves with SLICE-13."
+    }
+  ]
+}

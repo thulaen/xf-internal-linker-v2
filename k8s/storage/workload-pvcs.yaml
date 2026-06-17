@@ -1,0 +1,77 @@
+# Slice 9 durable and scratch disk claims not owned by a single workload file.
+#
+# Plain English: most existing disks live next to the workload that mounts them
+# (for example RabbitMQ and the observability tools). These claims are shared
+# app/test storage that later slices mount from more than one workload, so they
+# live together here instead of being copied into several manifests.
+apiVersion: v1
+kind: List
+metadata:
+  name: xf-shared-storage-claims
+items:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: &media_claim media-files
+      namespace: &app_namespace xf-app
+    spec:
+      accessModes: &cold_access_modes ["ReadWriteMany"]
+      storageClassName: &cold_class nfs-cold
+      resources:
+        requests:
+          storage: 80Gi
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: &static_claim staticfiles
+      namespace: *app_namespace
+    spec:
+      accessModes: *cold_access_modes
+      storageClassName: *cold_class
+      resources:
+        requests:
+          storage: 10Gi
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: &hf_cache_claim hf-cache
+      namespace: *app_namespace
+    spec:
+      accessModes: *cold_access_modes
+      storageClassName: *cold_class
+      resources:
+        requests:
+          storage: 80Gi
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: &compiled_claim compiled-artifacts
+      namespace: *app_namespace
+    spec:
+      accessModes: *cold_access_modes
+      storageClassName: *cold_class
+      resources:
+        requests:
+          storage: 50Gi
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: &sidecars_claim sidecars-data
+      namespace: *app_namespace
+    spec:
+      accessModes: *cold_access_modes
+      storageClassName: *cold_class
+      resources:
+        requests:
+          storage: 10Gi
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: test-scratch
+      namespace: &test_namespace xf-test
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: &hot_class ssd-hot
+      resources:
+        requests:
+          storage: 20Gi

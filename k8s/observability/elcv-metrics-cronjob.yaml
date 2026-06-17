@@ -1,0 +1,50 @@
+# ELCV metrics publisher — runs the exporter on a schedule and writes Prometheus text
+# to a shared file for vmagent's textfile collector / file-scrape to pick up.
+#
+# Fully live in ONE config step: point vmagent at the textfile directory (or an httpd
+# serving /var/lib/elcv/elcv.prom). The metrics are: elcv_total, elcv_total_estimate,
+# elcv_by_area{area=...}, elcv_by_lang{lang=...} — exactly what
+# tools/elcv/grafana-elcv-dashboard.json expects. Until vmagent is pointed at the file,
+# this CronJob just produces the file on schedule (no live graph yet).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: elcv-metrics
+  namespace: xf-obs
+  labels:
+    app.kubernetes.io/part-of: observability
+    app.kubernetes.io/component: elcv
+spec:
+  schedule: "30 3 * * *"          # nightly 03:30
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: elcv
+              image: xf-linker-backend:latest   # carries python 3.12 + the repo at /app
+              workingDir: /app
+              # Writes the cached report (elcv-report.json for the app card + ELCV-REPORT.md)
+              # AND the Prometheus text for vmagent. Scope/targets come from elcv-scopes.json.
+              command:
+                - sh
+                - -c
+                - >-
+                  python tools/elcv/exporters.py --cache /var/lib/elcv &&
+                  python tools/elcv/exporters.py --format prometheus --out /var/lib/elcv/elcv.prom
+              resources:
+                requests: { cpu: "250m", memory: "256Mi" }
+                limits: { cpu: "1", memory: "512Mi" }
+              volumeMounts:
+                - name: elcv-metrics
+                  mountPath: /var/lib/elcv
+          volumes:
+            - name: elcv-metrics
+              hostPath:
+                path: /var/lib/elcv
+                type: DirectoryOrCreate

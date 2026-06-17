@@ -16,7 +16,6 @@ the mutation gate for 20+ minutes because each mutant re-runs the body.
 """
 
 from __future__ import annotations
-
 from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
@@ -106,6 +105,12 @@ class NetworkPickerGuardCoverageTests(SimpleTestCase):
         self._assert_guard_runs(
             "pgexporter_findings_refresh",
             "apps.auto_issues.services.pgexporter_picker.pick_pgexporter_findings",
+        )
+
+    def test_pick_vmalert_alerts_guard_runs(self) -> None:
+        self._assert_guard_runs(
+            "pick_vmalert_alerts",
+            "apps.auto_issues.services.vmalert_picker.pick_vmalert_alerts",
         )
 
     def test_pick_mutation_survivors_guard_runs(self) -> None:

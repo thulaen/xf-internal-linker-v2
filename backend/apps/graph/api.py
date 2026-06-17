@@ -8,7 +8,18 @@ to internal models or logic.
 from typing import Optional
 
 from apps.content.models import ContentItem
-from apps.graph.models import GraphSignalRun, LinkPredictionCandidate, NodeGraphSignal
+from apps.graph.models import (
+    DirectionalTransitionEdge,
+    GraphSignalRun,
+    LinkPredictionCandidate,
+    NodeGraphSignal,
+)
+from apps.graph.services.dstp_transitions import (
+    content_path_to_id,
+    ga4_page_rows_to_transition_observations,
+    matomo_visits_to_transition_observations,
+    store_deduped_dstp_observations,
+)
 
 
 def get_current_run() -> Optional[GraphSignalRun]:
@@ -104,6 +115,36 @@ def current_sbma_blocks() -> tuple[dict[tuple[int, str], int], dict[tuple[int, i
         source, destination = key.split(":", maxsplit=1)
         matrix[(int(source), int(destination))] = float(value)
     return blocks, matrix
+
+
+def current_dstp_transitions() -> tuple[
+    dict[tuple[tuple[int, str], tuple[int, str]], int],
+    dict[tuple[int, str], int],
+]:
+    """Return current DSTP transition counts and host outbound totals."""
+    queryset = DirectionalTransitionEdge.objects.filter(
+        source_content_item__is_deleted=False,
+        dest_content_item__is_deleted=False,
+        transition_count__gt=0,
+    )
+    if queryset.filter(source=DirectionalTransitionEdge.SOURCE_COMBINED).exists():
+        queryset = queryset.filter(source=DirectionalTransitionEdge.SOURCE_COMBINED)
+    rows = queryset.values_list(
+        "source_content_item_id",
+        "source_content_item__content_type",
+        "dest_content_item_id",
+        "dest_content_item__content_type",
+        "transition_count",
+        "source_transition_count",
+    )
+    transition_counts = {}
+    out_degrees: dict[tuple[int, str], int] = {}
+    for source_id, source_type, dest_id, dest_type, count, source_total in rows:
+        source_key = (int(source_id), str(source_type))
+        dest_key = (int(dest_id), str(dest_type))
+        transition_counts[(source_key, dest_key)] = int(count)
+        out_degrees[source_key] = max(out_degrees.get(source_key, 0), int(source_total))
+    return transition_counts, out_degrees
 
 
 def link_prediction_candidates(item: ContentItem, as_destination: bool = False) -> list[LinkPredictionCandidate]:

@@ -2782,3 +2782,72 @@
 {"file_path": "scripts", "lookup_at": "2026-06-15T21:17:58Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 8, "result_ids": [22895, 20164, 20396, 1802, 22884, 20174, 22862, 1842]}
 {"file_path": "backend/apps/graph", "lookup_at": "2026-06-16T00:47:31Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
 {"file_path": "backend/apps/pipeline", "lookup_at": "2026-06-16T00:47:31Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 6, "result_ids": [23275, 19803, 19804, 20424, 20166, 20230]}
+{"file_path": "backend/apps/pipeline", "lookup_at": "2026-06-16T02:32:40Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 6, "result_ids": [23275, 19803, 19804, 20424, 20166, 20230]}
+{"file_path": "backend/apps/graph", "lookup_at": "2026-06-16T02:32:40Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/pipeline", "lookup_at": "2026-06-16T02:33:20Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 6, "result_ids": [23275, 19803, 19804, 20424, 20166, 20230]}
+{"file_path": "docs/specs", "lookup_at": "2026-06-16T02:33:24Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/pipeline", "lookup_at": "2026-06-16T05:13:39Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 6, "result_ids": [23275, 19803, 19804, 20424, 20166, 20230]}
+{"file_path": "backend/apps/analytics", "lookup_at": "2026-06-16T05:13:39Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [20321]}
+{"file_path": "backend/apps/graph", "lookup_at": "2026-06-16T05:13:42Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/benchmarks", "lookup_at": "2026-06-16T05:14:26Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/analytics", "lookup_at": "2026-06-16T06:23:01Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [20321]}
+{"file_path": "frontend/src/app/settings", "lookup_at": "2026-06-16T06:23:01Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "frontend/src/app/settings", "lookup_at": "2026-06-16T07:10:04Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/graph", "lookup_at": "2026-06-16T07:37:14Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/analytics", "lookup_at": "2026-06-16T07:37:14Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [20321]}
+{"file_path": "frontend/src/app", "lookup_at": "2026-06-16T08:23:24Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 5, "result_ids": [1498, 1497, 1496, 1495, 1494]}
+{"file_path": "backend/apps/health", "lookup_at": "2026-06-16T08:23:24Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/analytics", "lookup_at": "2026-06-16T08:23:34Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [20321]}
+{"file_path": "frontend/src/app/settings/connect-sync-tab", "lookup_at": "2026-06-16T17:37:46Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/analytics", "lookup_at": "2026-06-16T17:37:46Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [20321]}
+{"file_path": "scripts", "lookup_at": "2026-06-16T18:22:41Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 8, "result_ids": [22895, 20164, 20396, 1802, 22884, 20174, 22862, 1842]}
+{"file_path": ".gitignore", "lookup_at": "2026-06-16T18:27:05Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/analytics", "lookup_at": "2026-06-16T20:38:39Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [20321]}
+{"file_path": "backend/apps/graph", "lookup_at": "2026-06-16T20:38:39Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/pipeline", "lookup_at": "2026-06-16T20:38:39Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 6, "result_ids": [23275, 19803, 19804, 20424, 20166, 20230]}
+{"file_path": "backend/benchmarks", "lookup_at": "2026-06-16T20:38:39Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "frontend/src/app/analytics", "lookup_at": "2026-06-16T20:38:39Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "frontend/src/app/settings", "lookup_at": "2026-06-16T20:38:39Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "scripts", "lookup_at": "2026-06-16T20:38:39Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 8, "result_ids": [22895, 20164, 20396, 1802, 22884, 20174, 22862, 1842]}
+{"file_path": "docs/specs", "lookup_at": "2026-06-16T20:38:39Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "tools/preflight", "lookup_at": "2026-06-16T20:57:00Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "docs/specs", "lookup_at": "2026-06-16T20:57:00Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "docs/network", "lookup_at": "2026-06-16T20:57:00Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "docs/specs", "lookup_at": "2026-06-16T21:48:00Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "k8s/network", "lookup_at": "2026-06-16T21:48:00Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "tools/preflight", "lookup_at": "2026-06-16T21:48:01Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 3, "result_ids": [23401, 23400, 23399]}
+{"file_path": "k8s/scheduling", "lookup_at": "2026-06-16T21:48:01Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "tools/preflight", "lookup_at": "2026-06-17T00:21:10Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 4, "result_ids": [23402, 23401, 23400, 23399]}
+{"file_path": "docs/specs", "lookup_at": "2026-06-17T00:21:10Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [23402]}
+{"file_path": "k8s/storage", "lookup_at": "2026-06-17T00:27:03Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "k8s/storage", "lookup_at": "2026-06-17T00:30:17Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [23404]}
+{"file_path": "tools/preflight", "lookup_at": "2026-06-17T01:41:00Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 6, "result_ids": [23404, 23403, 23402, 23401, 23400, 23399]}
+{"file_path": "docs/specs", "lookup_at": "2026-06-17T04:40:11Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 2, "result_ids": [23404, 23402]}
+{"file_path": "tools/preflight", "lookup_at": "2026-06-17T04:40:11Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 7, "result_ids": [23407, 23404, 23403, 23402, 23401, 23400, 23399]}
+{"file_path": "k8s/network", "lookup_at": "2026-06-17T04:40:14Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "k8s/scheduling", "lookup_at": "2026-06-17T04:54:08Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "k8s/storage", "lookup_at": "2026-06-17T04:54:08Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 3, "result_ids": [23406, 23405, 23404]}
+{"file_path": "k8s/database", "lookup_at": "2026-06-17T04:54:12Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "k8s/cluster", "lookup_at": "2026-06-17T06:59:07Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "k8s/storage", "lookup_at": "2026-06-17T06:59:07Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 3, "result_ids": [23406, 23405, 23404]}
+{"file_path": "tools/preflight", "lookup_at": "2026-06-17T06:59:07Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 9, "result_ids": [23409, 23408, 23407, 23404, 23403, 23402, 23401, 23400, 23399]}
+{"file_path": "k8s/scheduling", "lookup_at": "2026-06-17T06:59:10Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "docs/specs", "lookup_at": "2026-06-17T06:59:10Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 2, "result_ids": [23404, 23402]}
+{"file_path": "k8s/storage", "lookup_at": "2026-06-17T07:48:54Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 4, "result_ids": [23410, 23406, 23405, 23404]}
+{"file_path": "tools/preflight", "lookup_at": "2026-06-17T07:48:54Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 10, "result_ids": [23412, 23411, 23410, 23409, 23408, 23407, 23404, 23403, 23402, 23401]}
+{"file_path": "docs/specs", "lookup_at": "2026-06-17T07:48:57Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 2, "result_ids": [23404, 23402]}
+{"file_path": "backend/apps/audit", "lookup_at": "2026-06-17T09:24:25Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [20167]}
+{"file_path": "backend", "lookup_at": "2026-06-17T09:24:25Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 10, "result_ids": [23276, 23275, 23274, 23272, 23271, 23270, 23269, 23268, 23267, 23086]}
+{"file_path": "backend/apps/audit", "lookup_at": "2026-06-17T09:53:39Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [20167]}
+{"file_path": "tools/preflight", "lookup_at": "2026-06-17T09:53:39Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 10, "result_ids": [23412, 23411, 23410, 23409, 23408, 23407, 23404, 23403, 23402, 23401]}
+{"file_path": "tools/runners", "lookup_at": "2026-06-17T09:53:41Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "k8s", "lookup_at": "2026-06-17T09:54:25Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 7, "result_ids": [23411, 23410, 23409, 23408, 23406, 23405, 23404]}
+{"file_path": "scripts", "lookup_at": "2026-06-17T09:54:25Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 7, "result_ids": [22895, 20397, 20164, 1802, 22884, 20174, 1842]}
+{"file_path": "docs/specs", "lookup_at": "2026-06-17T09:54:29Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 2, "result_ids": [23404, 23402]}
+{"file_path": "tools/elcv", "lookup_at": "2026-06-17T10:57:00Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": ".githooks", "lookup_at": "2026-06-17T10:57:00Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 9, "result_ids": [1539, 2076, 1891, 19932, 1736, 19976, 20096, 20175, 1768]}
+{"file_path": "backend/apps/audit", "lookup_at": "2026-06-17T10:57:00Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 1, "result_ids": [20167]}
+{"file_path": "backend/apps/auto_issues", "lookup_at": "2026-06-17T10:57:00Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 10, "result_ids": [23086, 22993, 20119, 20249, 20117, 20118, 20114, 22989, 20111, 1919]}
+{"file_path": "backend/apps/graph", "lookup_at": "2026-06-17T10:57:00Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 0, "result_ids": []}
+{"file_path": "backend/apps/pipeline", "lookup_at": "2026-06-17T10:57:00Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 5, "result_ids": [23275, 19803, 19804, 20424, 20230]}
+{"file_path": "backend/apps/observability", "lookup_at": "2026-06-17T11:24:04Z", "task_id": "17e8081c-3edc-4f47-8d06-18353b8bf90f", "agent": "claude", "result_count": 10, "result_ids": [1424, 1372, 1417, 1403, 1369, 1402, 1391, 1394, 1423, 1380]}

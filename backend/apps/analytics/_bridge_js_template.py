@@ -17,10 +17,49 @@ BRIDGE_JS_TEMPLATE = """<script>
 +(() => {{
 +  const config = {config_json};
 +  const storageKey = 'xfil_fr016_attribution_v1';
++  const xfilVisitStorageKey = 'xfil_first_party_visit_id_v1';
 +  const impressionSeen = new Set();
 +  const clickSeen = new Set();
 +  const viewSeen = new Set();
 +  let engagedSent = false;
++
++  function randomVisitId() {{
++    if (window.crypto && typeof window.crypto.randomUUID === 'function') {{
++      return window.crypto.randomUUID();
++    }}
++    return `xfil-${{Date.now()}}-${{Math.random().toString(16).slice(2)}}`;
++  }}
++
++  function currentVisitId() {{
++    let visitId = sessionStorage.getItem(xfilVisitStorageKey);
++    if (!visitId) {{
++      visitId = randomVisitId();
++      sessionStorage.setItem(xfilVisitStorageKey, visitId);
++    }}
++    return visitId;
++  }}
++
++  const xfilVisitId = currentVisitId();
++
++  function withVisitId(params) {{
++    return {{ ...params, xfil_visit_id: xfilVisitId }};
++  }}
++
++  function configureTrackerIdentity() {{
++    if (config.ga4Enabled && typeof window.gtag === 'function') {{
++      window.gtag('set', 'user_properties', {{ xfil_visit_id: xfilVisitId }});
++      window.gtag('event', 'page_view', {{
++        page_location: window.location.href,
++        page_referrer: document.referrer || '',
++        xfil_visit_id: xfilVisitId,
++        xfil_identity_only: '1',
++      }});
++    }}
++    if (config.matomoEnabled && Array.isArray(window._paq)) {{
++      window._paq.push(['setUserId', xfilVisitId]);
++      window._paq.push(['setCustomVariable', 1, 'xfil_visit_id', xfilVisitId, 'visit']);
++    }}
++  }}
 +
 +  function readAttrs(link) {{
 +    const data = link?.dataset ?? {{}};
@@ -48,11 +87,12 @@ BRIDGE_JS_TEMPLATE = """<script>
 +  }}
 +
 +  function emit(eventName, params) {{
++    const enriched = withVisitId(params);
 +    if (config.ga4Enabled && typeof window.gtag === 'function') {{
-+      window.gtag('event', eventName, params);
++      window.gtag('event', eventName, enriched);
 +    }}
 +    if (config.matomoEnabled && Array.isArray(window._paq)) {{
-+      window._paq.push(['trackEvent', 'XF Internal Linker', eventName, params.suggestion_id || 'unknown', 1]);
++      window._paq.push(['trackEvent', 'XF Internal Linker', eventName, enriched.suggestion_id || 'unknown', 1]);
 +    }}
 +  }}
 +
@@ -162,6 +202,7 @@ BRIDGE_JS_TEMPLATE = """<script>
 +    return true;
 +  }}
 +
++  configureTrackerIdentity();
 +  document.querySelectorAll('a[data-xfil-suggestion-id]').forEach(wireLink);
 +  emitDestinationView();
 +  markDestinationViewed();

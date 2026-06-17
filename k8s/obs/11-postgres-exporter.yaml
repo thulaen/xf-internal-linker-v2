@@ -6,8 +6,9 @@
 #
 # It connects to the database through the observability namespace's own
 # "postgres" Service, which points straight at the Dell host (see
-# 04-postgres-external-service.yaml). The connection string is assembled from
-# the synced postgres-credentials Secret using Kubernetes' $(VAR) expansion.
+# k8s/database/postgres-external-service.yaml). The connection string is
+# assembled from the synced postgres-credentials Secret using Kubernetes'
+# $(VAR) expansion.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

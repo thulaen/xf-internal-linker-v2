@@ -9,12 +9,14 @@ WHY THIS EXISTS
     every agent (not just one tool) reports the same way.
 
 HOW AGENTS USE IT
-    Run ``python scripts/agent_progress.py`` near the start of a reply. If at least
-    ten minutes have passed since the last printed line (or anything looks stuck),
-    it prints a ``[PROGRESS ...]`` block; otherwise it stays quiet so quick
-    back-to-back replies are not spammed. A stuck condition ALWAYS prints, even
-    inside the ten-minute window, because a silent stall is the thing we most need
-    to surface. ``--force`` prints regardless of the cadence.
+    Start a user-requested task with ``--start-task`` and a pipe-separated
+    ``--steps`` list, move the task with ``--step`` / ``--status``, and close it
+    with ``--finish-task``. If at least ten minutes have passed since the last
+    printed line (or anything looks stuck), it prints a ``[PROGRESS ...]`` block;
+    otherwise it stays quiet so quick back-to-back replies are not spammed. A
+    stuck condition ALWAYS prints, even inside the ten-minute window, because a
+    silent stall is the thing we most need to surface. ``--force`` prints
+    regardless of the cadence.
 
 WHAT "STUCK" MEANS HERE
     The exact failure we keep hitting: a quality/mutation Docker container that has
@@ -38,13 +40,16 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 STATE_PATH = REPO_ROOT / "audit" / "agent_progress_state.json"
 STATUS_PATH = REPO_ROOT / "audit" / "agent_progress_latest.txt"
+TASK_STATE_PATH = REPO_ROOT / "audit" / "agent_progress_task_state.json"
 MUTATION_LOCK = REPO_ROOT / ".git" / "xf-scoped-mutation.lock"
 
 CADENCE_SECONDS = 600            # ten-minute refresh tick
+TASK_STALE_SECONDS = 45 * 60     # after 45 minutes, old chat task progress expires
 STUCK_CONTAINER_MINUTES = 8      # a quality/mutation container up this long...
 STUCK_CPU_PERCENT = 5.0          # ...at under this CPU is a blocked wait, not work
 STUCK_LOCK_MINUTES = 8           # a mutation lock held longer than this is suspect
 _BAR_WIDTH = 20
+_STEP_STATUSES = {"pending", "in_progress", "done", "blocked"}
 
 
 # ── pure helpers (no I/O — unit-tested without Docker or git) ─────────────────
@@ -62,6 +67,112 @@ def percent_done(dirty: int, baseline: int) -> int:
     if baseline <= 0:
         return 0
     return max(0, min(100, round(100 * (baseline - dirty) / baseline)))
+
+
+def split_steps(raw_steps: str) -> list[str]:
+    """Split a pipe-separated step list into clean step names."""
+    return [step.strip() for step in raw_steps.split("|") if step.strip()]
+
+
+def start_task_state(title: str, steps: list[str], now: float) -> dict:
+    """Create chat-relative progress state from the user's requested task."""
+    clean_steps = [step.strip() for step in steps if step.strip()]
+    if not clean_steps:
+        clean_steps = ["Work"]
+    task_steps = [
+        {"name": step, "status": "in_progress" if index == 0 else "pending"}
+        for index, step in enumerate(clean_steps)
+    ]
+    return {
+        "title": (title or "working").strip() or "working",
+        "steps": task_steps,
+        "started_at": now,
+        "updated_at": now,
+        "finished": False,
+    }
+
+
+def active_task_or_none(task: dict | None, now: float) -> dict | None:
+    """Return active chat task state, or None when it is missing, done, or stale."""
+    if not task or task.get("finished"):
+        return None
+    updated_at = float(task.get("updated_at", 0.0) or 0.0)
+    if updated_at <= 0 or now - updated_at > TASK_STALE_SECONDS:
+        return None
+    return task
+
+
+def update_task_step_state(task: dict, step_name: str, status: str, now: float) -> dict:
+    """Update one chat-task step while keeping other step decisions intact."""
+    if status not in _STEP_STATUSES:
+        raise ValueError(f"Unknown progress step status: {status}")
+    clean_step = step_name.strip()
+    if not clean_step:
+        raise ValueError("Progress step name cannot be empty")
+    updated = {**task, "steps": [dict(step) for step in task.get("steps", [])]}
+    matching_step = None
+    for step in updated["steps"]:
+        if step.get("name") == clean_step:
+            matching_step = step
+            break
+    if matching_step is None:
+        matching_step = {"name": clean_step, "status": "pending"}
+        updated["steps"].append(matching_step)
+    if status == "in_progress":
+        for step in updated["steps"]:
+            if step is not matching_step and step.get("status") == "in_progress":
+                step["status"] = "pending"
+    matching_step["status"] = status
+    updated["updated_at"] = now
+    updated["finished"] = False
+    return updated
+
+
+def finish_task_state(task: dict, now: float) -> dict:
+    """Mark every chat-task step done and close the active task."""
+    updated = {**task, "steps": [dict(step) for step in task.get("steps", [])]}
+    for step in updated["steps"]:
+        step["status"] = "done"
+    updated["updated_at"] = now
+    updated["finished"] = True
+    return updated
+
+
+def chat_task_counts(task: dict) -> tuple[int, int]:
+    """Completed and total step counts for the active chat task."""
+    steps = task.get("steps", [])
+    done = sum(1 for step in steps if step.get("status") == "done")
+    return done, len(steps)
+
+
+def chat_task_current_step(task: dict) -> str:
+    """Human-readable current step for the task progress line."""
+    steps = task.get("steps", [])
+    for wanted_status in ("blocked", "in_progress", "pending"):
+        for step in steps:
+            if step.get("status") == wanted_status:
+                return str(step.get("name", "work"))
+    return "complete"
+
+
+def chat_task_stuck_reasons(task: dict | None) -> list[str]:
+    """Stuck reasons produced by the chat task itself."""
+    if not task:
+        return []
+    for step in task.get("steps", []):
+        if step.get("status") == "blocked":
+            return [f"current chat task is blocked at {step.get('name', 'work')}"]
+    return []
+
+
+def _chat_task_line(task: dict) -> str:
+    done, total = chat_task_counts(task)
+    pct = 0 if total <= 0 else max(0, min(100, round(100 * done / total)))
+    noun = "step" if total == 1 else "steps"
+    return (
+        f"Task   [{progress_bar(done, total)}] {pct}%   {done}/{total} {noun} done "
+        f"· current: {chat_task_current_step(task)}"
+    )
 
 
 # Container commands meaning "stay alive doing nothing" — a warm helper kept
@@ -104,16 +215,30 @@ def should_emit(last_emitted_at: float | None, now: float, stuck: bool, force: b
     return (now - last_emitted_at) >= CADENCE_SECONDS
 
 
-def render(now_hms: str, label: str, dirty: int, baseline: int, stuck: list[str]) -> str:
+def render(
+    now_hms: str,
+    label: str,
+    dirty: int,
+    baseline: int,
+    stuck: list[str],
+    task: dict | None = None,
+) -> str:
     """Build the [PROGRESS ...] block shown to the user."""
-    done = max(0, baseline - dirty) if baseline else 0
-    pct = percent_done(dirty, baseline)
-    bar = progress_bar(done, baseline)
-    lines = [f"[PROGRESS · {now_hms} · {label}]"]
-    if baseline > 0:
-        lines.append(f"Work   [{bar}] {pct}%   {dirty} files left to commit (started at {baseline})")
+    title = str(task.get("title", label)) if task else label
+    lines = [f"[PROGRESS · {now_hms} · {title}]"]
+    if task:
+        lines.append(_chat_task_line(task))
+        lines.append(f"Repo   {dirty} uncommitted files total")
+    elif baseline > 0:
+        done = max(0, baseline - dirty)
+        pct = percent_done(dirty, baseline)
+        bar = progress_bar(done, baseline)
+        lines.append(
+            f"Work   [{bar}] {pct}%   {dirty} files left to commit (started at {baseline})"
+        )
     else:
-        lines.append(f"Work   {dirty} uncommitted files")
+        lines.append("Task   no active chat task")
+        lines.append(f"Repo   {dirty} uncommitted files total")
     if stuck:
         lines.append("Stuck? YES — " + "; ".join(stuck))
     else:
@@ -196,9 +321,21 @@ def _read_state() -> dict:
         return {}
 
 
+def _read_task_state() -> dict:
+    try:
+        return json.loads(TASK_STATE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
 def _write_state(state: dict) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     STATE_PATH.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+
+def _write_task_state(state: dict) -> None:
+    TASK_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    TASK_STATE_PATH.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
 
 def _write_status_file(text: str) -> None:
@@ -241,7 +378,7 @@ def _notify_stuck(stuck: list[str]) -> None:
         pass
 
 
-def main() -> int:
+def _configure_stdout() -> None:
     # Windows consoles default to cp1252, which cannot encode the bar glyphs
     # (█ ░). Force UTF-8 so the same output renders on every agent's platform.
     try:
@@ -249,33 +386,96 @@ def main() -> int:
     except (AttributeError, ValueError):
         pass
 
+
+def _build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Cross-agent progress + stuck reporter.")
     ap.add_argument("--label", default="working", help="short plain-English task label")
-    ap.add_argument("--baseline", type=int, default=0, help="starting dirty-file count for the % bar")
+    ap.add_argument(
+        "--baseline",
+        type=int,
+        default=0,
+        help="starting dirty-file count for the % bar",
+    )
+    ap.add_argument("--start-task", default="", help="start chat-relative task progress")
+    ap.add_argument("--steps", default="", help="pipe-separated steps for --start-task")
+    ap.add_argument("--step", default="", help="chat task step to update")
+    ap.add_argument(
+        "--status",
+        choices=sorted(_STEP_STATUSES),
+        default="in_progress",
+        help="status for --step",
+    )
+    ap.add_argument("--finish-task", action="store_true", help="mark the active chat task complete")
     ap.add_argument("--force", action="store_true", help="print even inside the 10-minute window")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="compute and print but do not write the state or status file")
-    ap.add_argument("--background", action="store_true",
-                    help="scheduler mode: refresh the shared status file and alert on a stall, "
-                         "without printing to chat or consuming the 10-minute chat throttle")
-    ap.add_argument("--notify-on-stuck", action="store_true",
-                    help="fire a desktop alert when something is stalled (used by the scheduled task)")
-    args = ap.parse_args()
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="compute and print but do not write the state or status file",
+    )
+    ap.add_argument(
+        "--background",
+        action="store_true",
+        help=(
+            "scheduler mode: refresh the shared status file and alert on a stall, "
+            "without printing to chat or consuming the ten-minute chat throttle"
+        ),
+    )
+    ap.add_argument(
+        "--notify-on-stuck",
+        action="store_true",
+        help="fire a desktop alert when something is stalled",
+    )
+    return ap
 
+
+def _baseline_from_state(args: argparse.Namespace, state: dict, dirty: int) -> int:
+    baseline = args.baseline or int(state.get("baseline", 0))
+    return baseline or dirty
+
+
+def _apply_task_args(
+    args: argparse.Namespace, task_state: dict, now: float
+) -> tuple[dict, dict | None, bool]:
+    changed_task_state = False
+    display_task = active_task_or_none(task_state, now)
+    if args.start_task:
+        task_state = start_task_state(args.start_task, split_steps(args.steps), now)
+        display_task = task_state
+        changed_task_state = True
+    if args.step:
+        base_task = display_task or start_task_state(args.label, [args.step], now)
+        task_state = update_task_step_state(base_task, args.step, args.status, now)
+        display_task = task_state
+        changed_task_state = True
+    if args.finish_task and display_task:
+        task_state = finish_task_state(display_task, now)
+        display_task = task_state
+        changed_task_state = True
+
+    return task_state, display_task, changed_task_state
+
+
+def main() -> int:
+    _configure_stdout()
+    args = _build_parser().parse_args()
     now = time.time()
     state = _read_state()
-    baseline = args.baseline or int(state.get("baseline", 0))
     dirty = _git_dirty_count()
-    if baseline == 0:
-        baseline = dirty  # first run with no sprint baseline: anchor to now
+    baseline = _baseline_from_state(args, state, dirty)
+    task_state, display_task, changed_task_state = _apply_task_args(
+        args, _read_task_state(), now
+    )
     stuck = detect_stuck(_docker_quality_containers(), _lock_age_seconds(now))
+    stuck.extend(chat_task_stuck_reasons(display_task))
     now_hms = time.strftime("%H:%M:%S", time.localtime(now))
-    block = render(now_hms, args.label, dirty, baseline, stuck)
+    block = render(now_hms, args.label, dirty, baseline, stuck, display_task)
 
     # The status file always holds the freshest computed state, so any agent can
     # read + surface it. Both the background scheduler and an agent refresh it.
     if not args.dry_run:
         _write_status_file(block)
+        if changed_task_state:
+            _write_task_state(task_state)
 
     if args.background:
         # Agent-independent refresh (the Scheduled Task path): keep the file

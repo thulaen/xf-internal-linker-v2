@@ -26,19 +26,20 @@ def test_pbt_has_a_five_minute_total_budget() -> None:
     assert 'PBT_TIMEOUT="${PBT_TIMEOUT:-300}"' in text
     assert "_remaining()" in text
     # Both lanes run under the remaining budget, not a fresh per-lane timeout.
-    assert text.count('timeout "$PBT_REMAINING"') == 2
+    assert text.count('timeout "$PBT_REMAINING"') == 3
 
 
 def test_pbt_is_scoped_not_whole_codebase() -> None:
     text = RUNNER.read_text(encoding="utf-8")
     assert "commit_scope.py paths" in text
     assert "tests_pbt_" in text          # Python property-test convention
+    assert "script_targets" in text      # top-level script property tests
     assert "rust/extensions/" in text    # Rust crate scoping
 
 
 def test_pbt_empty_scope_reaches_skip_branch() -> None:
     text = RUNNER.read_text(encoding="utf-8")
-    assert text.count("sort -u || true") == 2
+    assert text.count("sort -u || true") == 3
     assert "[run-pbt] No changed property-test scope -- skipping." in text
 
 
@@ -55,6 +56,13 @@ def test_pbt_reuses_warm_unit_test_volumes() -> None:
     text = RUNNER.read_text(encoding="utf-8")
     assert "xf_test_repo" in text
     assert "xf_rust_mutation_repo" in text
+
+
+def test_pbt_runs_top_level_script_property_tests() -> None:
+    text = RUNNER.read_text(encoding="utf-8")
+    assert "scripts/tests_pbt_" in text
+    assert "[run-pbt] Scripts:" in text
+    assert "-w //repo" in text
 
 
 def test_pbt_is_hard_gate_after_unit_tests() -> None:

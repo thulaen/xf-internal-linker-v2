@@ -7,11 +7,11 @@ from apps.observability.metric_specs import RESERVED_OBSERVABILITY_ITEMS
 
 
 class ReservedObservabilityCatalogTests(SimpleTestCase):
-    def test_catalog_tracks_all_75_reserved_plan_items(self):
+    def test_catalog_tracks_all_85_reserved_plan_items(self):
         ids = [item.item_id for item in RESERVED_OBSERVABILITY_ITEMS]
 
-        self.assertEqual(len(ids), 75)
-        self.assertEqual(ids, list(range(1, 76)))
+        self.assertEqual(len(ids), 85)
+        self.assertEqual(ids, list(range(1, 86)))
 
     def test_metric_catalog_includes_disk_capacity_used_by_alert_rules(self):
         names = set(api.reserved_metric_names())

@@ -97,6 +97,168 @@ groups:
           trap: "Generating more suggestions can make the user-facing backlog worse."
           fix_shape: "Pause generation or prioritize review before expanding intake."
 
+  - name: xf-ranking-health
+    interval: 30s
+    rules:
+      - alert: RankingValidationFailuresHigh
+        expr: rate(xf_scoring_rejected_total{reason="governance_validation_failure"}[5m]) > 0.016
+        for: 5m
+        labels:
+          severity: high
+          affected_file: backend/apps/pipeline/services/ranking_decision_engine.py
+        annotations:
+          summary: "Ranking governance validation failures are high"
+          description: "The Rust ranking-decision engine is rejecting more than 1 candidate per minute on governance checks."
+          trap: "A weight-profile migration can set a weight outside the valid range."
+          fix_shape: "Inspect xf_scoring_rejected_total labels and compare the WeightProfile against the governance spec."
+      - alert: RankingLatencyP95High
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(xf_ranking_decision_latency_seconds_bucket[5m])) by (path, le)
+          ) > 5.0
+        for: 5m
+        labels:
+          severity: medium
+          affected_file: backend/apps/pipeline/services/ranker.py
+        annotations:
+          summary: "Ranking p95 latency is above 5 seconds"
+          description: "The 95th-percentile ranking decision latency has been above 5 seconds for 5 minutes."
+          trap: "Candidate count growth can look like slow ranking code."
+          fix_shape: "Check xf_ranking_batch_size and index rebuild age before changing ranking logic."
+      - alert: RankingBatchSizeP95High
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(xf_ranking_batch_size_bucket[10m])) by (path, le)
+          ) > 500
+        for: 10m
+        labels:
+          severity: medium
+          affected_file: backend/apps/pipeline/services/ranker.py
+        annotations:
+          summary: "Ranking batch size is above the 500-candidate budget"
+          description: "The 95th-percentile ranking batch size has stayed above 500 candidates for 10 minutes."
+          trap: "A larger candidate batch can make the ranking engine look slow even when each score is correct."
+          fix_shape: "Compare candidate retrieval growth, index size, and the batch-size labels before changing score math."
+      - alert: RankingLastBatchSizeHigh
+        expr: avg_over_time(xf_ranking_decision_last_batch_size[10m]) > 500
+        for: 10m
+        labels:
+          severity: low
+          affected_file: backend/apps/pipeline/services/ranker.py
+        annotations:
+          summary: "The latest ranking batch size stayed high"
+          description: "The latest recorded ranking batch size averaged above 500 candidates for 10 minutes."
+          trap: "The last-batch gauge is useful context, but one spike alone should not drive a code change."
+          fix_shape: "Use this issue with the batch histogram and latency issue to decide whether intake size or ranker speed changed."
+      - alert: RankingBatchFailuresHigh
+        expr: sum(rate(xf_ranking_batch_failures_total[5m])) by (path, reason) > 0
+        for: 5m
+        labels:
+          severity: high
+          affected_file: backend/apps/pipeline/services/ranker.py
+        annotations:
+          summary: "Ranking batches are failing"
+          description: "At least one ranking path has failed recently."
+          trap: "A missing Rust module and bad input shape both surface at this boundary."
+          fix_shape: "Check the path and reason labels, then verify Rust artifact health before changing score math."
+      - alert: RankingBatchTimeoutsHigh
+        expr: sum(rate(xf_ranking_batch_timeouts_total[5m])) by (path) > 0
+        for: 5m
+        labels:
+          severity: high
+          affected_file: backend/apps/pipeline/services/ranker.py
+        annotations:
+          summary: "Ranking batches are timing out"
+          description: "At least one ranking path reported a timeout."
+          trap: "Timeouts can be caused by oversized batches rather than a broken algorithm."
+          fix_shape: "Compare xf_ranking_batch_size with current index size and worker load."
+      - alert: RankingBatchFailureRatioHigh
+        expr: |
+          sum(rate(xf_ranking_batches_total{status=~"failure|timeout"}[5m])) by (path)
+          /
+          sum(rate(xf_ranking_batches_total[5m])) by (path)
+          > 0.05
+        for: 5m
+        labels:
+          severity: high
+          affected_file: backend/apps/pipeline/services/ranker.py
+        annotations:
+          summary: "Too many ranking batches are not succeeding"
+          description: "More than 5 percent of recent ranking batches ended in failure or timeout."
+          trap: "A low absolute failure count can still matter when total ranking traffic is small."
+          fix_shape: "Check the status, path, failure, and timeout metrics together before changing thresholds."
+      - alert: RankingRawSignalScoreShift
+        expr: |
+          abs(
+            histogram_quantile(0.5,
+              sum(rate(xf_ranking_signal_raw_score_bucket[30m])) by (signal, le)
+            )
+            -
+            histogram_quantile(0.5,
+              sum(rate(xf_ranking_signal_raw_score_bucket[30m] offset 7d)) by (signal, le)
+            )
+          ) > 0.1
+        for: 30m
+        labels:
+          severity: medium
+          affected_file: backend/apps/pipeline/services/ranker.py
+        annotations:
+          summary: "A raw ranking signal score shifted"
+          description: "A signal's median raw score moved by more than 0.1 compared with the same window last week."
+          trap: "Raw score drift can come from source data changes, not only from ranking code changes."
+          fix_shape: "Compare the signal label with recent import, graph, analytics, and retrieval changes."
+      - alert: RankingSignalContributionShift
+        expr: |
+          abs(
+            histogram_quantile(0.5,
+              sum(rate(xf_ranking_signal_contribution_bucket[30m])) by (signal, le)
+            )
+            -
+            histogram_quantile(0.5,
+              sum(rate(xf_ranking_signal_contribution_bucket[30m] offset 7d)) by (signal, le)
+            )
+          ) > 0.05
+        for: 30m
+        labels:
+          severity: medium
+          affected_file: backend/apps/pipeline/services/ranker.py
+        annotations:
+          summary: "A ranking signal contribution shifted"
+          description: "A signal's median contribution moved by more than 0.05 compared with the same window last week."
+          trap: "A planned weight change can move this metric."
+          fix_shape: "Compare the signal label with recent code, data-source, and weight changes."
+      - alert: RankingLastContributionShift
+        expr: |
+          abs(
+            avg_over_time(xf_ranking_signal_last_contribution[30m])
+            -
+            avg_over_time(xf_ranking_signal_last_contribution[30m] offset 7d)
+          ) > 0.05
+        for: 30m
+        labels:
+          severity: low
+          affected_file: backend/apps/pipeline/services/ranker.py
+        annotations:
+          summary: "The latest ranking signal contribution shifted"
+          description: "A signal's latest recorded contribution moved by more than 0.05 compared with the same window last week."
+          trap: "Last-value gauges are noisy and should support, not replace, histogram drift checks."
+          fix_shape: "Use this issue as current-state context beside the raw-score and contribution histogram issues."
+      - alert: RankingScoreChangeDriverDominant
+        expr: |
+          sum(rate(xf_ranking_score_change_total[30m])) by (driver, direction)
+          > 0.8 * scalar(sum(rate(xf_ranking_score_change_total[30m])))
+          and
+          sum(rate(xf_ranking_score_change_total[30m])) by (driver, direction) > 0.05
+        for: 30m
+        labels:
+          severity: medium
+          affected_file: backend/apps/pipeline/services/ranker.py
+        annotations:
+          summary: "One ranking change reason is dominating score movement"
+          description: "One driver and direction account for more than 80 percent of recent score movement."
+          trap: "A dominant reason can be intended after a planned weight or data-source change."
+          fix_shape: "Compare the driver and direction labels with recent ranking policy, source data, and signal changes."
+
   - name: xf-anomaly-and-budget
     interval: 30s
     rules:

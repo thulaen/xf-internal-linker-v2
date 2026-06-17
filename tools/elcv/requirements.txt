@@ -1,0 +1,7 @@
+# Optional dependency for the true-AST Rust/TypeScript ELCV counter (ts_backend.py).
+# Install in the quality container / CI — NOT on the host. When these are absent,
+# multilang.py transparently falls back to its pure-stdlib keyword heuristic, and the
+# Python ELCV computor + the 27-rule gate work with no dependencies at all.
+tree-sitter>=0.22,<0.25
+tree-sitter-rust>=0.21
+tree-sitter-typescript>=0.21

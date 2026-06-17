@@ -10,7 +10,7 @@ import requests
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
-from django.db.models import Sum
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -82,12 +82,36 @@ def _google_oauth_refresh_token() -> str:
     return (_read_setting("analytics.google_oauth_refresh_token", "") or "").strip()
 
 
-def _google_oauth_client_id() -> str:
+def _app_owned_google_oauth_client_id() -> str:
+    return str(getattr(settings, "GOOGLE_OAUTH_CLIENT_ID", "") or "").strip()
+
+
+def _app_owned_google_oauth_client_secret() -> str:
+    return str(getattr(settings, "GOOGLE_OAUTH_CLIENT_SECRET", "") or "").strip()
+
+
+def _saved_google_oauth_client_id() -> str:
     return (_read_setting("analytics.google_oauth_client_id", "") or "").strip()
 
 
-def _google_oauth_client_secret() -> str:
+def _saved_google_oauth_client_secret() -> str:
     return (_read_setting("analytics.google_oauth_client_secret", "") or "").strip()
+
+
+def _google_oauth_client_id() -> str:
+    return _saved_google_oauth_client_id() or _app_owned_google_oauth_client_id()
+
+
+def _google_oauth_client_secret() -> str:
+    return _saved_google_oauth_client_secret() or _app_owned_google_oauth_client_secret()
+
+
+def _google_oauth_credential_source() -> str:
+    if _saved_google_oauth_client_id() or _saved_google_oauth_client_secret():
+        return "manual"
+    if _app_owned_google_oauth_client_id() or _app_owned_google_oauth_client_secret():
+        return "app"
+    return "none"
 
 
 def _read_setting(key: str, default: str | None = None) -> str | None:
@@ -149,6 +173,8 @@ def get_google_oauth_settings() -> dict:
     client_secret = _google_oauth_client_secret()
     refresh_token = _google_oauth_refresh_token()
     oauth_connected = bool(client_id and client_secret and refresh_token)
+    can_sign_in = bool(client_id and client_secret)
+    credential_source = _google_oauth_credential_source()
     latest_sync = max(
         [_latest_sync("ga4"), _latest_sync("gsc")],
         key=_sync_sort_key,
@@ -157,20 +183,24 @@ def get_google_oauth_settings() -> dict:
         "connected"
         if oauth_connected
         else "saved"
-        if (client_id or client_secret)
+        if can_sign_in
         else "not_configured"
     )
     message = (
         "Connected to Google. This one login can power both GA4 and Search Console."
         if oauth_connected
-        else "Google app credentials are saved. Click Sign in with Google once to finish setup."
-        if (client_id or client_secret)
-        else "Paste the Google OAuth client ID and secret once, then sign in once."
+        else "Google sign-in is ready. Click Connect Google to finish setup."
+        if can_sign_in and credential_source == "app"
+        else "Google app credentials are saved. Click Connect Google once to finish setup."
+        if can_sign_in
+        else "Built-in Google sign-in is not configured yet. Open Advanced setup only if you need manual Google app credentials."
     )
     return {
         "client_id": client_id,
         "client_secret_configured": bool(client_secret),
         "oauth_connected": oauth_connected,
+        "can_sign_in": can_sign_in,
+        "credential_source": credential_source,
         "status": status,
         "message": message,
         "last_sync": latest_sync,
@@ -420,6 +450,59 @@ def get_matomo_settings() -> dict:
         "connection_message": message,
         "last_sync": sync,
     }
+
+
+def _matomo_readiness_counts() -> dict[str, int]:
+    from apps.content.models import ContentItem
+    from apps.graph.models import DirectionalTransitionEdge
+
+    sync = _latest_sync("matomo") or {}
+    edges = DirectionalTransitionEdge.objects.filter(
+        source=DirectionalTransitionEdge.SOURCE_MATOMO
+    )
+    return {
+        "visits_fetched": int(sync.get("rows_read") or 0),
+        "known_content_url_paths": ContentItem.objects.exclude(url="").count(),
+        "matched_page_visits": int(edges.aggregate(total=Sum("transition_count"))["total"] or 0),
+        "dstp_transition_rows": edges.count(),
+    }
+
+
+def _matomo_readiness_message(counts: dict[str, int]) -> tuple[str, str]:
+    if counts["dstp_transition_rows"] > 0:
+        return "ready", "DSTP has live Matomo transition rows to score."
+    if counts["visits_fetched"] == 0:
+        return (
+            "not_ready",
+            "Matomo connection worked, but Matomo returned 0 visits for the last sync window.",
+        )
+    if counts["known_content_url_paths"] == 0:
+        return (
+            "not_ready",
+            "Matomo returned visits, but the app has 0 known content URL paths to match.",
+        )
+    return (
+        "not_ready",
+        "Matomo returned data, but no ordered page-to-page DSTP rows were written yet.",
+    )
+
+
+class AnalyticsMatomoReadinessView(APIView):
+    """Report whether Matomo data is ready for DSTP live scoring."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        counts = _matomo_readiness_counts()
+        status, message = _matomo_readiness_message(counts)
+        return Response(
+            {
+                "status": status,
+                "message": message,
+                "last_sync": _latest_sync("matomo"),
+                **counts,
+            }
+        )
 
 
 def _coerce_bool(value, field_name: str) -> bool:
@@ -848,12 +931,15 @@ def _upsert_periodic_task(
 
 def _ga4_periodic_enabled(ga4_config: dict[str, object]) -> bool:
     """Truth-table for whether the GA4 periodic tasks should run."""
+    service_account_ready = (
+        bool(ga4_config["read_project_id"])
+        and bool(ga4_config["read_client_email"])
+        and bool(ga4_config["read_private_key_configured"])
+    )
     return (
         bool(ga4_config["sync_enabled"])
         and bool(ga4_config["property_id"])
-        and bool(ga4_config["read_project_id"])
-        and bool(ga4_config["read_client_email"])
-        and bool(ga4_config["read_private_key_configured"])
+        and (bool(ga4_config.get("oauth_connected")) or service_account_ready)
     )
 
 
@@ -870,11 +956,13 @@ def _matomo_periodic_enabled(matomo_config: dict[str, object]) -> bool:
 
 def _gsc_periodic_enabled(gsc_config: dict[str, object]) -> bool:
     """Truth-table for whether the GSC periodic task should run."""
+    service_account_ready = bool(gsc_config["client_email"]) and bool(
+        gsc_config["private_key_configured"]
+    )
     return (
         bool(gsc_config["sync_enabled"])
         and bool(gsc_config["property_url"])
-        and bool(gsc_config["client_email"])
-        and bool(gsc_config["private_key_configured"])
+        and (bool(gsc_config.get("oauth_connected")) or service_account_ready)
     )
 
 
@@ -1074,6 +1162,201 @@ def _summarize_coverage_queryset(queryset) -> dict:
     }
 
 
+def _coverage_sum_fields() -> dict[str, Sum]:
+    return {
+        "expected_instrumented_links": Sum("expected_instrumented_links"),
+        "observed_impression_links": Sum("observed_impression_links"),
+        "observed_click_links": Sum("observed_click_links"),
+        "attributed_destination_sessions": Sum("attributed_destination_sessions"),
+        "unattributed_destination_sessions": Sum("unattributed_destination_sessions"),
+        "duplicate_event_drops": Sum("duplicate_event_drops"),
+        "missing_metadata_events": Sum("missing_metadata_events"),
+        "delayed_rows_rewritten": Sum("delayed_rows_rewritten"),
+    }
+
+
+def _coverage_summary_from_row(row: dict, latest_row: dict | None) -> dict:
+    expected_links = int(row["expected_instrumented_links"] or 0)
+    observed_impressions = int(row["observed_impression_links"] or 0)
+    observed_clicks = int(row["observed_click_links"] or 0)
+    attributed_sessions = int(row["attributed_destination_sessions"] or 0)
+    unattributed_sessions = int(row["unattributed_destination_sessions"] or 0)
+    total_sessions = attributed_sessions + unattributed_sessions
+    latest = _coverage_latest_values(latest_row)
+    return {
+        "row_count": row["row_count"],
+        "latest_state": latest["state"],
+        "latest_date": latest["date"],
+        "event_schema": latest["schema"],
+        "healthy_days": row["healthy_days"],
+        "partial_days": row["partial_days"],
+        "degraded_days": row["degraded_days"],
+        "expected_instrumented_links": expected_links,
+        "observed_impression_links": observed_impressions,
+        "observed_click_links": observed_clicks,
+        "attributed_destination_sessions": attributed_sessions,
+        "unattributed_destination_sessions": unattributed_sessions,
+        "duplicate_event_drops": int(row["duplicate_event_drops"] or 0),
+        "missing_metadata_events": int(row["missing_metadata_events"] or 0),
+        "delayed_rows_rewritten": int(row["delayed_rows_rewritten"] or 0),
+        "impression_coverage_rate": _safe_rate(observed_impressions, expected_links),
+        "click_coverage_rate": _safe_rate(observed_clicks, expected_links),
+        "attribution_rate": _safe_rate(attributed_sessions, total_sessions),
+    }
+
+
+def _coverage_latest_values(latest_row: dict | None) -> dict[str, str | None]:
+    if not latest_row:
+        return {"state": "no_data", "date": None, "schema": ""}
+    latest_date = latest_row["date"].isoformat() if latest_row["date"] else None
+    return {
+        "state": latest_row["coverage_state"],
+        "date": latest_date,
+        "schema": latest_row["event_schema"],
+    }
+
+
+def _coverage_source_summaries(queryset) -> list[dict]:
+    latest_by_source = {}
+    latest_rows = queryset.order_by("source_label", "-date").values(
+        "source_label", "date", "coverage_state", "event_schema"
+    )
+    for row in latest_rows:
+        latest_by_source.setdefault(row["source_label"], row)
+    grouped_rows = (
+        queryset.values("source_label")
+        .annotate(
+            row_count=Count("id"),
+            healthy_days=Count("id", filter=Q(coverage_state="healthy")),
+            partial_days=Count("id", filter=Q(coverage_state="partial")),
+            degraded_days=Count("id", filter=Q(coverage_state="degraded")),
+            **_coverage_sum_fields(),
+        )
+        .order_by("source_label")
+    )
+    return [
+        {
+            "source_label": row["source_label"] or "unknown",
+            **_coverage_summary_from_row(row, latest_by_source.get(row["source_label"])),
+        }
+        for row in grouped_rows
+    ]
+
+
+def _dependency_status(raw_status: str) -> str:
+    if raw_status == "connected":
+        return "healthy"
+    if raw_status == "error":
+        return "error"
+    if raw_status == "not_configured":
+        return "not_configured"
+    return "warning"
+
+
+def _connection_dependency(
+    *,
+    key: str,
+    label: str,
+    raw_status: str,
+    message: str,
+    sync: dict | None,
+) -> dict:
+    return {
+        "key": key,
+        "label": label,
+        "status": _dependency_status(raw_status),
+        "message": message,
+        "metrics": {
+            "rows_read": int((sync or {}).get("rows_read") or 0),
+            "rows_written": int((sync or {}).get("rows_written") or 0),
+        },
+    }
+
+
+def _dstp_dependency() -> dict:
+    from apps.content.models import ContentItem
+    from apps.graph.models import DirectionalTransitionEdge
+
+    edges = DirectionalTransitionEdge.objects.filter(
+        source=DirectionalTransitionEdge.SOURCE_COMBINED
+    )
+    rows = edges.count()
+    matched = int(edges.aggregate(total=Sum("transition_count"))["total"] or 0)
+    known_urls = ContentItem.objects.exclude(url="").count()
+    if rows > 0:
+        status = "healthy"
+        message = "DSTP has matched visitor movement rows for live scoring."
+    elif known_urls == 0:
+        status = "warning"
+        message = "DSTP is waiting for synced content URLs before it can match visits."
+    else:
+        status = "warning"
+        message = "DSTP is waiting for Matomo or GA4 to return matched page movements."
+    return {
+        "key": "dstp",
+        "label": "DSTP visitor paths",
+        "status": status,
+        "message": message,
+        "metrics": {
+            "dstp_transition_rows": rows,
+            "matched_page_visits": matched,
+            "known_content_url_paths": known_urls,
+        },
+    }
+
+
+def _networkit_dependency() -> dict:
+    from apps.graph.models import GraphSignalRun
+
+    run = GraphSignalRun.objects.filter(status=GraphSignalRun.STATUS_CURRENT).first()
+    node_count = int(run.node_count) if run else 0
+    edge_count = int(run.edge_count) if run else 0
+    status = "healthy" if run and node_count > 0 else "warning"
+    message = (
+        "Networkit has a current graph-signal run."
+        if status == "healthy"
+        else "Networkit has no current graph-signal run yet."
+    )
+    return {
+        "key": "networkit",
+        "label": "Networkit graph signals",
+        "status": status,
+        "message": message,
+        "metrics": {"node_count": node_count, "edge_count": edge_count},
+    }
+
+
+def _analytics_health_dependencies() -> list[dict]:
+    ga4 = get_ga4_telemetry_settings()
+    matomo = get_matomo_settings()
+    gsc = get_gsc_settings()
+    return [
+        _connection_dependency(
+            key="ga4_read",
+            label="Google Analytics 4 read sync",
+            raw_status=str(ga4.get("read_connection_status") or ""),
+            message=str(ga4.get("read_connection_message") or ""),
+            sync=ga4.get("last_sync"),
+        ),
+        _connection_dependency(
+            key="matomo",
+            label="Matomo visitor sync",
+            raw_status=str(matomo.get("connection_status") or ""),
+            message=str(matomo.get("connection_message") or ""),
+            sync=matomo.get("last_sync"),
+        ),
+        _connection_dependency(
+            key="gsc",
+            label="Google Search Console sync",
+            raw_status=str(gsc.get("connection_status") or ""),
+            message=str(gsc.get("connection_message") or ""),
+            sync=gsc.get("last_sync"),
+        ),
+        _dstp_dependency(),
+        _networkit_dependency(),
+    ]
+
+
 class AnalyticsTelemetryHealthView(APIView):
     """Return simple telemetry-health rollups for the selected time window."""
 
@@ -1083,26 +1366,12 @@ class AnalyticsTelemetryHealthView(APIView):
         days = _telemetry_window_days(request)
         start_date = timezone.now().date() - timedelta(days=days - 1)
         queryset = TelemetryCoverageDaily.objects.filter(date__gte=start_date)
-        source_rows = []
-        for source in (
-            queryset.order_by("source_label")
-            .values_list("source_label", flat=True)
-            .distinct()
-        ):
-            source_key = source or "unknown"
-            source_rows.append(
-                {
-                    "source_label": source_key,
-                    **_summarize_coverage_queryset(
-                        queryset.filter(source_label=source)
-                    ),
-                }
-            )
         return Response(
             {
                 "days": days,
                 "overall": _summarize_coverage_queryset(queryset),
-                "sources": source_rows,
+                "sources": _coverage_source_summaries(queryset),
+                "dependencies": _analytics_health_dependencies(),
             }
         )
 
@@ -2301,6 +2570,146 @@ _GOOGLE_OAUTH_SCOPES = (
     "https://www.googleapis.com/auth/analytics.readonly",
     "https://www.googleapis.com/auth/webmasters.readonly",
 )
+# Public Google OAuth endpoint, not a secret.
+_GOOGLE_OAUTH_TOKEN_URI = "https://oauth2.googleapis.com/token"  # nosec B105
+
+
+def _google_oauth_ready() -> tuple[str, str, str]:
+    client_id = _google_oauth_client_id()
+    client_secret = _google_oauth_client_secret()
+    refresh_token = _google_oauth_refresh_token()
+    return client_id, client_secret, refresh_token
+
+
+def _build_google_analytics_admin_service(*, refresh_token: str, client_id: str, client_secret: str):
+    from google.oauth2 import credentials
+    from googleapiclient.discovery import build
+
+    creds = credentials.Credentials(
+        token=None,
+        refresh_token=refresh_token,
+        client_id=client_id,
+        client_secret=client_secret,
+        token_uri=_GOOGLE_OAUTH_TOKEN_URI,
+        scopes=list(_GOOGLE_OAUTH_SCOPES),
+    )
+    return build("analyticsadmin", "v1beta", credentials=creds, cache_discovery=False)
+
+
+def _ga4_property_id(property_name: str) -> str:
+    return (property_name or "").rsplit("/", 1)[-1].strip()
+
+
+def _collect_ga4_properties(admin_service) -> list[dict[str, str]]:
+    response = admin_service.accountSummaries().list().execute()
+    properties: list[dict[str, str]] = []
+    for account in response.get("accountSummaries", []):
+        account_name = str(account.get("displayName") or "")
+        for summary in account.get("propertySummaries", []):
+            property_id = _ga4_property_id(str(summary.get("property") or ""))
+            if property_id:
+                properties.append(
+                    {
+                        "property_id": property_id,
+                        "display_name": str(summary.get("displayName") or property_id),
+                        "account_name": account_name,
+                    }
+                )
+    return properties[:50]
+
+
+def _collect_ga4_streams(admin_service, properties: list[dict[str, str]]) -> list[dict[str, str]]:
+    streams: list[dict[str, str]] = []
+    for item in properties[:20]:
+        property_id = item["property_id"]
+        try:
+            response = (
+                admin_service.properties()
+                .dataStreams()
+                .list(parent=f"properties/{property_id}")
+                .execute()
+            )
+        except Exception as exc:
+            logger.warning("GA4 stream listing failed for %s: %s", property_id, exc)
+            continue
+        streams.extend(_format_ga4_streams(property_id, response.get("dataStreams", [])))
+    return streams
+
+
+def _format_ga4_streams(property_id: str, rows: list[dict]) -> list[dict[str, str]]:
+    streams: list[dict[str, str]] = []
+    for row in rows:
+        measurement_id = str((row.get("webStreamData") or {}).get("measurementId") or "")
+        stream_name = str(row.get("name") or "")
+        if measurement_id:
+            streams.append(
+                {
+                    "property_id": property_id,
+                    "stream_id": stream_name.rsplit("/", 1)[-1],
+                    "display_name": str(row.get("displayName") or measurement_id),
+                    "measurement_id": measurement_id,
+                }
+            )
+    return streams
+
+
+def _collect_gsc_sites(gsc_service) -> list[dict[str, str]]:
+    response = gsc_service.sites().list().execute()
+    return [
+        {
+            "site_url": str(row.get("siteUrl") or ""),
+            "permission_level": str(row.get("permissionLevel") or ""),
+        }
+        for row in response.get("siteEntry", [])
+        if row.get("siteUrl")
+    ]
+
+
+class AnalyticsGoogleSetupChoicesView(APIView):
+    """List Google Analytics and Search Console choices for the setup wizard."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        client_id, client_secret, refresh_token = _google_oauth_ready()
+        if not (client_id and client_secret and refresh_token):
+            return Response(
+                {
+                    "status": "not_configured",
+                    "message": "Connect Google before loading Google setup choices.",
+                    "ga4_properties": [],
+                    "ga4_streams": [],
+                    "gsc_sites": [],
+                },
+                status=400,
+            )
+        try:
+            admin_service = _build_google_analytics_admin_service(
+                refresh_token=refresh_token,
+                client_id=client_id,
+                client_secret=client_secret,
+            )
+            gsc_service = build_gsc_service(
+                refresh_token=refresh_token,
+                client_id=client_id,
+                client_secret=client_secret,
+            )
+            properties = _collect_ga4_properties(admin_service)
+            return Response(
+                {
+                    "status": "connected",
+                    "message": "Google setup choices loaded.",
+                    "ga4_properties": properties,
+                    "ga4_streams": _collect_ga4_streams(admin_service, properties),
+                    "gsc_sites": _collect_gsc_sites(gsc_service),
+                }
+            )
+        except Exception as exc:
+            logger.exception("Google setup choice listing failed")
+            return Response(
+                {"status": "error", "message": f"Google setup choices failed: {exc}"},
+                status=502,
+            )
 
 
 def _build_google_oauth_flow(

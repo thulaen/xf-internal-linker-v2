@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest import mock
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -125,7 +127,25 @@ class AutoIssueAPITests(TestCase):
         resp = self.client.post("/api/auto-issues/resync/")
         self.assertEqual(resp.status_code, 403)
 
-    def test_resync_returns_picker_results_for_admin(self):
+    @mock.patch("apps.auto_issues.services.vmalert_picker.pick_vmalert_alerts")
+    @mock.patch("apps.auto_issues.services.pyroscope_picker.pick_pyroscope_regressions")
+    @mock.patch("apps.auto_issues.services.internal_picker.pick_internal_issues")
+    @mock.patch("apps.auto_issues.services.glitchtip_picker.pick_glitchtip_issues")
+    @mock.patch("apps.audit.tasks.sync_glitchtip_issues")
+    def test_resync_returns_picker_results_for_admin(
+        self,
+        mock_sync,
+        mock_glitchtip,
+        mock_internal,
+        mock_pyroscope,
+        mock_vmalert,
+    ):
+        mock_sync.return_value = {"status": "ok"}
+        mock_glitchtip.return_value = {"promoted": 0}
+        mock_internal.return_value = {"promoted": 0}
+        mock_pyroscope.return_value = {"promoted": 0}
+        mock_vmalert.return_value = 0
+
         self.client.force_authenticate(self.admin)
         resp = self.client.post("/api/auto-issues/resync/")
         self.assertEqual(resp.status_code, 200)
@@ -134,6 +154,7 @@ class AutoIssueAPITests(TestCase):
         self.assertIn("glitchtip_picker", body)
         self.assertIn("internal_picker", body)
         self.assertIn("pyroscope_picker", body)
+        self.assertIn("vmalert_picker", body)
         self.assertIn("open_count", body)
 
     def test_flush_cache_requires_admin(self):

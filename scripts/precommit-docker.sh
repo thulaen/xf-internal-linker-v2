@@ -291,6 +291,12 @@ run_hard_gate check-always-on-quota python .githooks/check-always-on-quota.py
 run_hard_gate check-codeql-autoissues python .githooks/check-codeql-autoissues.py
 run_hard_gate check-debug-code python .githooks/check-debug-code.py
 run_hard_gate check-junk-files python .githooks/check-junk-files.py
+# ELCV quality gate: hard-blocks NEW code-quality violations in staged Python files
+# (baseline-grandfathered, fails-open on tool error). See tools/elcv/.
+run_hard_gate check-elcv-gate python .githooks/check-elcv-gate.py
+# ELCV target lock: locked targets (1B atlas / 28M ranklab / 5M aegis / 2B ceiling) may be
+# raised but never lowered/removed without a conscious "unlock" override. Anti-clash.
+run_hard_gate check-elcv-targets python .githooks/check-elcv-targets.py
 # Slice 1.5 — Go services tier boundary + contract enforcement.
 run_hard_gate check-no-cross-language-import python .githooks/check-no-cross-language-import.py
 # Wrong-language IMPLEMENTATIONS (distinct from the import boundary above):

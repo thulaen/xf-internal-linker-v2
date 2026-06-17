@@ -1,5 +1,16 @@
 <div class="tab-content" id="connect-sync">
   <div class="settings-grid">
+    <app-connection-setup-wizard
+      class="settings-card--wide"
+      [googleOAuth]="googleOAuth"
+      [ga4Telemetry]="ga4Telemetry"
+      [ga4Gsc]="ga4Gsc"
+      [matomoReadiness]="matomoReadiness"
+      [xenforo]="xenforo"
+      [wordpress]="wordpress"
+      (refreshRequested)="reload()"
+    />
+
     <mat-card class="settings-card settings-card--wide" id="xenforo-settings">
       <mat-card-header>
         <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%">

@@ -19,6 +19,7 @@ from .anchor_diversity import build_anchor_history
 from .advanced_graph_signals import (
     AdvancedGraphSignalsCaches,
     AdvancedGraphSignalsSettings,
+    csbr_topic_vector_from_metadata,
 )
 from .fr099_fr105_signals import FR099FR105Caches, FR099FR105Settings
 from .graph_topology_caches import (
@@ -306,12 +307,21 @@ def _build_advanced_graph_signals_caches(
     density_gradients = _build_rgsd_density_array(
         node_to_index=node_to_index,
     )
+    transition_counts, out_degrees = _build_dstp_transition_arrays(
+        node_to_index=node_to_index,
+        enabled=advanced_graph_signals_settings.dstp.enabled,
+    )
+    lda_topic_vectors = _build_csbr_topic_vectors(
+        content_records=content_records,
+        node_to_index=node_to_index,
+        enabled=advanced_graph_signals_settings.csbr.enabled,
+    )
     size = len(node_to_index)
     return AdvancedGraphSignalsCaches(
         node_to_index=node_to_index,
         spectral_scores=spectral_scores,
-        transition_counts={},
-        out_degrees=np.zeros(size, dtype=np.int32),
+        transition_counts=transition_counts,
+        out_degrees=out_degrees,
         local_degrees=local_degrees,
         global_degrees=global_degrees,
         block_probabilities={},
@@ -320,6 +330,7 @@ def _build_advanced_graph_signals_caches(
         persona_matches={},
         node_blocks=node_blocks,
         block_transition_matrix=block_transition_matrix,
+        lda_topic_vectors=lda_topic_vectors,
     )
 
 
@@ -341,6 +352,35 @@ def _build_tosd_lambda_array(
         if index is not None:
             spectral_scores[index] = float(value)
     return spectral_scores
+
+
+def _build_dstp_transition_arrays(
+    *,
+    node_to_index: dict[ContentKey, int],
+    enabled: bool,
+) -> tuple[dict[tuple[int, int], int], np.ndarray]:
+    """Return DSTP pair counts and host outbound totals from current analytics."""
+    out_degrees = np.zeros(len(node_to_index), dtype=np.int32)
+    if not enabled:
+        return {}, out_degrees
+    try:
+        from apps.graph.api import current_dstp_transitions
+
+        counts_by_key, out_by_key = current_dstp_transitions()
+    except Exception:
+        logger.exception("Failed to load DSTP transition cache")
+        return {}, out_degrees
+    transition_counts: dict[tuple[int, int], int] = {}
+    for (source_key, dest_key), count in counts_by_key.items():
+        source_index = node_to_index.get(source_key)
+        dest_index = node_to_index.get(dest_key)
+        if source_index is not None and dest_index is not None:
+            transition_counts[(source_index, dest_index)] = int(count)
+    for source_key, total in out_by_key.items():
+        source_index = node_to_index.get(source_key)
+        if source_index is not None:
+            out_degrees[source_index] = int(total)
+    return transition_counts, out_degrees
 
 
 def _build_icpc_degree_arrays(
@@ -403,6 +443,26 @@ def _build_rgsd_density_array(
         if index is not None:
             density_gradients[index] = float(value)
     return density_gradients
+
+
+def _build_csbr_topic_vectors(
+    *,
+    content_records: dict[ContentKey, ContentRecord],
+    node_to_index: dict[ContentKey, int],
+    enabled: bool,
+) -> dict[int, tuple[tuple[int, float], ...]]:
+    """Return CSBR topic vectors keyed by graph-node index."""
+    if not enabled:
+        return {}
+    topic_vectors: dict[int, tuple[tuple[int, float], ...]] = {}
+    for key, record in content_records.items():
+        index = node_to_index.get(key)
+        if index is None:
+            continue
+        topic_vector = csbr_topic_vector_from_metadata(record.nlp_metadata)
+        if topic_vector:
+            topic_vectors[index] = topic_vector
+    return topic_vectors
 
 
 # ---------------------------------------------------------------------------

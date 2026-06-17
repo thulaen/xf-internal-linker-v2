@@ -7,6 +7,7 @@ by the pipeline service which passes pre-built records into these functions.
 from __future__ import annotations
 
 from collections import Counter
+from contextlib import nullcontext
 import dataclasses
 import heapq
 import logging
@@ -766,11 +767,39 @@ def score_destination_matches(
         component_scores_f32 = np.ascontiguousarray(component_scores, dtype=np.float32)
         batch_weights_f32 = np.ascontiguousarray(batch_weights, dtype=np.float32)
         silo_array_f32 = np.ascontiguousarray(silo_array, dtype=np.float32)
-        score_finals = kernel.calculate_composite_scores_full_batch(
-            component_scores_f32,
-            batch_weights_f32,
-            silo_array_f32,
-        )
+        timer = nullcontext()
+        observe_component_batch = None
+        component_signal_names = ()
+        try:
+            from apps.observability.metrics_ranking import (
+                CORE_RANKING_COMPONENT_SIGNALS,
+                observe_component_batch as _observe_component_batch,
+                ranking_latency_timer,
+            )
+            timer = ranking_latency_timer(
+                candidate_count=len(pending_candidates),
+                path="composite_batch",
+            )
+            observe_component_batch = _observe_component_batch
+            component_signal_names = CORE_RANKING_COMPONENT_SIGNALS
+        except Exception:
+            logger.debug(
+                "ranking metric helpers unavailable — metrics skipped",
+                exc_info=True,
+            )
+        with timer:
+            score_finals = kernel.calculate_composite_scores_full_batch(
+                component_scores_f32,
+                batch_weights_f32,
+                silo_array_f32,
+            )
+        if observe_component_batch is not None:
+            observe_component_batch(
+                component_scores_f32,
+                batch_weights_f32,
+                silo_array_f32,
+                component_signal_names,
+            )
     else:
         score_finals = np.empty(0, dtype=np.float32)
 
@@ -784,7 +813,10 @@ def score_destination_matches(
 
     _advanced_graph_evals = []
     if advanced_graph_signals_settings is not None:
-        from .advanced_graph_signals import evaluate_advanced_graph_signals_batch
+        from .advanced_graph_signals import (
+            csbr_persona_match_from_metadata,
+            evaluate_advanced_graph_signals_batch,
+        )
         host_dest_pairs = [(c["match"].host_key, destination.key) for c in pending_candidates]
         dest_silo_id = getattr(destination, "silo_group_id", None)
         is_cross_silo = []
@@ -796,6 +828,17 @@ def score_destination_matches(
                 and dest_silo_id is not None
                 and host_silo_id != dest_silo_id
             )
+        persona_scores = []
+        for index, candidate in enumerate(pending_candidates):
+            host = content_records.get(candidate["match"].host_key)
+            persona_scores.append(
+                csbr_persona_match_from_metadata(
+                    getattr(host, "nlp_metadata", None),
+                    getattr(destination, "nlp_metadata", None),
+                )
+                if is_cross_silo[index]
+                else 0.0
+            )
         _advanced_graph_evals = evaluate_advanced_graph_signals_batch(
             host_dest_pairs,
             advanced_graph_signals_caches,
@@ -805,6 +848,7 @@ def score_destination_matches(
                 float(candidate["match"].score_semantic)
                 for candidate in pending_candidates
             ],
+            persona_scores=persona_scores,
         )
 
     # W3c graph-signal contribution (picks #29 / #30 / #36).
@@ -829,6 +873,18 @@ def score_destination_matches(
         nk_node_contribution += float(weights.get("graph.nk_components.ranking_weight", 0.0)) * (0.5 if nk_node_signal.is_main_component else -0.5)
         nk_node_contribution += float(weights.get("graph.nk_local_clustering.ranking_weight", 0.0)) * _get_nk(nk_node_signal.local_clustering)
         nk_node_contribution += float(weights.get("graph.nk_group_seed_rank.ranking_weight", 0.0)) * _get_nk(nk_node_signal.group_seed_rank)
+
+    observe_signal_contributions = None
+    try:
+        from apps.observability.metrics_ranking import (
+            observe_signal_contributions as _observe_signal_contributions,
+        )
+        observe_signal_contributions = _observe_signal_contributions
+    except Exception:
+        logger.debug(
+            "ranking contribution metrics unavailable — metrics skipped",
+            exc_info=True,
+        )
 
     for i, (pending_candidate, raw_score_final) in enumerate(zip(pending_candidates, score_finals)):
         match = pending_candidate["match"]
@@ -930,7 +986,8 @@ def score_destination_matches(
             getattr(destination, "updated_at", None),
             half_life_days=_fr249_half_life,
         )
-        score_final += float(_fr249_weight) * score_embedding_age
+        embedding_age_contribution = float(_fr249_weight) * score_embedding_age
+        score_final += embedding_age_contribution
 
         # FR-053 — Passage-Level Relevance Scoring (masterplan Group E).
         # Read the destination's best-passage similarity to the host
@@ -1000,6 +1057,7 @@ def score_destination_matches(
         # vectors that match the W1 trainer's vocabulary. Without
         # them, the FM DictVectorizer sees zero overlap and the
         # adapter is inert.
+        phase6_total_contribution = 0.0
         if phase6_contribution is not None:
             try:
                 from .phase6_ranker_contribution import AdapterContext
@@ -1042,7 +1100,10 @@ def score_destination_matches(
                     score_components=phase6_score_components,
                     anchor_confidence=getattr(phrase_match, "anchor_confidence", None),
                 )
-                score_final += float(phase6_contribution.contribute_total(phase6_ctx))
+                phase6_total_contribution = float(
+                    phase6_contribution.contribute_total(phase6_ctx)
+                )
+                score_final += phase6_total_contribution
             except Exception as exc:  # pragma: no cover — defensive
                 logger.warning(
                     "phase6_contribution.contribute_total raised: %s",
@@ -1069,6 +1130,7 @@ def score_destination_matches(
         # + Iglewicz-Hoaglin modified z-score (Shannon 1948 + IH
         # 1993). Cold-start safe: when the dispatcher is None,
         # contribution is exactly 0.0.
+        anchor_garbage_contribution = 0.0
         if anchor_garbage_dispatcher is not None:
             try:
                 anchor_text = phrase_match.anchor_phrase or ""
@@ -1086,13 +1148,14 @@ def score_destination_matches(
                         if segment:
                             dest_slug = segment
                             break
-                score_final += float(
+                anchor_garbage_contribution = float(
                     anchor_garbage_dispatcher.contribution(
                         anchor_text,
                         dest_title_for_anchor,
                         dest_slug,
                     )
                 )
+                score_final += anchor_garbage_contribution
             except Exception as exc:  # pragma: no cover — defensive
                 logger.warning(
                     "anchor_garbage_dispatcher.contribution raised: %s",
@@ -1150,6 +1213,26 @@ def score_destination_matches(
             elif wc < _THIN_WORD_SOFT_THRESHOLD:
                 thin_penalty = score_final * -0.15
         score_final += thin_penalty
+        if observe_signal_contributions is not None:
+            observe_signal_contributions(
+                {
+                    "networkit_node": nk_node_contribution,
+                    "networkit_link": nk_link_contribution,
+                    "fr099_fr105": fr099_contribution,
+                    "w3c_graph": graph_signal_contribution,
+                    "advanced_graph": advanced_graph_contribution,
+                    "embedding_age": embedding_age_contribution,
+                    "passage_relevance": passage_relevance_contribution,
+                    "phase6": phase6_total_contribution,
+                    "anchor_garbage": anchor_garbage_contribution,
+                    "cluster_suppression": score_cluster_suppression,
+                    "thin_content": thin_penalty,
+                },
+                raw_scores={
+                    "embedding_age": score_embedding_age,
+                    "passage_relevance": passage_relevance_score,
+                },
+            )
 
         ranked.append(
             ScoredCandidate(

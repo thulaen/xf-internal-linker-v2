@@ -226,6 +226,14 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute=40),
         "options": {"queue": "default", "expires": 1500},
     },
+    # vmalert active alerts → AutoIssues (source=vmalert). Runs near the
+    # other observability pickers so metric alerts become visible during
+    # normal agent sessions without waiting for a manual resync.
+    "auto-issues-vmalert-pick": {
+        "task": "auto_issues.pick_vmalert_alerts",
+        "schedule": crontab(hour="11-23", minute="28,58"),
+        "options": {"queue": "default", "expires": 600},
+    },
     # ── Phase 6 of the test-hardening plan (2026-05-12) ──
     # Five new pickers. Times chosen so they DON'T overlap with the
     # existing :05/:10/:15/:20/:25 chain. Each runs at the bottom of

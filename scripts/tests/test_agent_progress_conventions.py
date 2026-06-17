@@ -79,7 +79,10 @@ class TestDetectStuck(TestCase):
 
     def test_lock_at_threshold_is_stuck(self):
         stuck = ap.detect_stuck([], 8 * 60)
-        self.assertEqual(stuck, ["the mutation-test lock has been held 8 min — a run may be wedged"])
+        self.assertEqual(
+            stuck,
+            ["the mutation-test lock has been held 8 min — a run may be wedged"],
+        )
 
     def test_lock_below_threshold_not_stuck(self):
         self.assertEqual(ap.detect_stuck([], 8 * 60 - 1), [])
@@ -127,6 +130,32 @@ class TestShouldEmit(TestCase):
 
 
 class TestRender(TestCase):
+    def test_chat_task_render_uses_steps_before_repo_count(self):
+        task = ap.start_task_state("chat task", ["Inspect", "Fix", "Test", "Report"], now=100.0)
+        block = ap.render("12:00:00", "fallback", dirty=55, baseline=660, stuck=[], task=task)
+        self.assertIn("[PROGRESS · 12:00:00 · chat task]", block)
+        self.assertIn("Task   [░░░░░░░░░░░░░░░░░░░░] 0%   0/4 steps done", block)
+        self.assertIn("current: Inspect", block)
+        self.assertIn("Repo   55 uncommitted files total", block)
+        self.assertNotIn("files left to commit", block)
+
+    def test_chat_task_done_steps_move_bar(self):
+        task = ap.start_task_state("chat task", ["Inspect", "Fix"], now=100.0)
+        task = ap.update_task_step_state(task, "Inspect", "done", now=101.0)
+        task = ap.update_task_step_state(task, "Fix", "in_progress", now=102.0)
+        block = ap.render("12:00:00", "fallback", dirty=55, baseline=660, stuck=[], task=task)
+        self.assertIn("Task   [██████████░░░░░░░░░░] 50%   1/2 steps done", block)
+        self.assertIn("current: Fix", block)
+
+    def test_chat_task_blocked_adds_plain_stuck_reason(self):
+        task = ap.start_task_state("chat task", ["Inspect", "Fix"], now=100.0)
+        task = ap.update_task_step_state(task, "Fix", "blocked", now=101.0)
+        self.assertEqual(ap.chat_task_stuck_reasons(task), ["current chat task is blocked at Fix"])
+
+    def test_stale_chat_task_expires(self):
+        task = ap.start_task_state("chat task", ["Inspect"], now=100.0)
+        self.assertIsNone(ap.active_task_or_none(task, now=100.0 + 46 * 60))
+
     def test_header_and_no_stall_line(self):
         block = ap.render("12:00:00", "working", dirty=5, baseline=10, stuck=[])
         self.assertIn("[PROGRESS · 12:00:00 · working]", block)
@@ -136,7 +165,8 @@ class TestRender(TestCase):
 
     def test_no_baseline_uses_uncommitted_line(self):
         block = ap.render("01:02:03", "lbl", dirty=4, baseline=0, stuck=[])
-        self.assertIn("Work   4 uncommitted files", block)
+        self.assertIn("Task   no active chat task", block)
+        self.assertIn("Repo   4 uncommitted files total", block)
 
     def test_stall_line_joins_reasons(self):
         block = ap.render("00:00:00", "lbl", dirty=1, baseline=2, stuck=["a", "b"])

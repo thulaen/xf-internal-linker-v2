@@ -62,8 +62,8 @@ spec:
     pods: "40"
     persistentvolumeclaims: "20"
     # Storage ceilings — overall, then per tier so neither disk can be drained.
-    requests.storage: "160Gi"
+    requests.storage: "420Gi"
     ssd-hot.storageclass.storage.k8s.io/requests.storage: "60Gi"
     ssd-hot.storageclass.storage.k8s.io/persistentvolumeclaims: "12"
-    nfs-cold.storageclass.storage.k8s.io/requests.storage: "100Gi"
-    nfs-cold.storageclass.storage.k8s.io/persistentvolumeclaims: "12"
+    nfs-cold.storageclass.storage.k8s.io/requests.storage: "360Gi"
+    nfs-cold.storageclass.storage.k8s.io/persistentvolumeclaims: "18"

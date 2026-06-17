@@ -528,6 +528,22 @@ class PickerScheduleCadenceTests(SimpleTestCase):
                 f"Pyroscope should fire 5 min after GT at :{gt_min:02d}",
             )
 
+    def test_vmalert_picker_runs_in_the_observability_chain(self):
+        """vmalert alerts must become AutoIssues without a manual resync."""
+        from config.settings.celery_schedules import CELERY_BEAT_SCHEDULE
+
+        entry = CELERY_BEAT_SCHEDULE.get("auto-issues-vmalert-pick")
+        self.assertIsNotNone(entry, "vmalert picker schedule entry missing")
+        self.assertEqual(entry["task"], "auto_issues.pick_vmalert_alerts")
+        cron = entry["schedule"]
+        self.assertIn(28, cron.minute)
+        self.assertIn(58, cron.minute)
+        self.assertEqual(
+            len(cron.hour),
+            13,
+            "vmalert picker must run hours 11-23 inclusive",
+        )
+
 
 class PyroscopeHotspotDetectorTests(SimpleTestCase):
     """Tests for the same-day hotspot detector added 2026-05-10

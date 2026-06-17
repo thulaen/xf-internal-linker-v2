@@ -30,8 +30,8 @@ Scope:
 
 | Symbol | Meaning | Code identifier | File |
 |---|---|---|---|
-| `count(A → B)` | Observed A→B transition occurrences (numerator) | `transition_counts_csr` | precomputed in `pipeline_data.py` |
-| `count(A → *)` | Total outbound transitions from A (denominator before smoothing) | `transition_out_degrees` | precomputed in `pipeline_data.py` |
+| `count(A → B)` | Observed A→B transition occurrences (numerator) | `transition_counts` | request-time cache field in `pipeline_data.py`; loaded from `graph_directionaltransitionedge` |
+| `count(A → *)` | Total outbound transitions from A (denominator before smoothing) | `out_degrees` | request-time cache field in `pipeline_data.py`; loaded from `graph_directionaltransitionedge.source_transition_count` |
 | `α` | Additive smoothing pseudo-count added to the denominator | `dstp.smoothing_alpha` | `recommended_weights.py` |
 | `P(B\|A) = count(A → B) / (count(A → *) + α)` | Smoothed transition probability | `evaluate_dstp()` | `advanced_graph_signals` Rust kernel |
 
@@ -68,14 +68,15 @@ DSTP returns `0.0` when:
 | Decision | Choice | Justification |
 |---|---|---|
 | **Language** | Rust via PyO3 | Fast CSR row lookups and Bayesian smoothing math during the hot-path ranking phase. |
-| **Precompute** | `transition_counts_csr` | Sourced from `piwik_log_link_visit_action` (or equivalent clickstream logs) daily. |
+| **Precompute** | `DirectionalTransitionEdge` rows | Sourced from Matomo `Live.getLastVisitsDetails` ordered visit paths and Google Analytics 4 page-view rows when those read settings are available. The browser bridge sends a shared `xfil_visit_id` to both trackers. The refresh dedupes by that shared visit ID when present, falls back to content pair plus minute when it is missing, then writes one `combined` edge set for scoring. |
 | **Module location** | `rust/extensions/advanced_graph_signals` | Single unified crate for all advanced graph math. |
 
 ---
 
 ## Hardware Budget
-- RAM: ~10 MB for sparse transition matrices.
+- RAM: ~10 MB for sparse transition matrices at request time.
 - CPU: < 5 μs per candidate (O(1) sparse lookup).
+- Disk: one compact row per observed ordered source-to-destination page pair for the combined analytics window. Matomo-only and Google-only rows can still exist as fallback evidence, but the live scoring reader prefers the deduped `combined` rows when they exist. At roughly 200 bytes per row plus database index overhead, 100,000 ordered pairs are expected to stay under 100 MB. The writer prunes combined rows when pairs disappear from the latest sync window, so old pairs do not keep growing without bound.
 
 ---
 
@@ -93,6 +94,8 @@ The ranking uses the **smoothed** value, not the raw one:
 ## Benchmark Plan
 Criterion benchmarks in `rust/extensions/advanced_graph_signals/benches/signal_benches.rs`.
 
+Python precompute benchmark coverage exists in `backend/benchmarks/test_bench_advanced_graph_signals.py::test_bench_dstp_transition_builder` at 100, 1,000, and 10,000 ordered Matomo visits.
+
 ---
 
 ## Edge Cases
@@ -109,6 +112,15 @@ All Gate A boxes pass.
 ---
 
 ## Pending
-- [ ] Transition matrix builder from DB logs.
-- [ ] Rust kernel implementation.
-- [ ] Python dispatcher integration.
+- [x] Transition matrix builder from Matomo ordered visit paths.
+- [x] Existing Matomo sync calls the DSTP refresh path after daily telemetry rollups.
+- [x] Request-time cache loader reads `DirectionalTransitionEdge` output into `transition_counts` and `out_degrees`.
+- [x] Rust kernel implementation exists in `rust/extensions/advanced_graph_signals`.
+- [x] Python dispatcher integration exists in `backend/apps/pipeline/services/advanced_graph_signals.py`.
+- [x] Google Analytics 4 can contribute page movements through `pageReferrer` → `pageLocation` page-view rows when read sync is configured.
+- [x] Matomo and Google rows are deduped before the combined DSTP edge set is written.
+- [x] Exact cross-tool visitor identity is supported when both browser trackers emit the same first-party `xfil_visit_id`. When older rows do not have that ID, deduping remains conservative: timed rows dedupe by content pair and minute; rows without time stay source-specific.
+
+### 2026-06-16 wiring investigation note
+
+The safe source for live DSTP is ordered page movement. Matomo provides that through visit action details. Google Analytics 4 can contribute page-view rows when it includes a referring page and a destination page. The app dedupes matching Matomo and Google movements, stores the combined result in `DirectionalTransitionEdge`, and the pipeline cache reads those rows into `transition_counts` and `out_degrees`. Reusing `SessionCoOccurrencePair` is still unsafe because that table stores same-session co-reading pairs and writes both directions, not chronological A→B transitions. Reusing `ExistingLink` is still unsafe because it stores links already present in content, not visitor movement.

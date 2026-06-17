@@ -16,8 +16,6 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/cluster_lib.sh"
 cluster_require_gitbash "$0"
 
-MINT_NODE="${MINT_NODE:-minthelper01-lenovo-c50-30}"
-DELL_NODE="${DELL_NODE:-dell-ubuntu-01-optiplex-micro-7010}"
 MAX_CLOCK_OFFSET_SECONDS="${MAX_CLOCK_OFFSET_SECONDS:-2}"
 
 # A host's clock is healthy when systemd reports it synchronized AND chrony's

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import date
 from unittest.mock import patch
 
 from django.test import TestCase
 
 from apps.content.models import ContentItem
 from apps.graph.models import GraphSignalRun, NodeGraphSignal
+from apps.graph.services.dstp_transitions import upsert_directional_transition_edges
 from apps.pipeline.services.advanced_graph_signals import (
     AdvancedGraphSignalsEvaluation,
     AdvancedGraphSignalsSettings,
@@ -23,7 +25,12 @@ from apps.pipeline.services.ranker_types import (
 )
 
 
-def _record(content_id: int, *, silo_group_id: int | None = 1) -> ContentRecord:
+def _record(
+    content_id: int,
+    *,
+    silo_group_id: int | None = 1,
+    nlp_metadata: dict | None = None,
+) -> ContentRecord:
     return ContentRecord(
         content_id=content_id,
         content_type="thread",
@@ -42,6 +49,7 @@ def _record(content_id: int, *, silo_group_id: int | None = 1) -> ContentRecord:
         link_freshness_score=0.5,
         primary_post_char_count=400,
         tokens=frozenset({"shared", "topic"}),
+        nlp_metadata=nlp_metadata or {},
     )
 
 
@@ -221,12 +229,70 @@ class AdvancedGraphCacheBuilderTests(TestCase):
         self.assertEqual(caches.density_gradients[host_index], 0.8)
         self.assertEqual(caches.density_gradients[dest_index], 0.3)
 
+    def test_csbr_cache_uses_topic_vectors_from_content_metadata(self):
+        host = _record(
+            51,
+            nlp_metadata={"lda_topics": [(1, 0.75), (2, 0.25)]},
+        )
+        dest = _record(
+            52,
+            nlp_metadata={"lda_topics": [(1, 0.75), (2, 0.25)]},
+        )
+
+        caches = _build_advanced_graph_signals_caches(
+            content_records={host.key: host, dest.key: dest},
+            advanced_graph_signals_settings=AdvancedGraphSignalsSettings(),
+            progress_fn=lambda *_args, **_kwargs: None,
+        )
+
+        if caches is None:
+            self.fail("Expected advanced graph signal caches to be built.")
+        host_index = caches.node_to_index[host.key]
+        dest_index = caches.node_to_index[dest.key]
+        self.assertEqual(caches.lda_topic_vectors[host_index], ((1, 0.75), (2, 0.25)))
+        self.assertEqual(caches.lda_topic_vectors[dest_index], ((1, 0.75), (2, 0.25)))
+
+    def test_dstp_cache_loads_directional_transition_counts(self):
+        host_item = ContentItem.objects.create(content_id=61, content_type="thread")
+        dest_item = ContentItem.objects.create(content_id=62, content_type="thread")
+        host = _record(host_item.pk)
+        dest = _record(dest_item.pk)
+        upsert_directional_transition_edges(
+            source="matomo",
+            site_id="3",
+            transition_counts={(host_item.pk, dest_item.pk): 3},
+            out_degrees={host_item.pk: 9},
+            window_start=date(2026, 6, 1),
+            window_end=date(2026, 6, 16),
+        )
+
+        caches = _build_advanced_graph_signals_caches(
+            content_records={host.key: host, dest.key: dest},
+            advanced_graph_signals_settings=AdvancedGraphSignalsSettings(),
+            progress_fn=lambda *_args, **_kwargs: None,
+        )
+
+        if caches is None:
+            self.fail("Expected advanced graph signal caches to be built.")
+        host_index = caches.node_to_index[host.key]
+        dest_index = caches.node_to_index[dest.key]
+        self.assertEqual(caches.transition_counts[(host_index, dest_index)], 3)
+        self.assertEqual(caches.out_degrees[host_index], 9)
+
 
 class AdvancedGraphRankerWiringTests(TestCase):
     def test_ranker_adds_advanced_graph_scores_and_uses_host_silo(self):
-        destination = _record(100, silo_group_id=1)
+        destination = _record(
+            100,
+            silo_group_id=1,
+            nlp_metadata={"lda_topics": [(1, 1.0)]},
+        )
         same_host = _record(200, silo_group_id=1)
-        cross_host = _record(300, silo_group_id=2)
+        cross_host = _record(
+            300,
+            silo_group_id=2,
+            nlp_metadata={"lda_topics": [(1, 1.0)]},
+        )
         records = {
             destination.key: destination,
             same_host.key: same_host,
@@ -277,6 +343,7 @@ class AdvancedGraphRankerWiringTests(TestCase):
 
         self.assertEqual(mock_eval.call_args.args[3], [False, True])
         self.assertEqual(mock_eval.call_args.kwargs["semantic_scores"], [0.8, 0.6])
+        self.assertEqual(mock_eval.call_args.kwargs["persona_scores"], [0.0, 1.0])
         by_host = {candidate.host_content_id: candidate for candidate in scored}
         self.assertAlmostEqual(by_host[200].score_icpc, 0.7)
         self.assertEqual(by_host[200].icpc_diagnostics, {"score": 0.7})

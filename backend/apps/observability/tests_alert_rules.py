@@ -46,6 +46,31 @@ class VmalertRulesTests(SimpleTestCase):
         self.assertIn("predict_linear", rules["ImportRateDropPredicted"]["expr"])
         self.assertIn("xf_active_series_per_tenant", rules["CardinalityBudgetExceeded"]["expr"])
 
+    def test_ranking_autoissue_rules_have_stable_file_labels(self):
+        rules = _alert_rules_by_name()
+        expected = {
+            "RankingValidationFailuresHigh",
+            "RankingLatencyP95High",
+            "RankingBatchSizeP95High",
+            "RankingLastBatchSizeHigh",
+            "RankingBatchFailuresHigh",
+            "RankingBatchTimeoutsHigh",
+            "RankingBatchFailureRatioHigh",
+            "RankingRawSignalScoreShift",
+            "RankingSignalContributionShift",
+            "RankingLastContributionShift",
+            "RankingScoreChangeDriverDominant",
+        }
+
+        self.assertTrue(expected.issubset(rules))
+        for name in expected:
+            with self.subTest(name=name):
+                labels = rules[name]["labels"]
+                annotations = rules[name]["annotations"]
+                self.assertIn("backend/apps/", labels["affected_file"])
+                self.assertTrue(annotations["trap"])
+                self.assertTrue(annotations["fix_shape"])
+
 
 def _alert_rules_by_name() -> dict[str, dict]:
     payload = yaml.safe_load((ROOT / "config/vmalert/rules.yml").read_text())
@@ -55,4 +80,3 @@ def _alert_rules_by_name() -> dict[str, dict]:
             if "alert" in rule:
                 rules[rule["alert"]] = rule
     return rules
-

@@ -15,6 +15,7 @@ Signals:
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 from typing import Any, TypeAlias
 
@@ -114,6 +115,9 @@ class AdvancedGraphSignalsCaches:
     persona_matches: dict[tuple[int, int], float]
     node_blocks: np.ndarray | None = None
     block_transition_matrix: dict[tuple[int, int], float] = field(default_factory=dict)
+    lda_topic_vectors: dict[int, tuple[tuple[int, float], ...]] = field(
+        default_factory=dict
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +134,7 @@ def evaluate_advanced_graph_signals_batch(
     settings: AdvancedGraphSignalsSettings,
     is_cross_silo: list[bool],
     semantic_scores: list[float] | None = None,
+    persona_scores: list[float] | None = None,
 ) -> list[AdvancedGraphSignalsEvaluation]:
     """Evaluate the 6 advanced graph signals for a batch of host -> dest pairs."""
     n = len(host_dest_pairs)
@@ -143,6 +148,7 @@ def evaluate_advanced_graph_signals_batch(
         caches,
         is_cross_silo,
         semantic_scores,
+        persona_scores,
     )
 
     try:
@@ -177,6 +183,7 @@ def _resolve_signal_inputs(
     caches: AdvancedGraphSignalsCaches,
     is_cross_silo: list[bool],
     semantic_scores: list[float] | None = None,
+    persona_scores: list[float] | None = None,
 ) -> tuple[dict[str, np.ndarray], list[bool]]:
     """Gather per-candidate kernel inputs from the caches.
 
@@ -229,7 +236,7 @@ def _resolve_signal_inputs(
         elif (h, d) in caches.block_probabilities:
             sbma_resolved[i] = 1
         flat[i] = _resolve_flat_distance(caches, h, d, semantic_scores, i)
-        persona[i] = caches.persona_matches.get((h, d), 0.0)
+        persona[i] = _resolve_persona_match(caches, h, d, persona_scores, i)
 
     inputs = {
         "spectral_scores": spectral,
@@ -247,6 +254,131 @@ def _resolve_signal_inputs(
         "is_cross_silo": np.asarray(is_cross_silo, dtype=np.uint8),
     }
     return inputs, resolved
+
+
+def csbr_persona_match_from_metadata(
+    host_metadata: dict[str, Any] | None,
+    destination_metadata: dict[str, Any] | None,
+) -> float:
+    """Return CSBR topic similarity from stored page metadata."""
+    host_topics = csbr_topic_vector_from_metadata(host_metadata)
+    destination_topics = csbr_topic_vector_from_metadata(destination_metadata)
+    return _jensen_shannon_topic_similarity(host_topics, destination_topics)
+
+
+def csbr_topic_vector_from_metadata(
+    metadata: dict[str, Any] | None,
+) -> tuple[tuple[int, float], ...]:
+    """Return stored CSBR topic weights from page metadata."""
+    return _topic_pairs_from_metadata(metadata)
+
+
+def _topic_pairs_from_metadata(
+    metadata: dict[str, Any] | None,
+) -> tuple[tuple[int, float], ...]:
+    if not metadata:
+        return ()
+    for key in ("lda_topics", "lda_topic_vector", "lda_topic_vectors"):
+        pairs = _normalise_topic_pairs(metadata.get(key))
+        if pairs:
+            return pairs
+    return ()
+
+
+def _normalise_topic_pairs(raw: Any) -> tuple[tuple[int, float], ...]:
+    if isinstance(raw, dict):
+        items = raw.items()
+    elif isinstance(raw, (list, tuple)):
+        items = raw
+    else:
+        return ()
+    pairs: list[tuple[int, float]] = []
+    for item in items:
+        if isinstance(item, dict):
+            topic_id = item.get("topic_id", item.get("topic"))
+            weight = item.get("weight", item.get("probability"))
+        else:
+            try:
+                topic_id, weight = item
+            except (TypeError, ValueError):
+                continue
+        try:
+            topic_int = int(topic_id)
+            weight_float = float(weight)
+        except (TypeError, ValueError):
+            continue
+        if weight_float > 0.0:
+            pairs.append((topic_int, weight_float))
+    return tuple(pairs)
+
+
+def _resolve_persona_match(
+    caches: AdvancedGraphSignalsCaches,
+    host_index: int,
+    dest_index: int,
+    persona_scores: list[float] | None,
+    position: int,
+) -> float:
+    cached = caches.persona_matches.get((host_index, dest_index))
+    if cached is not None:
+        return _clamp_unit_interval(float(cached))
+    if persona_scores is not None and position < len(persona_scores):
+        return _clamp_unit_interval(float(persona_scores[position]))
+    return _jensen_shannon_topic_similarity(
+        caches.lda_topic_vectors.get(host_index, ()),
+        caches.lda_topic_vectors.get(dest_index, ()),
+    )
+
+
+def _jensen_shannon_topic_similarity(
+    host_topics: tuple[tuple[int, float], ...],
+    destination_topics: tuple[tuple[int, float], ...],
+) -> float:
+    host_dist = _normalised_distribution(host_topics)
+    dest_dist = _normalised_distribution(destination_topics)
+    if not host_dist or not dest_dist:
+        return 0.0
+    topic_ids = host_dist.keys() | dest_dist.keys()
+    midpoint = {
+        topic_id: 0.5 * (host_dist.get(topic_id, 0.0) + dest_dist.get(topic_id, 0.0))
+        for topic_id in topic_ids
+    }
+    divergence = 0.5 * _kl_divergence(host_dist, midpoint, topic_ids)
+    divergence += 0.5 * _kl_divergence(dest_dist, midpoint, topic_ids)
+    return _clamp_unit_interval(1.0 - divergence)
+
+
+def _normalised_distribution(
+    pairs: tuple[tuple[int, float], ...],
+) -> dict[int, float]:
+    totals: dict[int, float] = {}
+    for topic_id, weight in pairs:
+        if weight > 0.0:
+            totals[topic_id] = totals.get(topic_id, 0.0) + weight
+    total_weight = sum(totals.values())
+    if total_weight <= 0.0:
+        return {}
+    return {
+        topic_id: weight / total_weight
+        for topic_id, weight in totals.items()
+    }
+
+
+def _kl_divergence(
+    dist: dict[int, float],
+    reference: dict[int, float],
+    topic_ids: set[int],
+) -> float:
+    total = 0.0
+    for topic_id in topic_ids:
+        probability = dist.get(topic_id, 0.0)
+        if probability > 0.0:
+            total += probability * math.log2(probability / reference[topic_id])
+    return total
+
+
+def _clamp_unit_interval(value: float) -> float:
+    return min(1.0, max(0.0, value))
 
 
 def _resolve_flat_distance(

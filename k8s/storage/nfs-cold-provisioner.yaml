@@ -3,8 +3,8 @@
 # Plain English: this makes Mint's big drive available to the whole cluster as an
 # on-demand shared folder. When any app part asks for disk using the "nfs-cold"
 # storage class, this provisioner automatically carves out a subfolder on Mint's
-# NFS share (/srv/nfs/cluster, reached over the private 10.10.10.0/24 cable) and
-# hands it to that app part. Used for data that must survive restarts and be
+# NFS share over the private cluster cable and hands it to that app part. Used
+# for data that must survive restarts and be
 # reachable from either machine: uploaded media, caches, monitoring history.
 #
 # The "hot" tier (Dell's fast SSD, for database-adjacent + test scratch) is a
@@ -121,14 +121,14 @@ spec:
             - name: PROVISIONER_NAME
               value: xf.cluster/nfs-cold
             - name: NFS_SERVER
-              value: "10.10.10.91"
+              value: &nfs_server "10.10.10.91"
             - name: NFS_PATH
-              value: /srv/nfs/cluster
+              value: &nfs_path /srv/nfs/cluster
       volumes:
         - name: nfs-client-root
           nfs:
-            server: 10.10.10.91
-            path: /srv/nfs/cluster
+            server: *nfs_server
+            path: *nfs_path
 ---
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -138,19 +138,13 @@ metadata:
     storageclass.kubernetes.io/is-default-class: "false"
 provisioner: xf.cluster/nfs-cold
 parameters:
-  # On PVC delete, the data subfolder is renamed (archived) instead of erased —
-  # a safety net so a mistaken delete never silently loses files.
+  # Keep the provisioner's archive rename enabled as a second safety check.
+  # The real deletion guard is reclaimPolicy: Retain below.
   archiveOnDelete: "true"
 # Tuned mount options for every nfs-cold volume (SLICE-08). Plain English:
-#   nfsvers=4.2  — use modern NFS (the Mint server has 4.2 enabled).
-#   hard         — if the server blinks, wait and retry forever rather than
-#                  return an error mid-write (protects data; the safe default).
-#   noatime      — don't write a timestamp every time a file is merely READ
-#                  (cuts pointless writes; big win for read-heavy caches).
-#   nconnect=4   — open 4 parallel connections to the server for more throughput
-#                  (kernel 5.3+; both nodes are far newer).
-#   rsize/wsize  — transfer in 1 MB chunks instead of small ones (faster bulk I/O).
-#   timeo=600 retrans=2 — standard NFSv4 retry timing (60s, 2 retries).
+# use modern NFS, wait and retry through short server blips, avoid read-time
+# timestamp writes, use parallel network connections with large chunks, and keep
+# retry timing explicit. The exact values live only in the mountOptions list.
 # (Applies to volumes provisioned AFTER this change; the existing kernels volume
 #  keeps its mount until it is next re-created — its options are fixed at birth.)
 mountOptions:
@@ -162,5 +156,5 @@ mountOptions:
   - wsize=1048576
   - timeo=600
   - retrans=2
-reclaimPolicy: Delete
+reclaimPolicy: Retain
 volumeBindingMode: Immediate

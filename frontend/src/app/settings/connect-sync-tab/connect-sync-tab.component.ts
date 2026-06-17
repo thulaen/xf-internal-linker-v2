@@ -58,6 +58,7 @@ import {
   GoogleOAuthSettings,
   GSCSettings,
   GSCSettingsUpdate,
+  MatomoReadiness,
   MatomoTelemetrySettings,
   MatomoTelemetryUpdate,
   SiloSettingsService,
@@ -69,6 +70,7 @@ import {
   XenForoSettingsUpdate,
 } from '../silo-settings.service';
 import { SETTING_TOOLTIPS } from '../setting-tooltips';
+import { ConnectionSetupWizardComponent } from './connection-setup-wizard.component';
 
 /**
  * Sentinel record for the "Pending check" health state on a freshly
@@ -106,6 +108,7 @@ const DEFAULT_HEALTH = {
     MatSelectModule,
     MatSnackBarModule,
     MatTooltipModule,
+    ConnectionSetupWizardComponent,
   ],
   templateUrl: './connect-sync-tab.component.html',
   styleUrls: ['./connect-sync-tab.component.scss'],
@@ -219,6 +222,15 @@ export class ConnectSyncTabComponent implements OnInit, OnDestroy {
     connection_message: 'Fill in the Matomo fields and test the connection.',
     last_sync: null,
   };
+  matomoReadiness: MatomoReadiness = {
+    status: 'not_ready',
+    message: 'Run Matomo sync after content URLs are available.',
+    visits_fetched: 0,
+    known_content_url_paths: 0,
+    matched_page_visits: 0,
+    dstp_transition_rows: 0,
+    last_sync: null,
+  };
   matomoTelemetryToken = '';
   savingMatomoTelemetry = false;
   testingMatomoTelemetry = false;
@@ -266,6 +278,7 @@ export class ConnectSyncTabComponent implements OnInit, OnDestroy {
       googleOAuth: this.siloSvc.getGoogleOAuthSettings(),
       ga4Telemetry: this.siloSvc.getGA4TelemetrySettings(),
       matomoTelemetry: this.siloSvc.getMatomoTelemetrySettings(),
+      matomoReadiness: this.siloSvc.getMatomoReadiness(),
       xenforo: this.siloSvc.getXenForoSettings(),
       wordpress: this.siloSvc.getWordPressSettings(),
       webhookSettings: this.siloSvc.getWebhookSettings(),
@@ -281,6 +294,7 @@ export class ConnectSyncTabComponent implements OnInit, OnDestroy {
         this.googleAuthClientSecret = '';
         this.ga4Telemetry = { ...this.ga4Telemetry, ...data.ga4Telemetry };
         this.matomoTelemetry = { ...this.matomoTelemetry, ...data.matomoTelemetry };
+        this.matomoReadiness = { ...this.matomoReadiness, ...data.matomoReadiness };
         this.xenforo = { ...this.xenforo, ...data.xenforo };
         this.wordpress = { ...this.wordpress, ...data.wordpress };
         this.webhookSettings = { ...this.webhookSettings, ...data.webhookSettings };

@@ -63,21 +63,21 @@ subjects:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ssd-hot-provisioner
+  name: &ssd_hot_provisioner_name ssd-hot-provisioner
   namespace: xf-storage
   labels:
-    app: ssd-hot-provisioner
+    app: *ssd_hot_provisioner_name
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: ssd-hot-provisioner
+      app: *ssd_hot_provisioner_name
   template:
     metadata:
       labels:
-        app: ssd-hot-provisioner
+        app: *ssd_hot_provisioner_name
     spec:
-      serviceAccountName: ssd-hot-provisioner
+      serviceAccountName: *ssd_hot_provisioner_name
       containers:
         - name: local-path-provisioner
           image: rancher/local-path-provisioner:v0.0.30
@@ -90,9 +90,9 @@ spec:
             - --provisioner-name
             - cluster.local/ssd-hot
             - --configmap-name
-            - ssd-hot-config
+            - &ssd_hot_config_name ssd-hot-config
             - --service-account-name
-            - ssd-hot-provisioner
+            - *ssd_hot_provisioner_name
             - --helper-pod-file
             - /etc/config/helperPod.yaml
           volumeMounts:
@@ -106,7 +106,7 @@ spec:
       volumes:
         - name: config-volume
           configMap:
-            name: ssd-hot-config
+            name: *ssd_hot_config_name
 ---
 kind: ConfigMap
 apiVersion: v1

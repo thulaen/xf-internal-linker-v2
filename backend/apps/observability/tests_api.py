@@ -37,25 +37,37 @@ class FallbackMetricArithmeticTests(SimpleTestCase):
         registry = api.CollectorRegistry()
         return api.Counter("xf_fallback_total", "fallback", registry=registry)
 
+    def _metric_value(self, metric) -> float:
+        if hasattr(metric, "value"):
+            return metric.value
+        return metric._value.get()
+
+    def _child_value(self, child, parent, key: tuple[str, ...]) -> float:
+        if hasattr(parent, "samples"):
+            return parent.samples[key]
+        return child._value.get()
+
     def test_inc_default_amount_adds_one(self) -> None:
         metric = self._counter()
         metric.inc()
         # Exact value kills the mutation of the default ``amount=1.0``.
-        self.assertEqual(metric.value, 1.0)
+        self.assertEqual(self._metric_value(metric), 1.0)
 
     def test_inc_accumulates_exact_amount(self) -> None:
         metric = self._counter()
         metric.inc(2.0)
         metric.inc(3.0)
-        self.assertEqual(metric.value, 5.0)
+        self.assertEqual(self._metric_value(metric), 5.0)
 
     def test_set_replaces_value(self) -> None:
-        metric = self._counter()
+        registry = api.CollectorRegistry()
+        metric = api.Gauge("xf_fallback_gauge", "fallback", registry=registry)
         metric.set(7.0)
-        self.assertEqual(metric.value, 7.0)
+        self.assertEqual(self._metric_value(metric), 7.0)
 
     def test_labels_track_child_values_independently(self) -> None:
         registry = api.CollectorRegistry()
         metric = api.Counter("xf_fallback_lbl_total", "fallback", labelnames=("source",), registry=registry)
-        metric.labels(source="wordpress").inc(4.0)
-        self.assertEqual(metric.samples[("wordpress",)], 4.0)
+        child = metric.labels(source="wordpress")
+        child.inc(4.0)
+        self.assertEqual(self._child_value(child, metric, ("wordpress",)), 4.0)

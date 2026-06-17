@@ -154,10 +154,19 @@ export interface AnalyticsHealthSummary {
   attribution_rate: number;
 }
 
+export interface AnalyticsDependencyHealth {
+  key: string;
+  label: string;
+  status: 'healthy' | 'warning' | 'error' | 'not_configured';
+  message: string;
+  metrics: Record<string, number | string | boolean | null>;
+}
+
 export interface AnalyticsHealthResponse {
   days: number;
   overall: AnalyticsHealthSummary;
   sources: Array<AnalyticsHealthSummary & { source_label: string }>;
+  dependencies: AnalyticsDependencyHealth[];
 }
 
 export interface AnalyticsBreakdownRow {

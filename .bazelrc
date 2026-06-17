@@ -1,5 +1,5 @@
 # Bazel configuration — see ADR 0010 + docs/BAZEL-MIGRATION-PLAN.md.
-# Bazel is the authoritative builder; it runs on the Mint build node (Bazelisk
+# Bazel is the authoritative builder; it runs on the Dell build node (Bazelisk
 # reads .bazelversion). Remote-cache flags are added in Phase 4.
 
 # bzlmod (MODULE.bazel) is the dependency model; no legacy WORKSPACE.

@@ -38,6 +38,16 @@ RESERVED_METRICS: tuple[MetricSpec, ...] = (
     MetricSpec("xf_scoring_score", "histogram"),
     MetricSpec("xf_scoring_latency_seconds", "histogram"),
     MetricSpec("xf_scoring_rejected_total", "counter", ("reason",)),
+    MetricSpec("xf_ranking_decision_latency_seconds", "histogram", ("path",)),
+    MetricSpec("xf_ranking_batch_size", "histogram", ("path",)),
+    MetricSpec("xf_ranking_decision_last_batch_size", "gauge", ("path",)),
+    MetricSpec("xf_ranking_batches_total", "counter", ("path", "status")),
+    MetricSpec("xf_ranking_batch_failures_total", "counter", ("path", "reason")),
+    MetricSpec("xf_ranking_batch_timeouts_total", "counter", ("path",)),
+    MetricSpec("xf_ranking_signal_raw_score", "histogram", ("signal",)),
+    MetricSpec("xf_ranking_signal_contribution", "histogram", ("signal", "direction")),
+    MetricSpec("xf_ranking_signal_last_contribution", "gauge", ("signal",)),
+    MetricSpec("xf_ranking_score_change_total", "counter", ("driver", "direction")),
     MetricSpec("xf_scoring_near_dup_removed_total", "counter"),
     MetricSpec("xf_suggestions_saved_total", "counter"),
     MetricSpec("xf_suggestions_per_doc", "histogram"),
@@ -89,7 +99,7 @@ RESERVED_METRICS: tuple[MetricSpec, ...] = (
 
 
 _RESERVED_ITEM_NAMES: tuple[tuple[str, str], ...] = (
-    *[(spec.name, spec.kind) for spec in RESERVED_METRICS[:38]],
+    *[(spec.name, spec.kind) for spec in RESERVED_METRICS[:48]],
     ("ImportFailuresHigh", "alert"),
     ("WebhookBacklogGrowing", "alert"),
     ("EmbeddingQueueAgeHigh", "alert"),

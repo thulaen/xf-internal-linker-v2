@@ -18,11 +18,14 @@
 # the scheduler will place here; they do not impose hard cgroup caps that could
 # starve the control plane).
 #
-# Verified 2026-06-15: Mint Allocatable dropped to cpu=3500m, mem=6990516Ki (from
-# Capacity cpu=4, mem=8039092Ki) -- exactly 500m CPU + 1 GiB held back -- and the
-# kubelet runs with --image-gc-high-threshold=80 --image-gc-low-threshold=60.
+# Verified 2026-06-15: Mint Allocatable dropped to cpu=3500m, mem=6990516Ki
+# (from Capacity cpu=4, mem=8039092Ki) -- exactly 500m CPU + 1 GiB held back.
 kubelet-arg:
   - "system-reserved=cpu=250m,memory=512Mi"
   - "kube-reserved=cpu=250m,memory=512Mi"
+  - "eviction-hard=memory.available<300Mi,nodefs.available<10%"
+  - "eviction-soft=memory.available<500Mi,nodefs.available<15%"
+  - "eviction-soft-grace-period=memory.available=1m,nodefs.available=1m"
   - "image-gc-high-threshold=80"
   - "image-gc-low-threshold=60"
+  - "minimum-image-ttl-duration=2h"

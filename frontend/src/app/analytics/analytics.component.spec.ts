@@ -93,6 +93,28 @@ describe('AnalyticsComponent', () => {
             attribution_rate: 0.75,
           },
         ],
+        dependencies: [
+          {
+            key: 'dstp',
+            label: 'DSTP visitor paths',
+            status: 'healthy',
+            message: 'DSTP has matched visitor movement rows.',
+            metrics: {
+              dstp_transition_rows: 3,
+              matched_page_visits: 12,
+            },
+          },
+          {
+            key: 'networkit',
+            label: 'Networkit graph signals',
+            status: 'warning',
+            message: 'Networkit has no current graph run yet.',
+            metrics: {
+              node_count: 0,
+              edge_count: 0,
+            },
+          },
+        ],
       }),
     ),
     getBreakdowns: vi.fn().mockReturnValue(
@@ -329,6 +351,9 @@ describe('AnalyticsComponent', () => {
     expect(text).toContain('Funnel Performance');
     expect(text).toContain('Algorithm Performance');
     expect(text).toContain('System Health');
+    expect(text).toContain('DSTP visitor paths');
+    expect(text).toContain('Networkit graph signals');
+    expect(text).toContain('DSTP has matched visitor movement rows.');
     expect(text).toContain('Impression Coverage');
     expect(text).toContain('Device Mix');
     expect(text).toContain('Channel Mix');

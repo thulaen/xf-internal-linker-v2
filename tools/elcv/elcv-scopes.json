@@ -1,0 +1,26 @@
+{
+  "_comment": "SINGLE SOURCE OF TRUTH for ELCV targets. NEVER hardcode a target in code or a spec. A scope with \"locked\": true may be RAISED but never lowered, removed, or unlocked, UNLESS this file carries a top-level \"unlock\": \"<reason>\" override (a conscious, reviewed action). Enforced as a hard gate by .githooks/check-elcv-targets.py. Global USO de-duplication runs across the whole codebase, so scopes can never duplicate each other's logic — zero overlap/conflict/bloat is enforced.",
+
+  "global_ceiling": 2000000000,
+
+  "scopes": {
+    "repo": {
+      "target": 2000000000,
+      "locked": true,
+      "roots": ["backend", "frontend/src", "rust", "tools", "ranklab"],
+      "note": "Whole-repo target = 2,000,000,000 ELCV (the mission goal). Every counted unit is USO-unique across the entire codebase: no duplication, no conflict, no overlap, no vendor code, no bloat. Equals the global ceiling — the whole repo grows into the full 2B of distinct, behaviorally-unique logic."
+    },
+    "ranklab": {
+      "target": 28000000,
+      "locked": true,
+      "roots": ["ranklab", "backend/apps/autobrain"],
+      "note": "RankLab initiative — target 28M. See the RankLab plan (OneDrive 'RankLab 28M')."
+    },
+    "aegis": {
+      "target": 5000000,
+      "locked": true,
+      "roots": ["tools/elcv", "backend/apps/governance", "backend/apps/diagnostics"],
+      "note": "Aegis code-validation-engine / PreGate — target 5M. See docs/specs/fr-code-validation-engine.md."
+    }
+  }
+}

@@ -15,13 +15,13 @@ Standard library only (urllib) so it can run inside the slim runner images.
 
 from __future__ import annotations
 
-import json
 import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
 
-LOCKFILE = Path(__file__).resolve().parents[2] / "runner-images.lock.json"
+from image_refs import LOCKFILE, image_ref, load_lockfile, runner_entries
+
 _MANIFEST_ACCEPT = (
     "application/vnd.oci.image.manifest.v1+json,"
     "application/vnd.oci.image.index.v1+json,"
@@ -39,29 +39,23 @@ def _registry_digest(repository: str, digest: str, timeout: int = 10) -> str:
 
 
 def verify(lockfile: Path = LOCKFILE) -> int:
-    data = json.loads(lockfile.read_text(encoding="utf-8"))
-    runners = data.get("runners", {})
-    if not runners:
-        print("FAIL verify_lockfile: no runners recorded in the lockfile.")
+    try:
+        runners = runner_entries(load_lockfile(lockfile))
+    except ValueError as exc:
+        print(f"FAIL verify_lockfile: {exc}")
         return 1
     ok = True
     for name, entry in sorted(runners.items()):
-        digest = entry.get("digest", "")
-        repository = entry.get("repository", "")
-        if not digest.startswith("sha256:") or len(digest) != 71:
-            print(f"FAIL {name}: identity is not a sha256 digest pin (floating tag?): {digest!r}")
-            ok = False
-            continue
         try:
-            got = _registry_digest(repository, digest)
+            got = _registry_digest(entry["repository"], entry["digest"])
         except (urllib.error.URLError, OSError) as exc:
-            print(f"FAIL {name}: cannot reach {repository}@{digest}: {exc}")
+            print(f"FAIL {name}: cannot reach {image_ref(entry)}: {exc}")
             ok = False
             continue
-        if got == digest:
-            print(f"OK   {name}: {repository}@{digest} resolves")
+        if got == entry["digest"]:
+            print(f"OK   {name}: {image_ref(entry)} resolves")
         else:
-            print(f"FAIL {name}: registry returned {got!r}, lockfile has {digest!r}")
+            print(f"FAIL {name}: registry returned {got!r}, lockfile has {entry['digest']!r}")
             ok = False
     return 0 if ok else 1
 

@@ -55,10 +55,10 @@
     does not match. Default 3.
 
 .PARAMETER Volumes
-    Override the list of Docker volume names to migrate. Default is the five
-    file-backed monitoring volumes (see the table below). The pyroscope volume
-    is included but NOTE: it normally lives on the Mint helper, not MSI — see the
-    "NOTES" section. Pass a subset to migrate only some volumes.
+    Override the list of Docker volume names to migrate. Default is read from
+    k8s/obs/history-copy/volume-map.json. The pyroscope volume is included there
+    but NOTE: it normally lives on the Mint helper, not MSI — see the "NOTES"
+    section. Pass a subset to migrate only some volumes.
 
 .EXAMPLE
     # Dry-run-style listing first (Docker must be running, volumes present):
@@ -100,17 +100,12 @@ param(
     [string]$StagingTarget = '\\10.10.10.91\cluster\obs-history-staging',
     [string]$StageDir = (Join-Path $env:TEMP 'xf-obs-history-stage'),
     [int]$MaxRetries = 3,
-    [string[]]$Volumes = @(
-        'vmsingle_data',
-        'loki_data',
-        'tempo_data',
-        'grafana_data',
-        'pyroscope_data'
-    )
+    [string[]]$Volumes = @()
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+. "$PSScriptRoot\obs-history-lib.ps1"
 
 # --- helpers ---------------------------------------------------------------
 
@@ -118,9 +113,7 @@ Set-StrictMode -Version Latest
 # local/UNC filesystem path. A bare Windows drive like "M:\..." is NOT scp.
 function Test-ScpTarget {
     param([Parameter(Mandatory)] [string]$Target)
-    # Matches host:/path or user@host:/path, but not a single-letter drive (C:\).
-    return ($Target -match '^[^\\/]+@[^:]+:.+$') -or
-           ($Target -match '^[A-Za-z0-9._-]{2,}:/.+$')
+    return Test-XfScpTarget -Target $Target
 }
 
 # Does the named Docker volume exist on this host?
@@ -155,25 +148,6 @@ function Export-VolumeTarball {
 function Get-Sha256Hex {
     param([Parameter(Mandatory)] [string]$Path)
     return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLower()
-}
-
-# Read the remote fingerprint that was copied alongside the tarball. Returns the
-# hex string, or $null if it cannot be read. Works for both local/UNC and scp.
-function Get-RemoteSha256 {
-    param(
-        [Parameter(Mandatory)] [string]$Target,
-        [Parameter(Mandatory)] [string]$ShaFileName
-    )
-    if (Test-ScpTarget $Target) {
-        $parts = $Target -split ':', 2
-        $host_ = $parts[0]; $path = $parts[1].TrimEnd('/')
-        $remote = & ssh -o BatchMode=yes $host_ "cat '$path/$ShaFileName' 2>/dev/null"
-        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($remote)) { return $null }
-        return ($remote -split '\s+')[0].Trim().ToLower()
-    }
-    $remotePath = Join-Path $Target $ShaFileName
-    if (-not (Test-Path -LiteralPath $remotePath)) { return $null }
-    return ((Get-Content -LiteralPath $remotePath -Raw) -split '\s+')[0].Trim().ToLower()
 }
 
 # Copy the tarball + its .sha256 sidecar to the staging target (local/UNC or scp).
@@ -222,7 +196,7 @@ function Invoke-VolumeMigration {
     Write-Host "[$Volume] sha256=$want"
 
     # Resumable: if the staged copy already matches, do not re-copy.
-    if ((Get-RemoteSha256 -Target $Target -ShaFileName $shaName) -eq $want) {
+    if ((Get-XfStagedSha256 -Target $Target -ShaFileName $shaName) -eq $want) {
         Write-Host "[$Volume] already staged with matching fingerprint — skipping copy."
         return $true
     }
@@ -235,7 +209,7 @@ function Invoke-VolumeMigration {
             Write-Warning "[$Volume] copy attempt $attempt errored: $($_.Exception.Message)"
             continue
         }
-        if ((Get-RemoteSha256 -Target $Target -ShaFileName $shaName) -eq $want) {
+        if ((Get-XfStagedSha256 -Target $Target -ShaFileName $shaName) -eq $want) {
             Write-Host "[$Volume] VERIFIED: staged fingerprint matches the source."
             return $true
         }
@@ -247,6 +221,10 @@ function Invoke-VolumeMigration {
 }
 
 # --- main ------------------------------------------------------------------
+
+if ($Volumes.Count -eq 0) {
+    $Volumes = Get-XfDefaultHistoryVolumes
+}
 
 Write-Host '=== SLICE-21 GO-LIVE: monitoring history copy (Windows -> Mint staging) ==='
 Write-Host "Staging target : $StagingTarget"

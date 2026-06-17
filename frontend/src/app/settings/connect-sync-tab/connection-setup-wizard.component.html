@@ -1,0 +1,188 @@
+<mat-card class="setup-wizard" id="connection-setup-wizard">
+  <mat-card-header>
+    <mat-card-title i18n="@@settings.setupWizard.title">Guided setup</mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <mat-stepper [linear]="false" orientation="vertical">
+      <mat-step>
+        <ng-template matStepLabel i18n="@@settings.setupWizard.google">Google login</ng-template>
+        <div class="step-body">
+          <div class="status-row">
+            <mat-chip disableRipple>{{ googleOAuth.status }}</mat-chip>
+            <span>{{ googleOAuth.message }}</span>
+          </div>
+          <div class="google-connect-panel">
+            <button
+              mat-flat-button
+              color="primary"
+              (click)="startGoogleSignIn()"
+              [disabled]="!canStartGoogleSignIn || busy === 'google-signin'"
+              matTooltip="Starts one Google sign-in that grants read access for GA4 and Search Console."
+              matTooltipClass="setting-tooltip"
+            >
+              @if (busy === 'google-signin') {
+                <mat-spinner diameter="18"></mat-spinner>
+              }
+              <mat-icon>login</mat-icon>
+              <span i18n="@@settings.actions.connectGoogle">Connect Google</span>
+            </button>
+            <span>{{ googleConnectHint }}</span>
+          </div>
+          @if (setupMessage) {
+            <p class="setup-message">{{ setupMessage }}</p>
+          }
+          <div class="action-row">
+            <button
+              mat-stroked-button
+              (click)="setupGoogleFeedsForDstp()"
+              [disabled]="!googleOAuth.oauth_connected || busy === 'google-choices' || busy === 'google-auto-setup'"
+              matTooltip="Loads your Google choices, picks the first available GA4 web stream and Search Console site, then tests and enables both sync jobs."
+              matTooltipClass="setting-tooltip"
+            >
+              @if (busy === 'google-auto-setup') {
+                <mat-spinner diameter="18"></mat-spinner>
+              }
+              <mat-icon>done_all</mat-icon>
+              <span i18n="@@settings.actions.setupGoogleDstp">Set up GA4 and Search Console</span>
+            </button>
+            <button
+              mat-stroked-button
+              (click)="loadGoogleChoices()"
+              [disabled]="!googleOAuth.oauth_connected || busy === 'google-choices'"
+              matTooltip="Shows the GA4 web streams and Search Console sites found through your Google sign-in."
+              matTooltipClass="setting-tooltip"
+            >
+              @if (busy === 'google-choices') {
+                <mat-spinner diameter="18"></mat-spinner>
+              }
+              <mat-icon>list_alt</mat-icon>
+              <span i18n="@@settings.actions.loadGoogleChoices">Load choices</span>
+            </button>
+          </div>
+          <details class="advanced-google-setup">
+            <summary i18n="@@settings.setupWizard.googleAdvanced">Advanced setup</summary>
+            <mat-form-field appearance="outline">
+              <mat-label i18n="@@settings.labels.googleClientId">Google OAuth Client ID</mat-label>
+              <input matInput autocomplete="off" [(ngModel)]="googleClientId" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label i18n="@@settings.labels.googleClientSecret">Google OAuth Client Secret</mat-label>
+              <input matInput autocomplete="off" type="password" [(ngModel)]="googleClientSecret" />
+              <mat-hint>{{ googleOAuth.client_secret_configured ? 'Secret saved. Leave blank to keep it.' : 'Paste the client secret once.' }}</mat-hint>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label i18n="@@settings.labels.redirectUrl">Redirect URL</mat-label>
+              <input matInput autocomplete="off" [value]="redirectUri" readonly />
+            </mat-form-field>
+            <button mat-stroked-button (click)="saveGoogleApp()" [disabled]="busy === 'google-save'">
+              @if (busy === 'google-save') {
+                <mat-spinner diameter="18"></mat-spinner>
+              }
+              <mat-icon>save</mat-icon>
+              <span i18n="@@settings.actions.saveGoogleApp">Save Google app</span>
+            </button>
+          </details>
+        </div>
+      </mat-step>
+
+      <mat-step>
+        <ng-template matStepLabel i18n="@@settings.setupWizard.ga4Gsc">GA4 and Search Console</ng-template>
+        <div class="step-body">
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.ga4Stream">GA4 web stream</mat-label>
+            <mat-select>
+              @for (stream of googleChoices?.ga4_streams ?? []; track stream.stream_id) {
+                <mat-option (click)="applyGa4Stream(stream.property_id, stream.measurement_id)">
+                  {{ stream.display_name }}: {{ stream.measurement_id }}
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.gscSite">Search Console site</mat-label>
+            <mat-select>
+              @for (site of googleChoices?.gsc_sites ?? []; track site.site_url) {
+                <mat-option (click)="applyGscSite(site.site_url)">{{ site.site_url }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <div class="action-row">
+            <button mat-stroked-button (click)="testGa4ReadAndEnable()" [disabled]="!ga4Telemetry.property_id || busy === 'ga4-test'">
+              <mat-icon>analytics</mat-icon>
+              <span i18n="@@settings.actions.testEnableGA4">Test and enable GA4 sync</span>
+            </button>
+            <button mat-stroked-button (click)="testGscAndEnable()" [disabled]="!ga4Gsc.property_url || busy === 'gsc-test'">
+              <mat-icon>query_stats</mat-icon>
+              <span i18n="@@settings.actions.testEnableGSC">Test and enable GSC sync</span>
+            </button>
+          </div>
+        </div>
+      </mat-step>
+
+      <mat-step>
+        <ng-template matStepLabel i18n="@@settings.setupWizard.xenforo">XenForo</ng-template>
+        <div class="step-body">
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.forumUrl">Forum URL</mat-label>
+            <input matInput autocomplete="off" [(ngModel)]="xenforo.base_url" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.apiKey">API Key</mat-label>
+            <input matInput autocomplete="off" type="password" [(ngModel)]="xfApiKey" />
+          </mat-form-field>
+          <div class="action-row">
+            <button mat-stroked-button (click)="saveXenForo()" [disabled]="busy === 'xf-save'">
+              <mat-icon>save</mat-icon>
+              <span i18n="@@settings.actions.saveXenForo">Save XenForo</span>
+            </button>
+            <button mat-stroked-button (click)="runXenForoSync()" [disabled]="busy === 'xf-sync'">
+              <mat-icon>sync</mat-icon>
+              <span i18n="@@settings.actions.syncXenForo">Sync XenForo</span>
+            </button>
+          </div>
+        </div>
+      </mat-step>
+
+      <mat-step>
+        <ng-template matStepLabel i18n="@@settings.setupWizard.wordpress">WordPress</ng-template>
+        <div class="step-body">
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.wordpressUrl">WordPress site URL</mat-label>
+            <input matInput autocomplete="off" [(ngModel)]="wordpress.base_url" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.username">Username</mat-label>
+            <input matInput autocomplete="off" [(ngModel)]="wordpress.username" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label i18n="@@settings.labels.appPassword">App Password</mat-label>
+            <input matInput autocomplete="off" type="password" [(ngModel)]="wordpressPassword" />
+          </mat-form-field>
+          <div class="action-row">
+            <button mat-stroked-button (click)="saveWordPress()" [disabled]="busy === 'wp-save'">
+              <mat-icon>save</mat-icon>
+              <span i18n="@@settings.actions.saveWordPress">Save WordPress</span>
+            </button>
+            <button mat-stroked-button (click)="runWordPressSync()" [disabled]="busy === 'wp-sync'">
+              <mat-icon>sync</mat-icon>
+              <span i18n="@@settings.actions.syncWordPress">Sync WordPress</span>
+            </button>
+          </div>
+        </div>
+      </mat-step>
+
+      <mat-step>
+        <ng-template matStepLabel i18n="@@settings.setupWizard.matomo">Matomo visitor paths</ng-template>
+        <div class="step-body">
+          <div class="readiness-grid">
+            <span>Visits: {{ matomoReadiness.visits_fetched }}</span>
+            <span>Content URLs: {{ matomoReadiness.known_content_url_paths }}</span>
+            <span>Matched visits: {{ matomoReadiness.matched_page_visits }}</span>
+            <span>Visitor-path rows: {{ matomoReadiness.dstp_transition_rows }}</span>
+          </div>
+          <p class="readiness-message">{{ matomoReadiness.message }}</p>
+        </div>
+      </mat-step>
+    </mat-stepper>
+  </mat-card-content>
+</mat-card>

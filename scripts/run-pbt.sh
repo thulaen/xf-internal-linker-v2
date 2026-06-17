@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Property-based testing (PBT) gate — PRE-COMMIT, DELL-ONLY, scoped to changed
-# files. Python uses Hypothesis; Rust uses proptest. Both run in parallel across
-# an ADAPTIVE core count read from Dell's CPU (never hardcoded), under the
-# "fast" profile (few examples) so the commit stays a quick sprint. A single
-# wall-clock timeout is the hard time ceiling.
+# files. Python uses Hypothesis; Rust uses proptest. Top-level script property
+# tests use Hypothesis too. All lanes run under the "fast" profile (few
+# examples) so the commit stays a quick sprint. A single wall-clock timeout is
+# the hard time ceiling.
 #
 # This is a separate lane from mutation testing: PBT runs here at pre-commit,
 # mutation runs at pre-push, so the two never execute at the same time and use
@@ -68,6 +68,26 @@ py_targets="$(
   done <<< "$changed" | sort -u || true
 )"
 
+# Top-level script property tests: a changed scripts/tests_pbt_*.py runs
+# directly; a changed scripts/<name>.py runs scripts/tests_pbt_<name>.py when
+# one exists. This keeps shared agent tools covered by the same PBT gate as
+# backend and Rust code.
+script_targets="$(
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    rel="${p#scripts/}"
+    [[ "$rel" != "$p" ]] || continue
+    base="${rel##*/}"
+    case "$base" in
+      tests_pbt_*.py) printf '%s\n' "$p" ;;
+      *.py)
+        d="${p%/*}"; s="${base%.py}"
+        sib="$d/tests_pbt_${s}.py"
+        [[ -f "$sib" ]] && printf '%s\n' "$sib" ;;
+    esac
+  done <<< "$changed" | sort -u || true
+)"
+
 # Rust crates whose files changed (their proptest tests run). Glob-free for the
 # same reason.
 rust_crates="$(
@@ -82,7 +102,7 @@ rust_crates="$(
   done <<< "$changed" | sort -u || true
 )"
 
-if [[ -z "$py_targets" && -z "$rust_crates" ]]; then
+if [[ -z "$py_targets" && -z "$script_targets" && -z "$rust_crates" ]]; then
   echo "[run-pbt] No changed property-test scope -- skipping."
   exit 0
 fi
@@ -114,6 +134,7 @@ rc=0
 # them, so it skips the expensive full-tree upload and only overlays the handful
 # of changed files — the dominant cost in an isolated run was that re-upload.
 changed_backend="$(printf '%s\n' "$changed" | grep '^backend/' || true)"
+changed_scripts="$(printf '%s\n' "$changed" | grep '^scripts/' || true)"
 changed_rust="$(printf '%s\n' "$changed" | grep '^rust/' || true)"
 
 # ── Python lane: Hypothesis, parallel via pytest-xdist (-n auto) ──────────────
@@ -145,6 +166,29 @@ if [[ -n "$py_targets" ]]; then
     echo "[run-pbt] Python PBT passed in $(( $(date +%s) - t0 ))s."
   else
     rc=$?; echo "[run-pbt] Python PBT FAILED (rc=$rc) in $(( $(date +%s) - t0 ))s." >&2
+  fi
+fi
+
+# ── Top-level scripts lane: Hypothesis, parallel via pytest-xdist (-n auto) ──
+if [[ -n "$script_targets" ]]; then
+  echo "[run-pbt] Scripts: $(printf '%s' "$script_targets" | grep -c .) property file(s)."
+  s0=$(date +%s)
+  if [[ -n "$changed_scripts" ]]; then
+    tar -cf - scripts/*.py scripts/tests/*.py 2>/dev/null \
+      | docker --context "$PBT_DOCKER_CONTEXT" run --rm -i -v xf_test_repo:/repo \
+          alpine:latest sh -c "mkdir -p /repo && tar -xf - -C /repo"
+  fi
+  scripts_oneline="$(printf '%s' "$script_targets" | tr '\n' ' ')"
+  echo "[run-pbt] Scripts overlay: $(( $(date +%s) - s0 ))s."
+  t0=$(date +%s)
+  if docker --context "$PBT_DOCKER_CONTEXT" run --rm \
+      -v xf_test_repo:/repo -w //repo \
+      -e HYPOTHESIS_PROFILE="$HYPOTHESIS_PROFILE" \
+      -e PBT_REMAINING="$(_remaining)" -e PBT_FILES="$scripts_oneline" \
+      "$PY_IMAGE" sh -lc 'timeout "$PBT_REMAINING" python -m pytest $PBT_FILES -m property -p no:randomly -n auto -q -o addopts=--strict-markers'; then
+    echo "[run-pbt] Scripts PBT passed in $(( $(date +%s) - t0 ))s."
+  else
+    rc=$?; echo "[run-pbt] Scripts PBT FAILED (rc=$rc) in $(( $(date +%s) - t0 ))s." >&2
   fi
 fi
 

@@ -16,6 +16,7 @@ import { PeHelperDirective } from '../shared/directives/pe-helper.directive';
 import { gscChartBase, gscPalette, token, withAlpha } from '../shared/charts/echarts-theme';
 import {
   AnalyticsBreakdownsResponse,
+  AnalyticsDependencyHealth,
   AnalyticsFunnelResponse,
   AnalyticsGeoDetailResponse,
   AnalyticsHealthResponse,
@@ -735,6 +736,35 @@ export class AnalyticsComponent implements OnInit {
 
   coverageStateClass(state: AnalyticsHealthSummary['latest_state']): string {
     return `status-badge--${state}`;
+  }
+
+  dependencyStatusLabel(status: AnalyticsDependencyHealth['status']): string {
+    return {
+      healthy: $localize`:@@analytics.systemHealth.dependency.healthy:Healthy`,
+      warning: $localize`:@@analytics.systemHealth.dependency.warning:Needs data`,
+      error: $localize`:@@analytics.systemHealth.dependency.error:Error`,
+      not_configured: $localize`:@@analytics.systemHealth.dependency.not_configured:Not set up`,
+    }[status];
+  }
+
+  dependencyStatusClass(status: AnalyticsDependencyHealth['status']): string {
+    return `dependency-health--${status}`;
+  }
+
+  dependencyIcon(status: AnalyticsDependencyHealth['status']): string {
+    return {
+      healthy: 'check_circle',
+      warning: 'warning',
+      error: 'error',
+      not_configured: 'radio_button_unchecked',
+    }[status];
+  }
+
+  dependencyMetricRows(metrics: AnalyticsDependencyHealth['metrics']): Array<{ label: string; value: string }> {
+    return Object.entries(metrics || {}).map(([key, value]) => ({
+      label: key.replace(/_/g, ' '),
+      value: String(value ?? 0),
+    }));
   }
 
   toggleFullGeo(): void {

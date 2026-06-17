@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 import numpy as np
 
+from apps.graph.services.dstp_transitions import matomo_visits_to_transition_counts
 from apps.graph.services.graph_signal_job import (
     _compute_icpc_degrees,
     _compute_sbma_blocks,
@@ -13,6 +14,7 @@ from apps.graph.services.graph_signal_job import (
 from apps.pipeline.services.advanced_graph_signals import (
     AdvancedGraphSignalsCaches,
     AdvancedGraphSignalsSettings,
+    csbr_persona_match_from_metadata,
     evaluate_advanced_graph_signals_batch,
 )
 
@@ -80,6 +82,45 @@ def test_bench_tosd_lambda_precompute(benchmark, size: int):
     assert all(0.0 <= value <= 2.0 for value in lambdas.values())
 
 
+def _dstp_visit_inputs(size: int) -> tuple[list[dict], dict[str, int]]:
+    path_to_content_id = {
+        f"/community/page-{index}": index
+        for index in range(size + 2)
+    }
+    visits = [
+        {
+            "actionDetails": [
+                {"type": "action", "url": f"https://goldmidi.com/community/page-{index}"},
+                {
+                    "type": "action",
+                    "url": f"https://goldmidi.com/community/page-{index + 1}",
+                },
+                {
+                    "type": "action",
+                    "url": f"https://goldmidi.com/community/page-{index + 2}",
+                },
+            ]
+        }
+        for index in range(size)
+    ]
+    return visits, path_to_content_id
+
+
+@pytest.mark.benchmark(group="advanced-graph-dstp")
+@pytest.mark.parametrize("size", [100, 1_000, 10_000])
+def test_bench_dstp_transition_builder(benchmark, size: int):
+    visits, path_to_content_id = _dstp_visit_inputs(size)
+
+    counts = benchmark(
+        matomo_visits_to_transition_counts,
+        visits,
+        path_to_content_id,
+    )
+
+    assert counts.visits_processed == size
+    assert len(counts.transition_counts) == size + 1
+
+
 class _RGSDBenchKernel:
     def evaluate_batch(self, spectral_scores, *_args):
         count = len(spectral_scores)
@@ -138,3 +179,20 @@ def test_bench_rgsd_semantic_distance_resolution(benchmark, monkeypatch, size: i
     )
 
     assert len(evaluations) == size
+
+
+@pytest.mark.benchmark(group="advanced-graph-csbr")
+@pytest.mark.parametrize("size", [100, 1_000, 10_000])
+def test_bench_csbr_persona_match(benchmark, size: int):
+    host_metadata = [{"lda_topics": [(1, 0.8), (2, 0.2)]} for _ in range(size)]
+    destination_metadata = [{"lda_topics": [(1, 0.7), (2, 0.3)]} for _ in range(size)]
+
+    scores = benchmark(
+        lambda: [
+            csbr_persona_match_from_metadata(host, destination)
+            for host, destination in zip(host_metadata, destination_metadata)
+        ]
+    )
+
+    assert len(scores) == size
+    assert all(0.0 <= score <= 1.0 for score in scores)

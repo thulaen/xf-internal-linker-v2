@@ -3,7 +3,7 @@
 Endpoints:
   GET  /api/auto-issues/                   — list (filterable)
   GET  /api/auto-issues/<id>/              — single row
-  POST /api/auto-issues/resync/            — fire all 3 pickers synchronously
+  POST /api/auto-issues/resync/            — fire issue pickers synchronously
   POST /api/auto-issues/flush-cache/       — drop stale audit_errorlog rows + force re-pull
 
 Read access: any authenticated user. Write access (resync, flush): admin only.
@@ -56,7 +56,7 @@ class AutoIssueViewSet(viewsets.ReadOnlyModelViewSet):
         permission_classes=[permissions.IsAdminUser],
     )
     def resync(self, request):
-        """Fire all 3 pickers synchronously + the GT mirror sync.
+        """Fire issue pickers synchronously + the GT mirror sync.
 
         Use this from the frontend "Resync" button. Returns the combined
         outcome counts so the UI can show "X new, Y merged, Z resolved".
@@ -71,17 +71,22 @@ class AutoIssueViewSet(viewsets.ReadOnlyModelViewSet):
         from apps.auto_issues.services.pyroscope_picker import (
             pick_pyroscope_regressions,
         )
+        from apps.auto_issues.services.vmalert_picker import (
+            pick_vmalert_alerts,
+        )
 
         gt_sync = sync_glitchtip_issues()
         gt_pick = pick_glitchtip_issues()
         internal_pick = pick_internal_issues()
         pyro_pick = pick_pyroscope_regressions()
+        vmalert_pick = pick_vmalert_alerts()
         return Response({
             "status": "ok",
             "glitchtip_sync": gt_sync,
             "glitchtip_picker": gt_pick,
             "internal_picker": internal_pick,
             "pyroscope_picker": pyro_pick,
+            "vmalert_picker": vmalert_pick,
             "open_count": AutoIssue.objects.filter(
                 status__in=(AutoIssue.STATUS_OPEN, AutoIssue.STATUS_PICKED)
             ).count(),

@@ -174,6 +174,14 @@ describe('SiloSettingsService', () => {
     req.flush({ status: 'started' });
   });
 
+  it('runXenForoSync triggers the existing API sync endpoint', () => {
+    service.runXenForoSync().subscribe();
+    const req = httpMock.expectOne('/api/sync-jobs/trigger_api_sync/');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ source: 'api', mode: 'full', scope_ids: [] });
+    req.flush({ job_id: 'job-2', source: 'api', mode: 'full' });
+  });
+
   // ── Ranking weight settings (each has get + update) ────────────────
   const rankingSettingsCases: Array<[string, string, () => void, () => void]> = [
     [
@@ -657,9 +665,19 @@ describe('SiloSettingsService', () => {
     expectGet('/api/analytics/settings/google-oauth/').flush({} as any);
   });
 
+  it('getGoogleSetupChoices GETs the guided Google setup choices endpoint', () => {
+    service.getGoogleSetupChoices().subscribe();
+    expectGet('/api/analytics/setup/google-choices/').flush({} as any);
+  });
+
   it('getMatomoTelemetrySettings GETs analytics Matomo settings', () => {
     service.getMatomoTelemetrySettings().subscribe();
     expectGet('/api/analytics/settings/matomo/').flush({} as any);
+  });
+
+  it('getMatomoReadiness GETs the guided Matomo readiness endpoint', () => {
+    service.getMatomoReadiness().subscribe();
+    expectGet('/api/analytics/setup/matomo-readiness/').flush({} as any);
   });
 
   it('updateMatomoTelemetrySettings PUTs Matomo settings', () => {

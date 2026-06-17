@@ -1,49 +1,122 @@
-# In-cluster stable address for the database (which runs on Dell's host, not as a pod).
+# Stable in-cluster names for the external Dell database (SLICE-12).
 #
-# Plain English: the database lives directly on Dell, outside Kubernetes. App
-# pods need a fixed name to find it by, no matter which machine they run on.
-# This creates that name — "postgres" — inside the cluster, and points it at
-# Dell's database over the private cable (10.10.10.92:5432). Because the app
-# already expects the host name "postgres" (POSTGRES_HOST=postgres), no app
-# setting has to change.
+# Plain English: the database runs directly on Dell, outside Kubernetes. Pods
+# still need a normal cluster name for it. This file creates the same Service
+# name, "postgres", in each namespace that needs database access and points each
+# one at Dell's private cable address through hand-written EndpointSlice objects.
 #
-# This is the standard Kubernetes "Service without a selector + manual
-# Endpoints" pattern for pointing a Service at something outside the cluster.
-#   https://kubernetes.io/docs/concepts/services-networking/service/#services-without-selectors
+# The Service name stays "postgres" because the app already uses that host name.
+# The older plan name, "dell-postgres", is not used because it would force an app
+# setting change for no user benefit. The values below are anchored once inside
+# this List so the Dell address, port name, and port number do not drift between
+# namespaces.
 apiVersion: v1
-kind: Namespace
+kind: List
 metadata:
-  name: xf-app
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres
-  namespace: xf-app
-  labels:
-    app: postgres
-    tier: database
-spec:
-  # No selector: endpoints are supplied manually below (the DB is not a pod).
-  type: ClusterIP
-  ports:
-    - name: postgres
-      port: 5432
-      targetPort: 5432
-      protocol: TCP
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  # Name MUST equal the Service name so Kubernetes pairs them.
-  name: postgres
-  namespace: xf-app
-  labels:
-    app: postgres
-subsets:
-  - addresses:
-      - ip: 10.10.10.92   # Dell's wired (private cable) address
+  name: postgres-external-services
+items:
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: &xf_app_namespace xf-app
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: &postgres_service postgres
+      namespace: *xf_app_namespace
+      labels:
+        app: *postgres_service
+        tier: &postgres_tier database
+    spec:
+      type: ClusterIP
+      ports:
+        - name: &postgres_port_name postgres
+          port: &postgres_port 5432
+          targetPort: *postgres_port
+          protocol: &postgres_protocol TCP
+  - apiVersion: discovery.k8s.io/v1
+    kind: EndpointSlice
+    metadata:
+      name: postgres-external
+      namespace: *xf_app_namespace
+      labels:
+        app: *postgres_service
+        tier: *postgres_tier
+        kubernetes.io/service-name: *postgres_service
+        endpointslice.kubernetes.io/managed-by: xf-internal-linker
+    addressType: IPv4
+    endpoints:
+      - addresses:
+          - &dell_postgres_ip "10.10.10.92"
     ports:
-      - name: postgres
-        port: 5432
-        protocol: TCP
+      - name: *postgres_port_name
+        protocol: *postgres_protocol
+        port: *postgres_port
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: *postgres_service
+      namespace: &xf_obs_namespace xf-obs
+      labels:
+        app: *postgres_service
+        tier: *postgres_tier
+    spec:
+      type: ClusterIP
+      ports:
+        - name: *postgres_port_name
+          port: *postgres_port
+          targetPort: *postgres_port
+          protocol: *postgres_protocol
+  - apiVersion: discovery.k8s.io/v1
+    kind: EndpointSlice
+    metadata:
+      name: postgres-external
+      namespace: *xf_obs_namespace
+      labels:
+        app: *postgres_service
+        tier: *postgres_tier
+        kubernetes.io/service-name: *postgres_service
+        endpointslice.kubernetes.io/managed-by: xf-internal-linker
+    addressType: IPv4
+    endpoints:
+      - addresses:
+          - *dell_postgres_ip
+    ports:
+      - name: *postgres_port_name
+        protocol: *postgres_protocol
+        port: *postgres_port
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: *postgres_service
+      namespace: &xf_test_namespace xf-test
+      labels:
+        app: *postgres_service
+        tier: *postgres_tier
+    spec:
+      type: ClusterIP
+      ports:
+        - name: *postgres_port_name
+          port: *postgres_port
+          targetPort: *postgres_port
+          protocol: *postgres_protocol
+  - apiVersion: discovery.k8s.io/v1
+    kind: EndpointSlice
+    metadata:
+      name: postgres-external
+      namespace: *xf_test_namespace
+      labels:
+        app: *postgres_service
+        tier: *postgres_tier
+        kubernetes.io/service-name: *postgres_service
+        endpointslice.kubernetes.io/managed-by: xf-internal-linker
+    addressType: IPv4
+    endpoints:
+      - addresses:
+          - *dell_postgres_ip
+    ports:
+      - name: *postgres_port_name
+        protocol: *postgres_protocol
+        port: *postgres_port

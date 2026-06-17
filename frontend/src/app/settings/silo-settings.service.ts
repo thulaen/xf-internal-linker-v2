@@ -243,9 +243,31 @@ export interface GoogleOAuthSettings {
   client_id: string;
   client_secret_configured: boolean;
   oauth_connected: boolean;
+  can_sign_in?: boolean;
+  credential_source?: 'none' | 'app' | 'manual';
   status: string;
   message: string;
   last_sync: AnalyticsSyncSummary | null;
+}
+
+export interface GoogleSetupChoices {
+  status: string;
+  message: string;
+  ga4_properties: Array<{
+    property_id: string;
+    display_name: string;
+    account_name: string;
+  }>;
+  ga4_streams: Array<{
+    property_id: string;
+    stream_id: string;
+    display_name: string;
+    measurement_id: string;
+  }>;
+  gsc_sites: Array<{
+    site_url: string;
+    permission_level: string;
+  }>;
 }
 
 export interface GA4TelemetryUpdate {
@@ -287,6 +309,16 @@ export interface MatomoTelemetryUpdate {
   sync_enabled: boolean;
   sync_lookback_days: number;
   token_auth?: string;
+}
+
+export interface MatomoReadiness {
+  status: string;
+  message: string;
+  visits_fetched: number;
+  known_content_url_paths: number;
+  matched_page_visits: number;
+  dstp_transition_rows: number;
+  last_sync: AnalyticsSyncSummary | null;
 }
 
 export interface AnalyticsConnectionResult {
@@ -770,8 +802,16 @@ export class SiloSettingsService {
     return this.http.get<GoogleOAuthSettings>('/api/analytics/settings/google-oauth/'); // noqa: route-check
   }
 
+  getGoogleSetupChoices(): Observable<GoogleSetupChoices> {
+    return this.http.get<GoogleSetupChoices>('/api/analytics/setup/google-choices/'); // noqa: route-check
+  }
+
   getMatomoTelemetrySettings(): Observable<MatomoTelemetrySettings> {
     return this.http.get<MatomoTelemetrySettings>('/api/analytics/settings/matomo/'); // noqa: route-check
+  }
+
+  getMatomoReadiness(): Observable<MatomoReadiness> {
+    return this.http.get<MatomoReadiness>('/api/analytics/setup/matomo-readiness/'); // noqa: route-check
   }
 
   getClickDistanceSettings(): Observable<ClickDistanceSettings> {
@@ -1084,6 +1124,13 @@ export class SiloSettingsService {
 
   runWordPressSync(): Observable<SyncRunResponse> {
     return this.http.post<SyncRunResponse>('/api/sync/wordpress/run/', {});
+  }
+
+  runXenForoSync(): Observable<SyncRunResponse> {
+    return this.http.post<SyncRunResponse>(
+      '/api/sync-jobs/trigger_api_sync/',
+      { source: 'api', mode: 'full', scope_ids: [] },
+    );
   }
 
   // ── Weight presets ────────────────────────────────────────────────

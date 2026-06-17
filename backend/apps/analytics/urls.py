@@ -29,6 +29,8 @@ from .views import (
     AnalyticsGoogleOAuthSettingsView,
     AnalyticsGoogleOAuthCallbackView,
     AnalyticsGoogleOAuthUnlinkView,
+    AnalyticsGoogleSetupChoicesView,
+    AnalyticsMatomoReadinessView,
     # Stage 7
     ImpactDiaryView,
     QueryMismatchView,
@@ -152,6 +154,16 @@ urlpatterns = [
         "oauth/unlink/",
         AnalyticsGoogleOAuthUnlinkView.as_view(),
         name="analytics-google-oauth-unlink",
+    ),
+    path(
+        "setup/google-choices/",
+        AnalyticsGoogleSetupChoicesView.as_view(),
+        name="analytics-google-setup-choices",
+    ),
+    path(
+        "setup/matomo-readiness/",
+        AnalyticsMatomoReadinessView.as_view(),
+        name="analytics-matomo-readiness",
     ),
     path(
         "search-impact/",

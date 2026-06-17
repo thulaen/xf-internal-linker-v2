@@ -199,6 +199,20 @@ class PeriodicEnabledTruthTablesTests(SimpleTestCase):
             )
         )
 
+    def test_ga4_oauth_connected_replaces_service_account_fields(self):
+        self.assertTrue(
+            _ga4_periodic_enabled(
+                {
+                    "sync_enabled": True,
+                    "property_id": "123",
+                    "read_project_id": "",
+                    "read_client_email": "",
+                    "read_private_key_configured": False,
+                    "oauth_connected": True,
+                }
+            )
+        )
+
     def test_matomo_all_truthy_passes(self):
         self.assertTrue(
             _matomo_periodic_enabled(
@@ -208,6 +222,19 @@ class PeriodicEnabledTruthTablesTests(SimpleTestCase):
                     "url": "https://m",
                     "site_id_xenforo": "1",
                     "token_auth_configured": True,
+                }
+            )
+        )
+
+    def test_gsc_oauth_connected_replaces_service_account_fields(self):
+        self.assertTrue(
+            _gsc_periodic_enabled(
+                {
+                    "sync_enabled": True,
+                    "property_url": "https://x",
+                    "client_email": "",
+                    "private_key_configured": False,
+                    "oauth_connected": True,
                 }
             )
         )

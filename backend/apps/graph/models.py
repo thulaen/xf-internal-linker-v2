@@ -145,6 +145,64 @@ class LinkFreshnessEdge(models.Model):
         return f"{self.from_content_item} -> {self.to_content_item} [active={self.is_active}]"
 
 
+class DirectionalTransitionEdge(models.Model):
+    """Compact ordered visitor movement counts for DSTP ranking input."""
+
+    SOURCE_MATOMO = "matomo"
+    SOURCE_GA4 = "ga4"
+    SOURCE_COMBINED = "combined"
+    SOURCE_CHOICES = [
+        (SOURCE_MATOMO, "Matomo"),
+        (SOURCE_GA4, "Google Analytics 4"),
+        (SOURCE_COMBINED, "Deduped Matomo and Google Analytics 4"),
+    ]
+
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, db_index=True)
+    site_id = models.CharField(max_length=32, blank=True, db_index=True)
+    source_content_item = models.ForeignKey(
+        "content.ContentItem",
+        on_delete=models.CASCADE,
+        related_name="dstp_outgoing_transitions",
+    )
+    dest_content_item = models.ForeignKey(
+        "content.ContentItem",
+        on_delete=models.CASCADE,
+        related_name="dstp_incoming_transitions",
+    )
+    transition_count = models.PositiveIntegerField(default=0)
+    source_transition_count = models.PositiveIntegerField(default=0)
+    data_window_start = models.DateField()
+    data_window_end = models.DateField()
+    last_synced_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Directional Transition Edge"
+        verbose_name_plural = "Directional Transition Edges"
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "source",
+                    "site_id",
+                    "source_content_item",
+                    "dest_content_item",
+                ],
+                name="graph_unique_directional_transition_edge",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["source_content_item", "source"]),
+            models.Index(fields=["dest_content_item", "source"]),
+            models.Index(fields=["source", "data_window_end"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.source}:{self.site_id} "
+            f"{self.source_content_item_id} -> {self.dest_content_item_id} "
+            f"({self.transition_count})"
+        )
+
+
 class BrokenLink(TimestampedModel):
     """A URL detected in a content item that needs link-health review."""
 

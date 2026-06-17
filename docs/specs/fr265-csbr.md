@@ -117,7 +117,7 @@ CSBR returns `0.0` when:
 ---
 
 ## Diagnostics
-Outputs `csbr_diagnostics` JSON field containing `is_cross_silo`, `persona_match_score`, and `reward_applied`.
+Outputs `csbr_diagnostics` JSON field containing `is_cross_silo`, `persona_match`, and `score`.
 
 ---
 
@@ -138,5 +138,5 @@ All Gate A boxes pass.
 ---
 
 ## Pending
-- [ ] Python-side `PersonaMatch = 1 - Jensen–Shannon divergence` precompute that feeds the kernel's `persona_matches` array.
-- [ ] Python dispatcher integration.
+- [x] Python-side `PersonaMatch = 1 - Jensen–Shannon divergence` precompute that feeds the kernel's `persona_matches` array.
+- [x] Python dispatcher integration.

@@ -4,6 +4,7 @@ Tasks:
   - ``pick_daily_glitchtip_issues`` — promote top GT-mirror rows.
   - ``pick_daily_pyroscope_regressions`` — surface CPU regressions
     AND same-day hotspots (added 2026-05-10).
+  - ``pick_vmalert_alerts`` — mirror active VictoriaMetrics alerts.
   - ``close_stale_issues`` — auto-defer rows idle ≥30 days under 0.3 score.
 
 Schedules (UTC) live in ``backend/config/settings/celery_schedules.py``.
@@ -190,6 +191,25 @@ def pgexporter_findings_refresh():
     from apps.auto_issues.services.pgexporter_picker import pick_pgexporter_findings
 
     return pick_pgexporter_findings()
+
+
+@shared_task(name="auto_issues.pick_vmalert_alerts")
+@HelperConstraint(
+    cpu_intensive=False,
+    gpu_required=False,
+    storage_writes_to="postgres_main",
+    ram_peak_mb=128,
+    expected_seconds_p50=10,
+)
+def pick_vmalert_alerts():
+    """Read active vmalert alerts and mirror them into AutoIssues."""
+    # Mandatory Prevention Sweep (#86): close stale connections before task logic.
+    if not connection.in_atomic_block:
+        connection.close()
+
+    from apps.auto_issues.services.vmalert_picker import pick_vmalert_alerts as _pick
+
+    return {"status": "ok", "processed": _pick()}
 
 
 # ── Phase 6 of the test-hardening plan (2026-05-12) ──

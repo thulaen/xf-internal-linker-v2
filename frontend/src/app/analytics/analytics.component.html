@@ -231,6 +231,26 @@
               </div>
             </div>
 
+            @if (healthData.dependencies.length) {
+              <div class="dependency-health-grid">
+                @for (dependency of healthData.dependencies; track dependency.key) {
+                  <div class="dependency-health" [ngClass]="dependencyStatusClass(dependency.status)">
+                    <div class="dependency-health__header">
+                      <mat-icon class="icon-sm">{{ dependencyIcon(dependency.status) }}</mat-icon>
+                      <span class="dependency-health__label">{{ dependency.label }}</span>
+                      <span class="dependency-health__status">{{ dependencyStatusLabel(dependency.status) }}</span>
+                    </div>
+                    <p class="dependency-health__message">{{ dependency.message }}</p>
+                    <div class="dependency-health__metrics">
+                      @for (metric of dependencyMetricRows(dependency.metrics); track metric.label) {
+                        <span>{{ metric.label }}: {{ metric.value }}</span>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+
             <div class="health-status-bar">
               <div class="day-tracker">
                 <span class="day-badge day-badge--healthy" i18n="@@analytics.systemHealth.badge.healthy">

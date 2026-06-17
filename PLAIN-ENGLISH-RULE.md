@@ -192,6 +192,17 @@ When you must mention a technical concept, use the plain-English version from th
 | a test that boots the full app | integration test |
 | a behavior plan written as `Given`, `When`, and `Then` so the user sees the expected outcome first | BDD / behavior-driven description |
 | writing or updating a small test before or alongside the code, then rerunning it until it passes | TDD / test-driven development |
+| Kubernetes permission rules that decide what a pod identity may do | RBAC |
+| the identity a pod uses when it talks to Kubernetes | ServiceAccount |
+| a Kubernetes permission rule | Role |
+| the link between a pod identity and a Kubernetes permission rule | RoleBinding |
+| a Kubernetes pod traffic rule | NetworkPolicy |
+| a Kubernetes key-value settings object that pods and jobs can read | ConfigMap |
+| a ready-made container image that holds the tools for one kind of test job | runner image |
+| a temporary database made for one test job shard so tests do not share writes | sharded test database |
+| the current Kubernetes pod-network mode used by this cluster | VXLAN |
+| a Kubernetes Service that points at something outside the pod set because it has no pod selector | selectorless Service |
+| a Kubernetes object that lists the network addresses behind a Service | EndpointSlice |
 | Kent Beck's book identifier for the test-first programming source used by the rule docs | ISBN-978-0321146533 |
 | the international test-documentation standard cited by the rule docs | ISO-IEC-IEEE-29119-3-2021 |
 | the official web protocol standard cited by the evidence rule docs | RFC-9110 |
@@ -262,6 +273,10 @@ When you must mention a technical concept, use the plain-English version from th
 | the standing rule that every new feature ships turned-on with a sensible starting value unless it needs external data we don't have on a fresh install | default-on rule |
 | a feature that legitimately needs data from outside the project (Google Analytics, Search Console, Matomo, autotuner training history) before it can produce useful output — allowed to default off | external-data-gated |
 | FR-019 alert that appears on the diagnostics page when a feature is dormant waiting on data, telling the operator how to activate it | OperatorAlert |
+| a ranking scoring factor that rewards a destination page when real visitors often move from the host page directly to that destination page in that order | DSTP / Directed Sequential Transition Probability |
+| the saved database row for one ordered visitor movement count from one page to the next page | DirectionalTransitionEdge |
+| a random browser-made visit ID that our site sends to both Matomo and Google Analytics so the app can tell when both tools saw the same visit; it is not a name, email, or account ID | first-party visit ID / xfil_visit_id |
+| Matomo's report that lists each visit with the ordered page actions inside that visit | Matomo Live visit details / Live.getLastVisitsDetails |
 | a Rust-built SQL engine that runs reporting-style queries directly against snapshot files instead of the main database, so heavy number-crunching never slows the app down | DataFusion / Apache DataFusion |
 | a compact column-based file format for tabular data — the snapshot files DataFusion queries are stored in it | Parquet / Apache Parquet |
 | a Rust-built keyword-search library (a rewrite of Java's Lucene) that runs inside our own process — gives BM25 word-match ranking without running a separate search server | Tantivy |
@@ -611,5 +626,27 @@ If a term you need is not in this table, define it yourself in parentheses the f
 | the Microsoft desktop operating system this project runs on | WINDOWS |
 | the folder (directory) a file lives in | DIR |
 | a way for one computer to use another computer's files over a network | NFS |
+| the small Kubernetes service this project uses for the two-machine cluster | k3s |
+| the built-in k3s web-entry service that this project disables so it can choose ingress deliberately | Traefik |
+| the built-in k3s load-balancer service that this project disables on the small Mint machine | ServiceLB |
+| Kubernetes's worker service on each node that starts and monitors pods | kubelet |
+| a named Kubernetes disk recipe that says where a new volume comes from | StorageClass |
+| a Kubernetes request for disk space that a pod can mount | PersistentVolumeClaim / PVC |
+| a Kubernetes namespace ceiling that limits total pods, memory, CPU, or disk requests | ResourceQuota |
+| a Kubernetes namespace default that fills in missing pod or disk request values | LimitRange |
+| the CPU and memory Kubernetes is allowed to schedule after node reservations | allocatable resources |
+| kubelet deleting unused container images when disk usage is high | image garbage collection |
+| extra names or IP addresses added to a certificate so kubectl trusts the k3s server | TLS SAN |
+| Kubernetes's small local control-plane database file used by the single Mint server | k3s SQLite datastore |
+| the multi-server Kubernetes database this project avoids on the one-server Mint cluster | etcd |
+| a Kubernetes scheduling importance level that decides which pods are protected under pressure | PriorityClass |
+| a Kubernetes mark that keeps pods away from a node unless they explicitly accept it | taint |
+| a pod setting that lets the pod use a node with a matching taint | toleration |
+| Linux's normal service manager, which starts background services at boot | systemd |
+| the Linux container runtime that runs containers without Docker Desktop | containerd |
+| Ubuntu's simple firewall tool for allowing or denying network ports | ufw |
+| the secure remote shell service used to log in to another machine | OpenSSH / sshd / SSH |
+| a file-copy tool that can resume and verify transfers between machines | rsync |
+| a network-speed test tool that measures real transfer throughput | iperf3 |
 | the different situations a test checks | SCENARIOS |
 | a test result meaning the check succeeded | PASSED |

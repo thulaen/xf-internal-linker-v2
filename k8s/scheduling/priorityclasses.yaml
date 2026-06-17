@@ -9,7 +9,9 @@
 #   * xf-app    — the backend, the workers, the website. Protected above tests.
 #   * xf-test   — the test / coverage / mutation jobs added in the build-pipeline
 #                 slices. Lowest; pushed out FIRST, and it never shoves a running
-#                 app pod aside to get scheduled (preemptionPolicy: Never).
+#                 app pod aside to get scheduled (preemptionPolicy: Never). It is
+#                 also the default for unnamed pods, so forgotten priority means
+#                 "least protected".
 #
 # All three sit far below Kubernetes' own system classes (2,000,000,000+), so the
 # cluster's control pods always win.
@@ -46,5 +48,5 @@ metadata:
   name: xf-test
 value: 100
 preemptionPolicy: Never
-globalDefault: false
+globalDefault: true
 description: "Test, coverage, and mutation Jobs (added in the build/test slices). Lowest priority, never preempts running pods, evicted first under node pressure."

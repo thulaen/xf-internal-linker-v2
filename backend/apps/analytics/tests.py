@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django_celery_beat.models import PeriodicTask
 from googleapiclient.errors import HttpError
 from rest_framework.test import APITestCase
@@ -190,6 +190,199 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertTrue(
             AppSetting.objects.get(key="analytics.google_oauth_client_secret").is_secret
         )
+
+    @override_settings(
+        GOOGLE_OAUTH_CLIENT_ID="123456789-app.apps.googleusercontent.com",
+        GOOGLE_OAUTH_CLIENT_SECRET="app-owned-secret",
+    )
+    def test_google_oauth_can_use_app_owned_credentials_without_gui_fields(self):
+        response = self.client.get("/api/analytics/settings/google-oauth/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["client_id"], "123456789-app.apps.googleusercontent.com")
+        self.assertEqual(payload["credential_source"], "app")
+        self.assertTrue(payload["can_sign_in"])
+        self.assertTrue(payload["client_secret_configured"])
+        self.assertIn("Click Connect Google", payload["message"])
+
+    @patch("apps.analytics.views._build_google_oauth_flow")
+    def test_google_authorize_url_uses_read_only_ga4_and_gsc_scopes(self, flow_builder):
+        AppSetting.objects.bulk_create(
+            [
+                AppSetting(
+                    key="analytics.google_oauth_client_id",
+                    value="123456789-test.apps.googleusercontent.com",
+                    value_type="str",
+                    category="analytics",
+                    description="client id",
+                ),
+                AppSetting(
+                    key="analytics.google_oauth_client_secret",
+                    value="oauth-secret",
+                    value_type="str",
+                    category="analytics",
+                    description="client secret",
+                    is_secret=True,
+                ),
+            ]
+        )
+        flow = Mock()
+        flow.authorization_url.return_value = ("https://accounts.google.com/o/oauth2/auth", "state-1")
+        flow_builder.return_value = flow
+
+        response = self.client.get("/api/analytics/oauth/authorize/")
+
+        self.assertEqual(response.status_code, 200)
+        scopes = flow_builder.call_args.kwargs["scopes"]
+        self.assertIn("https://www.googleapis.com/auth/analytics.readonly", scopes)
+        self.assertIn("https://www.googleapis.com/auth/webmasters.readonly", scopes)
+
+    @patch("apps.analytics.views.build_gsc_service")
+    @patch("apps.analytics.views._build_google_analytics_admin_service")
+    def test_google_setup_choices_lists_ga4_streams_and_gsc_sites(
+        self, admin_builder, gsc_builder
+    ):
+        AppSetting.objects.bulk_create(
+            [
+                AppSetting(
+                    key="analytics.google_oauth_client_id",
+                    value="123456789-test.apps.googleusercontent.com",
+                    value_type="str",
+                    category="analytics",
+                    description="client id",
+                ),
+                AppSetting(
+                    key="analytics.google_oauth_client_secret",
+                    value="oauth-secret",
+                    value_type="str",
+                    category="analytics",
+                    description="client secret",
+                    is_secret=True,
+                ),
+                AppSetting(
+                    key="analytics.google_oauth_refresh_token",
+                    value="refresh-token",
+                    value_type="str",
+                    category="analytics",
+                    description="refresh token",
+                    is_secret=True,
+                ),
+            ]
+        )
+        admin_service = Mock()
+        admin_service.accountSummaries().list().execute.return_value = {
+            "accountSummaries": [
+                {
+                    "displayName": "Gold MIDI",
+                    "propertySummaries": [
+                        {"property": "properties/335454538", "displayName": "Forum"}
+                    ],
+                }
+            ]
+        }
+        admin_service.properties().dataStreams().list().execute.return_value = {
+            "dataStreams": [
+                {
+                    "name": "properties/335454538/dataStreams/4119085177",
+                    "displayName": "Web",
+                    "webStreamData": {"measurementId": "G-LL8JM7BSR2"},
+                }
+            ]
+        }
+        admin_builder.return_value = admin_service
+        gsc_service = Mock()
+        gsc_service.sites().list().execute.return_value = {
+            "siteEntry": [
+                {"siteUrl": "https://www.goldmidi.com/", "permissionLevel": "siteOwner"}
+            ]
+        }
+        gsc_builder.return_value = gsc_service
+
+        response = self.client.get("/api/analytics/setup/google-choices/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "connected")
+        self.assertEqual(payload["ga4_properties"][0]["property_id"], "335454538")
+        self.assertEqual(payload["ga4_streams"][0]["measurement_id"], "G-LL8JM7BSR2")
+        self.assertEqual(payload["gsc_sites"][0]["site_url"], "https://www.goldmidi.com/")
+
+    def test_matomo_readiness_reports_zero_rows_plainly(self):
+        AnalyticsSyncRun.objects.create(
+            source="matomo",
+            status="completed",
+            rows_read=0,
+            rows_written=0,
+            rows_updated=0,
+            lookback_days=7,
+        )
+
+        response = self.client.get("/api/analytics/setup/matomo-readiness/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "not_ready")
+        self.assertEqual(payload["visits_fetched"], 0)
+        self.assertEqual(payload["known_content_url_paths"], 0)
+        self.assertEqual(payload["matched_page_visits"], 0)
+        self.assertEqual(payload["dstp_transition_rows"], 0)
+        self.assertIn("Matomo connection worked", payload["message"])
+
+    def test_health_includes_setup_dependencies_for_scoring_inputs(self):
+        from apps.graph.models import DirectionalTransitionEdge, GraphSignalRun
+
+        source = ContentItem.objects.create(
+            content_id=9101,
+            content_type="thread",
+            title="Source",
+            url="https://goldmidi.com/community/source/",
+        )
+        destination = ContentItem.objects.create(
+            content_id=9102,
+            content_type="thread",
+            title="Destination",
+            url="https://goldmidi.com/community/destination/",
+        )
+        DirectionalTransitionEdge.objects.create(
+            source=DirectionalTransitionEdge.SOURCE_COMBINED,
+            site_id="combined",
+            source_content_item=source,
+            dest_content_item=destination,
+            transition_count=3,
+            source_transition_count=3,
+            data_window_start=date(2026, 6, 9),
+            data_window_end=date(2026, 6, 16),
+        )
+        GraphSignalRun.objects.create(
+            graph_hash="abc",
+            signal_version="v1",
+            node_count=2,
+            edge_count=1,
+            status=GraphSignalRun.STATUS_CURRENT,
+        )
+        AnalyticsSyncRun.objects.create(
+            source="ga4",
+            status="completed",
+            rows_read=4,
+            rows_written=2,
+        )
+        AnalyticsSyncRun.objects.create(
+            source="gsc",
+            status="completed",
+            rows_read=7,
+            rows_written=5,
+        )
+
+        response = self.client.get("/api/analytics/telemetry/health/")
+
+        self.assertEqual(response.status_code, 200)
+        dependencies = {item["key"]: item for item in response.json()["dependencies"]}
+        self.assertEqual(dependencies["ga4_read"]["status"], "healthy")
+        self.assertEqual(dependencies["gsc"]["status"], "healthy")
+        self.assertEqual(dependencies["dstp"]["status"], "healthy")
+        self.assertEqual(dependencies["networkit"]["status"], "healthy")
+        self.assertEqual(dependencies["dstp"]["metrics"]["dstp_transition_rows"], 1)
 
     @patch("apps.analytics.views.requests.post")
     def test_ga4_test_connection_uses_saved_secret(self, post_mock):
@@ -744,8 +937,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(sync_run.source, "ga4")
         self.assertEqual(sync_run.lookback_days, 6)
 
+    @patch("apps.analytics.sync._refresh_dstp_after_matomo_sync", return_value={})
     @patch("apps.analytics.sync.requests.get")
-    def test_run_matomo_sync_writes_daily_rollups(self, get_mock):
+    def test_run_matomo_sync_writes_daily_rollups(self, get_mock, _dstp_mock):
         AppSetting.objects.bulk_create(
             [
                 AppSetting(
@@ -888,6 +1082,64 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(coverage_row.attributed_destination_sessions, 5)
         suggestion.destination.refresh_from_db()
         self.assertGreater(suggestion.destination.content_value_score, 0.5)
+
+    @patch(
+        "apps.analytics.sync._refresh_dstp_after_matomo_sync",
+        return_value={"dstp_transitions_written": 2, "dstp_visits_processed": 3},
+    )
+    @patch("apps.analytics.sync._process_matomo_day", return_value=(0, 0, 0))
+    def test_run_matomo_sync_refreshes_dstp_ordered_paths(
+        self, _process_day_mock, dstp_mock
+    ):
+        AppSetting.objects.bulk_create(
+            [
+                AppSetting(
+                    key="analytics.matomo_enabled",
+                    value="true",
+                    value_type="bool",
+                    category="analytics",
+                    description="enabled",
+                ),
+                AppSetting(
+                    key="analytics.matomo_url",
+                    value="https://matomo.example.com",
+                    value_type="str",
+                    category="analytics",
+                    description="url",
+                ),
+                AppSetting(
+                    key="analytics.matomo_site_id_xenforo",
+                    value="7",
+                    value_type="str",
+                    category="analytics",
+                    description="site id",
+                ),
+                AppSetting(
+                    key="analytics.matomo_token_auth",
+                    value="token-secret",
+                    value_type="str",
+                    category="analytics",
+                    description="token",
+                    is_secret=True,
+                ),
+                AppSetting(
+                    key="analytics.matomo_sync_enabled",
+                    value="true",
+                    value_type="bool",
+                    category="analytics",
+                    description="sync enabled",
+                ),
+            ]
+        )
+        sync_run = AnalyticsSyncRun.objects.create(
+            source="matomo", status="pending", lookback_days=2
+        )
+
+        stats = run_matomo_sync(sync_run)
+
+        dstp_mock.assert_called_once_with(lookback_days=2)
+        self.assertEqual(stats["dstp_transitions_written"], 2)
+        self.assertEqual(stats["dstp_visits_processed"], 3)
 
     @patch("apps.analytics.sync.build_ga4_data_service")
     def test_run_ga4_sync_writes_daily_rollups(self, build_service_mock):
@@ -1050,6 +1302,69 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(coverage_row.attributed_destination_sessions, 5)
         suggestion.destination.refresh_from_db()
         self.assertGreater(suggestion.destination.content_value_score, 0.5)
+
+    @patch(
+        "apps.analytics.sync._refresh_dstp_after_ga4_sync",
+        return_value={"dstp_transitions_written": 1, "dstp_visits_processed": 2},
+    )
+    @patch("apps.analytics.sync.build_ga4_data_service")
+    def test_run_ga4_sync_refreshes_dstp_deduped_paths(
+        self, build_service_mock, dstp_mock
+    ):
+        AppSetting.objects.bulk_create(
+            [
+                AppSetting(
+                    key="analytics.ga4_sync_enabled",
+                    value="true",
+                    value_type="bool",
+                    category="analytics",
+                    description="sync enabled",
+                ),
+                AppSetting(
+                    key="analytics.ga4_property_id",
+                    value="123456789",
+                    value_type="str",
+                    category="analytics",
+                    description="property id",
+                ),
+                AppSetting(
+                    key="analytics.ga4_read_project_id",
+                    value="ga4-read-project",
+                    value_type="str",
+                    category="analytics",
+                    description="read project id",
+                ),
+                AppSetting(
+                    key="analytics.ga4_read_client_email",
+                    value="reader@example.iam.gserviceaccount.com",
+                    value_type="str",
+                    category="analytics",
+                    description="read client email",
+                ),
+                AppSetting(
+                    key="analytics.ga4_read_private_key",
+                    value="-----BEGIN PRIVATE KEY-----\\nsecret\\n-----END PRIVATE KEY-----\\n",
+                    value_type="str",
+                    category="analytics",
+                    description="read private key",
+                    is_secret=True,
+                ),
+            ]
+        )
+        sync_run = AnalyticsSyncRun.objects.create(
+            source="ga4", status="pending", lookback_days=1
+        )
+        service = Mock()
+        build_service_mock.return_value = service
+        service.properties.return_value.runReport.return_value.execute.return_value = {
+            "rows": []
+        }
+
+        stats = run_ga4_sync(sync_run)
+
+        dstp_mock.assert_called_once_with(lookback_days=1)
+        self.assertEqual(stats["dstp_transitions_written"], 1)
+        self.assertEqual(stats["dstp_visits_processed"], 2)
 
     @patch("apps.analytics.sync.build_ga4_data_service")
     def test_run_ga4_sync_ignores_blocked_countries(self, build_service_mock):
@@ -1593,8 +1908,9 @@ class GSCSlice3Tests(APITestCase):
             ],
         )
 
+    @patch("apps.analytics.sync._refresh_dstp_after_matomo_sync", return_value={})
     @patch("apps.analytics.sync.requests.get")
-    def test_run_matomo_sync_excludes_blocked_countries(self, get_mock):
+    def test_run_matomo_sync_excludes_blocked_countries(self, get_mock, _dstp_mock):
         AppSetting.objects.bulk_create(
             [
                 AppSetting(
@@ -2208,6 +2524,25 @@ class EngagementSignalsSnippetTests(APITestCase):
         self.assertIn("suggestion_destination_view", snippet)
         self.assertIn("suggestion_destination_engaged", snippet)
 
+    def test_snippet_sends_shared_visit_id_to_ga4_and_matomo(self) -> None:
+        from apps.analytics.integration_snippet import build_browser_bridge_snippet
+
+        snippet = build_browser_bridge_snippet(
+            event_schema="fr016_v1",
+            impression_visible_ratio=0.5,
+            impression_min_ms=1000,
+            engaged_min_seconds=10,
+            ga4_measurement_id="G-TEST",
+            ga4_enabled=True,
+            matomo_enabled=True,
+        )
+
+        self.assertIn("xfil_visit_id", snippet)
+        self.assertIn("xfilVisitStorageKey", snippet)
+        self.assertIn("crypto.randomUUID", snippet)
+        self.assertIn("setCustomVariable", snippet)
+        self.assertIn("setUserId", snippet)
+
 
 class MatomoEngagementSyncTests(APITestCase):
     """Confirm the Matomo sync rolls the 3 new events into the new columns."""
@@ -2250,8 +2585,11 @@ class MatomoEngagementSyncTests(APITestCase):
             anchor_confidence="strong",
         )
 
+    @patch("apps.analytics.sync._refresh_dstp_after_matomo_sync", return_value={})
     @patch("apps.analytics.sync._fetch_matomo_event_rows")
-    def test_matomo_sync_records_new_engagement_fields(self, fetch_mock) -> None:
+    def test_matomo_sync_records_new_engagement_fields(
+        self, fetch_mock, _dstp_mock
+    ) -> None:
         from apps.analytics.sync import run_matomo_sync
 
         AppSetting.objects.bulk_create(

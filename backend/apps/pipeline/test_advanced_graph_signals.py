@@ -25,6 +25,7 @@ from apps.pipeline.services.advanced_graph_signals import (
     RGSDSettings,
     SBMASettings,
     TOSDSettings,
+    csbr_persona_match_from_metadata,
     evaluate_advanced_graph_signals_batch,
 )
 
@@ -151,6 +152,66 @@ class DispatcherInputRoutingTests(SimpleTestCase):
             )
 
         self.assertAlmostEqual(kernel.evaluate_batch.call_args.args[ARG_FLAT][0], 0.2)
+
+    def test_csbr_uses_persona_score_when_pair_cache_missing(self):
+        kernel = _mock_kernel()
+        caches = _caches()
+        caches.persona_matches.clear()
+        with mock.patch(KERNEL_PATH, return_value=kernel):
+            evaluate_advanced_graph_signals_batch(
+                [(HOST, DEST)],
+                caches,
+                AdvancedGraphSignalsSettings(),
+                [True],
+                persona_scores=[0.9],
+            )
+
+        self.assertAlmostEqual(kernel.evaluate_batch.call_args.args[ARG_PERSONA][0], 0.9)
+
+
+class CSBRPersonaMatchTests(SimpleTestCase):
+    def test_identical_topic_vectors_are_perfect_match(self):
+        metadata = {"lda_topics": [(1, 0.75), (2, 0.25)]}
+
+        self.assertEqual(csbr_persona_match_from_metadata(metadata, metadata), 1.0)
+
+    def test_missing_topic_vector_is_neutral_zero(self):
+        metadata = {"lda_topics": [(1, 1.0)]}
+
+        self.assertEqual(csbr_persona_match_from_metadata(metadata, {}), 0.0)
+
+    def test_disjoint_topic_vectors_are_lower_than_overlap(self):
+        host = {"lda_topics": [(1, 1.0)]}
+        dest = {"lda_topics": [(2, 1.0)]}
+
+        self.assertEqual(csbr_persona_match_from_metadata(host, dest), 0.0)
+
+    def test_csbr_resolves_persona_match_from_topic_vectors(self):
+        kernel = _mock_kernel()
+        caches = _caches()
+        caches.persona_matches.clear()
+        caches.lda_topic_vectors[0] = ((1, 0.75), (2, 0.25))
+        caches.lda_topic_vectors[1] = ((1, 0.75), (2, 0.25))
+
+        with mock.patch(KERNEL_PATH, return_value=kernel):
+            evaluate_advanced_graph_signals_batch(
+                [(HOST, DEST)], caches, AdvancedGraphSignalsSettings(), [True]
+            )
+
+        self.assertAlmostEqual(kernel.evaluate_batch.call_args.args[ARG_PERSONA][0], 1.0)
+
+    def test_csbr_uses_neutral_persona_match_when_topic_vector_missing(self):
+        kernel = _mock_kernel()
+        caches = _caches()
+        caches.persona_matches.clear()
+        caches.lda_topic_vectors[0] = ((1, 1.0),)
+
+        with mock.patch(KERNEL_PATH, return_value=kernel):
+            evaluate_advanced_graph_signals_batch(
+                [(HOST, DEST)], caches, AdvancedGraphSignalsSettings(), [True]
+            )
+
+        self.assertEqual(kernel.evaluate_batch.call_args.args[ARG_PERSONA][0], 0.0)
 
 
 class DispatcherFallbackTests(SimpleTestCase):

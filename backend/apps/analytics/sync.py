@@ -827,11 +827,207 @@ def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
         rows_updated += day_updated
     _refresh_content_value_scores(destination_ids=touched_destination_ids)
     _refresh_engagement_quality_scores(destination_ids=touched_destination_ids)
+    dstp_stats = _refresh_dstp_after_matomo_sync(
+        lookback_days=sync_run.lookback_days
+    )
     return {
         "rows_read": rows_read,
         "rows_written": rows_written,
         "rows_updated": rows_updated,
+        **dstp_stats,
     }
+
+
+def _refresh_dstp_after_matomo_sync(*, lookback_days: int) -> dict[str, int]:
+    """Refresh deduped DSTP paths after a Matomo sync."""
+    return _refresh_deduped_dstp_after_sync(
+        lookback_days=lookback_days,
+        include_matomo=True,
+        include_ga4=True,
+    )
+
+
+def _refresh_dstp_after_ga4_sync(*, lookback_days: int) -> dict[str, int]:
+    """Refresh deduped DSTP paths after a Google Analytics sync."""
+    return _refresh_deduped_dstp_after_sync(
+        lookback_days=lookback_days,
+        include_matomo=True,
+        include_ga4=True,
+    )
+
+
+def _refresh_deduped_dstp_after_sync(
+    *,
+    lookback_days: int,
+    include_matomo: bool,
+    include_ga4: bool,
+) -> dict[str, int]:
+    """Fetch Matomo and Google page movements, dedupe them, then store DSTP edges."""
+    from apps.graph.api import (
+        content_path_to_id,
+        ga4_page_rows_to_transition_observations,
+        matomo_visits_to_transition_observations,
+        store_deduped_dstp_observations,
+    )
+
+    days = max(1, int(lookback_days))
+    window_end = timezone.localdate()
+    window_start = window_end - timedelta(days=days)
+    path_to_id = content_path_to_id()
+    observations = []
+    matomo_rows_read = 0
+    ga4_rows_read = 0
+
+    if include_matomo:
+        matomo_observations, matomo_rows_read = _matomo_dstp_observations(
+            path_to_id=path_to_id,
+            window_start=window_start,
+            window_end=window_end,
+        )
+        observations.extend(matomo_observations)
+    if include_ga4:
+        ga4_observations, ga4_rows_read = _ga4_dstp_observations(
+            path_to_id=path_to_id,
+            window_start=window_start,
+            window_end=window_end,
+        )
+        observations.extend(ga4_observations)
+
+    counts = store_deduped_dstp_observations(
+        site_id="content",
+        observations=observations,
+        window_start=window_start,
+        window_end=window_end,
+    )
+    return {
+        "dstp_transitions_written": len(counts.transition_counts),
+        "dstp_visits_processed": counts.visits_processed,
+        "dstp_matomo_rows_read": matomo_rows_read,
+        "dstp_ga4_rows_read": ga4_rows_read,
+    }
+
+
+def _matomo_dstp_observations(
+    *,
+    path_to_id: dict[str, int],
+    window_start: date,
+    window_end: date,
+) -> tuple[list, int]:
+    """Fetch Matomo ordered visits when Matomo settings are ready; otherwise skip."""
+    from apps.graph.api import matomo_visits_to_transition_observations
+
+    try:
+        base_url, site_id, token_auth, _event_schema = (
+            _validate_matomo_sync_settings_or_raise()
+        )
+        visits = _matomo_api_get(
+            base_url=base_url,
+            token_auth=token_auth,
+            method="Live.getLastVisitsDetails",
+            params={
+                "idSite": site_id,
+                "period": "range",
+                "date": f"{window_start.isoformat()},{window_end.isoformat()}",
+                "filter_limit": "-1",
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        __import__("logging").getLogger(__name__).warning(
+            "matomo dstp refresh skipped: %s",
+            str(exc) or exc.__class__.__name__,
+        )
+        return [], 0
+    rows = visits if isinstance(visits, list) else []
+    return (
+        matomo_visits_to_transition_observations(
+            rows,
+            path_to_id,
+            site_id=site_id,
+        ),
+        len(rows),
+    )
+
+
+def _ga4_dstp_observations(
+    *,
+    path_to_id: dict[str, int],
+    window_start: date,
+    window_end: date,
+) -> tuple[list, int]:
+    """Fetch Google Analytics page movements when read settings are ready."""
+    from .views import get_ga4_telemetry_settings
+    from apps.graph.api import ga4_page_rows_to_transition_observations
+
+    settings = get_ga4_telemetry_settings()
+    property_id = str(settings.get("property_id") or "").strip()
+    if not property_id or not settings.get("sync_enabled"):
+        return [], 0
+    try:
+        service = _build_ga4_service_or_raise(settings)
+        rows = _fetch_ga4_page_transition_rows(
+            service=service,
+            property_id=property_id,
+            window_start=window_start,
+            window_end=window_end,
+        )
+    except Exception as exc:  # noqa: BLE001
+        __import__("logging").getLogger(__name__).warning(
+            "ga4 dstp refresh skipped: %s",
+            str(exc) or exc.__class__.__name__,
+        )
+        return [], 0
+    return (
+        ga4_page_rows_to_transition_observations(
+            rows,
+            path_to_id,
+            site_id=property_id,
+        ),
+        len(rows),
+    )
+
+
+def _fetch_ga4_page_transition_rows(
+    *,
+    service,
+    property_id: str,
+    window_start: date,
+    window_end: date,
+) -> list[dict[str, Any]]:
+    """Fetch GA4 page-view rows shaped for source-page to destination-page parsing."""
+    with rate_limited("ga4_data_api"):
+        response = (
+            service.properties()
+            .runReport(
+                property=f"properties/{property_id}",
+                body={
+                    "dateRanges": [
+                        {
+                            "startDate": window_start.isoformat(),
+                            "endDate": window_end.isoformat(),
+                        }
+                    ],
+                    "dimensions": [
+                        {"name": "dateHourMinute"},
+                        {"name": "pageReferrer"},
+                        {"name": "pageLocation"},
+                        {"name": "customEvent:xfil_visit_id"},
+                    ],
+                    "metrics": [{"name": "eventCount"}],
+                    "dimensionFilter": {
+                        "filter": {
+                            "fieldName": "eventName",
+                            "stringFilter": {
+                                "matchType": "EXACT",
+                                "value": "page_view",
+                            },
+                        }
+                    },
+                    "limit": 10000,
+                },
+            )
+            .execute()
+        )
+    return response.get("rows", [])
 
 
 def _build_ga4_service_or_raise(settings: dict):
@@ -1194,10 +1390,12 @@ def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
         rows_updated += day_updated
     _refresh_content_value_scores(destination_ids=touched_destination_ids)
     _refresh_engagement_quality_scores(destination_ids=touched_destination_ids)
+    dstp_stats = _refresh_dstp_after_ga4_sync(lookback_days=sync_run.lookback_days)
     return {
         "rows_read": rows_read,
         "rows_written": rows_written,
         "rows_updated": rows_updated,
+        **dstp_stats,
     }
 
 

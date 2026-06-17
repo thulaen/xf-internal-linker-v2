@@ -31,11 +31,9 @@
 #               for pyroscope) so the Job runs where the disk actually is
 #
 # Volume -> PVC -> mount -> node map (namespace xf-obs):
-#   VOL_NAME=vmsingle_data   PVC_NAME=vmsingle-data   (tool mount /storage)        DEST_NODE=dell
-#   VOL_NAME=loki_data       PVC_NAME=loki-data       (tool mount /loki)           DEST_NODE=dell
-#   VOL_NAME=tempo_data      PVC_NAME=tempo-data      (tool mount /var/tempo)      DEST_NODE=dell
-#   VOL_NAME=grafana_data    PVC_NAME=grafana-data    (tool mount /var/lib/grafana) DEST_NODE=dell
-#   VOL_NAME=pyroscope_data  PVC_NAME=pyroscope-data  (tool mount /data)           DEST_NODE=mint
+#   See k8s/obs/history-copy/volume-map.json. That file is the shared source for
+#   the copy script, restore operation, proof script, and old-volume retirement
+#   marker.
 #
 #   (alloy is SKIPPED — emptyDir in the cluster, reconstructable. GlitchTip has
 #    no file volume — its data rides the SLICE-13 Postgres dump/restore.)

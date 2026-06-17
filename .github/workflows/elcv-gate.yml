@@ -1,0 +1,52 @@
+name: ELCV gate
+
+# Hard-blocks any pull request that introduces ELCV quality violations in changed Python
+# files, and keeps the ELCV tool itself green. Enforces on CHANGED code only (not legacy).
+
+on:
+  pull_request:
+    paths:
+      - "**/*.py"
+      - "tools/elcv/**"
+      - ".githooks/check-elcv-gate.py"
+
+jobs:
+  elcv-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ELCV optional deps (true-AST Rust/TS via tree-sitter)
+        run: pip install -r tools/elcv/requirements.txt
+
+      - name: ELCV self-tests (the tool must be green)
+        run: |
+          python tools/elcv/test_elcv.py
+          python tools/elcv/test_gate.py
+          python tools/elcv/test_multilang.py
+          python tools/elcv/test_ts_backend.py
+          python tools/elcv/test_exporters.py
+          python tools/elcv/test_targets.py
+
+      - name: Hard-block changed Python files
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          mapfile -t changed < <(git diff --name-only --diff-filter=ACM "$base"...HEAD -- '*.py')
+          echo "Changed Python files:"; printf '  %s\n' "${changed[@]}"
+          if [ ${#changed[@]} -gt 0 ]; then
+            python tools/elcv/gate.py "${changed[@]}" \
+              --baseline tools/elcv/gate-baseline.json \
+              --uso-index tools/elcv/uso-index.json
+          else
+            echo "No Python files changed; gate clean."
+          fi
+
+      - name: Publish ELCV report (informational, multi-scope)
+        if: always()
+        run: python tools/elcv/exporters.py --format board

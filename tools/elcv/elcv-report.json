@@ -1,0 +1,101 @@
+{
+  "generated_at": "2026-06-16T16:42:33",
+  "status": "measured",
+  "global_ceiling": 2000000000,
+  "global_current": 24497.8,
+  "global_percent": 0.00122489,
+  "scopes": {
+    "repo": {
+      "name": "repo",
+      "target": 2000000000,
+      "roots": [
+        "backend",
+        "frontend/src",
+        "rust",
+        "tools",
+        "ranklab"
+      ],
+      "note": "Whole-codebase umbrella ceiling (2B). Every unit is USO-unique, non-vendor, non-bloat.",
+      "python_elcv": 15950.8,
+      "python_files": 787,
+      "rust_ts": 8547.0,
+      "rust_ts_backend": "heuristic",
+      "current": 24497.8,
+      "percent": 0.001225,
+      "remaining": 1999975502.2,
+      "by_area": {
+        "pipeline": 4220.4,
+        "auto_issues": 2388.5,
+        "core": 2152.7,
+        "analytics": 1091.8,
+        "other": 735.2,
+        "sources": 574.4,
+        "paper_trail": 525.0,
+        "diagnostics": 493.4,
+        "audit": 454.5,
+        "graph": 415.9,
+        "suggestions": 408.1,
+        "scheduled_updates": 311.5,
+        "tools:elcv": 280.0,
+        "health": 278.0,
+        "observability": 216.0,
+        "cooccurrence": 203.7,
+        "sync": 189.4,
+        "api": 155.9,
+        "crawler": 149.5,
+        "content": 132.0,
+        "benchmarks": 124.0,
+        "work_queue": 118.0,
+        "notifications": 95.0,
+        "realtime": 65.0,
+        "training": 52.0,
+        "plugins": 41.0,
+        "ops_feed": 32.9,
+        "tools:runners": 17.0,
+        "knowledge_graph": 11.0,
+        "platform": 11.0,
+        "frontend": 7.0,
+        "webhooks": 1.0,
+        "library_registry": 0.0
+      }
+    },
+    "ranklab": {
+      "name": "ranklab",
+      "target": 28000000,
+      "roots": [
+        "ranklab",
+        "backend/apps/autobrain"
+      ],
+      "note": "RankLab initiative \u2014 target 28M. See the RankLab plan (OneDrive 'RankLab 28M').",
+      "python_elcv": 0.0,
+      "python_files": 0,
+      "rust_ts": 0.0,
+      "rust_ts_backend": "none",
+      "current": 0.0,
+      "percent": 0.0,
+      "remaining": 28000000.0,
+      "by_area": {}
+    },
+    "aegis": {
+      "name": "aegis",
+      "target": 5000000,
+      "roots": [
+        "tools/elcv",
+        "backend/apps/governance",
+        "backend/apps/diagnostics"
+      ],
+      "note": "Aegis code-validation-engine / PreGate \u2014 target 5M. See docs/specs/fr-code-validation-engine.md.",
+      "python_elcv": 775.4,
+      "python_files": 19,
+      "rust_ts": 0.0,
+      "rust_ts_backend": "none",
+      "current": 775.4,
+      "percent": 0.015508,
+      "remaining": 4999224.6,
+      "by_area": {
+        "diagnostics": 495.4,
+        "tools:elcv": 280.0
+      }
+    }
+  }
+}

@@ -1,0 +1,120 @@
+# Resource limits for support namespaces (SLICE-09).
+#
+# Plain English: the app and monitoring namespaces already have their own quota
+# files because their workloads are large and different. This file covers the
+# remaining support namespaces so tests, storage helpers, and the private image
+# registry cannot grow without a ceiling.
+apiVersion: v1
+kind: List
+metadata:
+  name: xf-support-resource-limits
+items:
+  - apiVersion: v1
+    kind: LimitRange
+    metadata:
+      name: xf-test-defaults
+      namespace: &test_namespace xf-test
+    spec:
+      limits:
+        - type: Container
+          defaultRequest:
+            cpu: "100m"
+            memory: "128Mi"
+          default:
+            memory: "512Mi"
+          max:
+            memory: "4Gi"
+        - type: PersistentVolumeClaim
+          defaultRequest:
+            storage: "2Gi"
+          default:
+            storage: "2Gi"
+          max:
+            storage: "25Gi"
+          min:
+            storage: "100Mi"
+  - apiVersion: v1
+    kind: ResourceQuota
+    metadata:
+      name: xf-test-quota
+      namespace: *test_namespace
+    spec:
+      hard:
+        requests.cpu: "16"
+        requests.memory: "12Gi"
+        limits.memory: "24Gi"
+        pods: "120"
+        count/jobs.batch: "120"
+        persistentvolumeclaims: "24"
+        requests.storage: "120Gi"
+        ssd-hot.storageclass.storage.k8s.io/requests.storage: "100Gi"
+        ssd-hot.storageclass.storage.k8s.io/persistentvolumeclaims: "20"
+        nfs-cold.storageclass.storage.k8s.io/requests.storage: "20Gi"
+        nfs-cold.storageclass.storage.k8s.io/persistentvolumeclaims: "4"
+
+  - apiVersion: v1
+    kind: LimitRange
+    metadata:
+      name: xf-storage-defaults
+      namespace: &storage_namespace xf-storage
+    spec:
+      limits:
+        - type: Container
+          defaultRequest:
+            cpu: "50m"
+            memory: "64Mi"
+          default:
+            memory: "256Mi"
+          max:
+            memory: "1Gi"
+  - apiVersion: v1
+    kind: ResourceQuota
+    metadata:
+      name: xf-storage-quota
+      namespace: *storage_namespace
+    spec:
+      hard:
+        requests.cpu: "2"
+        requests.memory: "1Gi"
+        limits.memory: "2Gi"
+        pods: "8"
+
+  - apiVersion: v1
+    kind: LimitRange
+    metadata:
+      name: xf-registry-defaults
+      namespace: &registry_namespace xf-registry
+    spec:
+      limits:
+        - type: Container
+          defaultRequest:
+            cpu: "50m"
+            memory: "128Mi"
+          default:
+            memory: "512Mi"
+          max:
+            memory: "2Gi"
+        - type: PersistentVolumeClaim
+          defaultRequest:
+            storage: "10Gi"
+          default:
+            storage: "10Gi"
+          max:
+            storage: "80Gi"
+          min:
+            storage: "1Gi"
+  - apiVersion: v1
+    kind: ResourceQuota
+    metadata:
+      name: xf-registry-quota
+      namespace: *registry_namespace
+    spec:
+      hard:
+        requests.cpu: "2"
+        requests.memory: "2Gi"
+        limits.memory: "4Gi"
+        pods: "8"
+        persistentvolumeclaims: "4"
+        requests.storage: "90Gi"
+        local-path.storageclass.storage.k8s.io/requests.storage: "90Gi"
+        local-path.storageclass.storage.k8s.io/persistentvolumeclaims: "4"

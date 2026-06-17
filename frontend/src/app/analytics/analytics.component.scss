@@ -216,6 +216,62 @@
   }
 }
 
+.dependency-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-md);
+  margin: 0 0 var(--space-lg);
+}
+
+.dependency-health {
+  padding: var(--space-md);
+  border: var(--card-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-white);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-width: 0;
+  }
+
+  &__label {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
+
+  &__status {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+  }
+
+  &__message {
+    margin: var(--space-sm) 0;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  &__metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    color: var(--color-text-muted);
+    font-size: 11px;
+  }
+
+  &--healthy mat-icon { color: var(--color-success); }
+  &--warning mat-icon { color: var(--color-warning); }
+  &--error mat-icon { color: var(--color-error); }
+  &--not_configured mat-icon { color: var(--color-text-muted); }
+}
+
 .health-status-bar {
   display: flex;
   justify-content: space-between;

@@ -3,8 +3,8 @@
 [SPEC FRESHNESS: reviewed_at=2026-06-15 next_review=2026-09-15]
 
 > **Status:** implemented (manifests applied + proven live on the rehearsal cluster). The one-time
-> history copy and the retirement of the old Windows volumes are deferred to the final go-live
-> (alongside SLICE-13). See "Out of scope / deferred" at the bottom.
+> history copy and the old-volume retirement are implemented as guarded go-live commands, but are
+> intentionally not run during rehearsal. They execute at final go-live alongside SLICE-13.
 >
 > **Plain English first.** "Observability" is the set of tools that watch the app and tell you how it
 > is doing: numbers over time (metrics), text log lines (logs), the step-by-step path of one request
@@ -52,7 +52,7 @@ Every external behaviour relied on below is anchored to a primary source.
 | OpenTelemetry Collector — Configuration: https://opentelemetry.io/docs/collector/configuration/ | Receivers, processors, exporters, and pipelines used in the collector config. |
 | Kubernetes — Jobs: https://kubernetes.io/docs/concepts/workloads/controllers/job/ | The one-shot GlitchTip init + migrate Jobs, including `backoffLimit` and `ttlSecondsAfterFinished`. |
 | Kubernetes — Assign Pods to Nodes (nodeSelector): https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/ | Pinning pods to the Dell worker or the Mint helper by hostname. |
-| Kubernetes — Services without selectors (external Endpoints): https://kubernetes.io/docs/concepts/services-networking/service/#services-without-selectors | The selectorless `postgres` Service in `xf-obs` that points at the Dell host outside the cluster. |
+| Kubernetes — Services without selectors and EndpointSlices: https://kubernetes.io/docs/concepts/services-networking/service/#services-without-selectors | The selectorless `postgres` Service in `xf-obs` that points at the Dell host outside the cluster. |
 | Kubernetes — Network Policies: https://kubernetes.io/docs/concepts/services-networking/network-policies/ | The default-deny + additive-allow firewall model used both ways across namespaces. |
 | VictoriaMetrics — single-server: https://docs.victoriametrics.com/ | The single-node metrics store, scraper, and alert evaluator. |
 | GlitchTip — documentation: https://glitchtip.com/documentation | GlitchTip's database/redis/secret env-var contract and migration script. |
@@ -191,7 +191,7 @@ explicit:
   the cache on **6379** (redis database 4). Both are allowed by `allow-obs-ingress` on the `xf-app`
   side.
 - **Monitoring → database.** The database lives directly on the Dell host, outside Kubernetes. The
-  `xf-obs` namespace gets its **own** selectorless `postgres` Service whose manual Endpoints point at
+  `xf-obs` namespace gets its **own** selectorless `postgres` Service whose EndpointSlice points at
   Dell over the private cable (`10.10.10.92:5432`). `postgres-exporter` and GlitchTip reach the
   database through that name, independent of the app namespace's copy. (No port-5432 rule is needed on
   the app side, because the database is not an app pod.)
@@ -249,10 +249,11 @@ half-copied data. Every transfer is **checksum-verified (SHA-256) and retried**,
 cross WiFi — a broken or incomplete transfer is detected and re-sent, never silently used.
 
 > Status note: these history-copy artifacts (`scripts/obs-history-copy.ps1`,
-> `k8s/obs/history-copy/restore-job.yaml`, `k8s/obs/history-copy/_initcontainer-snippet.md`) are
-> **authored now** but are intentionally **not run** during the SLICE-21 rehearsal — they live in the
-> `history-copy/` subfolder so the rehearsal's `kubectl apply -f k8s/obs/` (non-recursive) never picks
-> them up. They execute once, at the final go-live.
+> `k8s/obs/history-copy/restore-job.yaml`, `k8s/obs/history-copy/_initcontainer-snippet.md`,
+> `k8s/obs/history-copy/volume-map.json`, and `scripts/obs-retire-old-volumes.ps1`) are authored now
+> but are intentionally not run during the SLICE-21 rehearsal. They live outside the normal
+> non-recursive `kubectl apply -f k8s/obs/` path or require an explicit go-live switch, so they execute
+> once at final go-live.
 
 ## Verification (proven live on the rehearsal cluster)
 
@@ -270,8 +271,9 @@ The tier was applied to fresh, empty storage and proven end to end:
 
 ## Out of scope / deferred
 
-- **Run the history copy + retire the old Windows volumes** — deferred to the final go-live (with
-  SLICE-13). The rehearsal runs on fresh, empty storage on purpose.
+- **Run the history copy + retire the old Windows volumes** — the commands and proof are ready, but
+  execution is deferred to final go-live with SLICE-13. The rehearsal runs on fresh, empty storage on
+  purpose.
 - **Create GlitchTip's real project + DSN** — a one-time step in the GlitchTip UI on the fresh cluster
   instance; the `glitchtip-dsn` Secret is wired in but the live DSN/project are set at go-live.
 - **The test-pipeline slices (23–27)** — building the in-cluster test/quality pipeline is separate

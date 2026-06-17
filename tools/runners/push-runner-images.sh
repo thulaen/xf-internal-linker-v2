@@ -16,8 +16,7 @@ set -euo pipefail
 
 runners=("$@")
 if [ "${#runners[@]}" -eq 0 ]; then
-  # Extend this list as each runner lands (python, rust, node-browser).
-  runners=(merge)
+  runners=(merge python rust node-browser)
 fi
 
 for r in "${runners[@]}"; do

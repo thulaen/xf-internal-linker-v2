@@ -23,6 +23,7 @@ import {
   GA4TelemetrySettings,
   GoogleOAuthSettings,
   GSCSettings,
+  MatomoReadiness,
   MatomoTelemetrySettings,
   SiloSettingsService,
   WebhookSettings,
@@ -109,6 +110,16 @@ const MATOMO_DEFAULTS: MatomoTelemetrySettings = {
   last_sync: null,
 };
 
+const MATOMO_READINESS_DEFAULTS: MatomoReadiness = {
+  status: 'not_ready',
+  message: 'Matomo connection worked, but Matomo returned 0 visits.',
+  visits_fetched: 0,
+  known_content_url_paths: 0,
+  matched_page_visits: 0,
+  dstp_transition_rows: 0,
+  last_sync: null,
+};
+
 const GSC_DEFAULTS: GSCSettings = {
   ranking_weight: 0.05,
   property_url: '',
@@ -161,6 +172,7 @@ describe('ConnectSyncTabComponent', () => {
     httpMock.expectOne('/api/analytics/settings/google-oauth/').flush(GOOGLE_OAUTH_DEFAULTS);
     httpMock.expectOne('/api/analytics/settings/ga4/').flush(GA4_DEFAULTS);
     httpMock.expectOne('/api/analytics/settings/matomo/').flush(MATOMO_DEFAULTS);
+    httpMock.expectOne('/api/analytics/setup/matomo-readiness/').flush(MATOMO_READINESS_DEFAULTS);
     httpMock.expectOne('/api/settings/xenforo/').flush(XENFORO_DEFAULTS);
     httpMock.expectOne('/api/settings/wordpress/').flush(WORDPRESS_DEFAULTS);
     httpMock.expectOne('/api/settings/webhooks/').flush(WEBHOOK_DEFAULTS);
@@ -178,6 +190,7 @@ describe('ConnectSyncTabComponent', () => {
     expect(root.querySelector('#crawler-settings')).not.toBeNull();
     expect(root.querySelector('#webhook-settings')).not.toBeNull();
     expect(root.querySelector('#google-settings')).not.toBeNull();
+    expect(root.querySelector('#connection-setup-wizard')).not.toBeNull();
     expect(root.querySelector('#ga4-settings')).not.toBeNull();
     expect(root.querySelector('#matomo-settings')).not.toBeNull();
     expect(root.querySelector('#gsc-settings')).not.toBeNull();

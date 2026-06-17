@@ -15,10 +15,16 @@ set -u
 
 DELL_SSH="${DELL_SSH:-dell}"
 MINT_SSH="${MINT_SSH:-mint-wifi}"
+DELL_NODE="${DELL_NODE:-dell-ubuntu-01-optiplex-micro-7010}"
+MINT_NODE="${MINT_NODE:-minthelper01-lenovo-c50-30}"
 MINT_WIRED_IP="${MINT_WIRED_IP:-10.10.10.91}"
 DELL_WIRED_IP="${DELL_WIRED_IP:-10.10.10.92}"
 MINT_WIFI_IP="${MINT_WIFI_IP:-192.168.0.91}"
 SSH_TIMEOUT="${SSH_TIMEOUT:-8}"
+POSTGRES_SERVICE_NAME="${POSTGRES_SERVICE_NAME:-postgres}"
+POSTGRES_ENDPOINTSLICE_NAME="${POSTGRES_ENDPOINTSLICE_NAME:-postgres-external}"
+POSTGRES_SERVICE_NAMESPACE_LIST="${POSTGRES_SERVICE_NAMESPACE_LIST:-xf-app xf-obs xf-test}"
+POSTGRES_SERVICE_PORT="${POSTGRES_SERVICE_PORT:-5432}"
 
 _failures=0
 pass() { printf 'PASS: %s\n' "$1"; }
@@ -36,7 +42,7 @@ cluster_require_gitbash() {
     fi
 }
 
-ssh_host() { ssh -o BatchMode=yes -o ConnectTimeout="$SSH_TIMEOUT" "$1" "$2" 2>/dev/null; }
+ssh_host() { ssh -n -o BatchMode=yes -o ConnectTimeout="$SSH_TIMEOUT" "$1" "$2" 2>/dev/null; }
 
 # The network interface on a node that holds the wired 10.10.10.x address.
 wired_iface() { ssh_host "$1" "ip -o -4 addr show 2>/dev/null | awk '/10\\.10\\.10\\./{print \$2; exit}'"; }

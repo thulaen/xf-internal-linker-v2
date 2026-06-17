@@ -276,6 +276,7 @@ reports/
 backend/html/
 audit/agent_progress_latest.txt
 audit/agent_progress_state.json
+audit/agent_progress_task_state.json
 audit/inter_model/
 audit/cluster_tuned_params.json
 services/sidecars/sidecars
