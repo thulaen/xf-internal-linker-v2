@@ -35,8 +35,14 @@ if ! command -v "${python_cmd[0]}" >/dev/null 2>&1; then
   fi
 fi
 
+mutation_context="${PYTHON_REPO_MUTATION_DOCKER_CONTEXT:-${PYTHON_MUTATION_DOCKER_CONTEXT:-dell}}"
+docker_context_args=()
+if [[ "$mutation_context" != "__local__" ]]; then
+  docker_context_args=(--context "$mutation_context")
+fi
+
 docker_cmd=(docker)
-if ! "${docker_cmd[@]}" --context dell version >/dev/null 2>&1; then
+if ! "${docker_cmd[@]}" "${docker_context_args[@]}" version >/dev/null 2>&1; then
   if command -v docker.exe >/dev/null 2>&1; then
     docker_cmd=(docker.exe)
   elif [[ -x "/c/Program Files/Docker/Docker/resources/bin/docker.exe" ]]; then
@@ -64,6 +70,7 @@ paths="$(
     "${python_cmd[@]}" scripts/commit_scope.py paths --mode "$scope_mode"
   fi \
     | grep -E "(${scripts_regex}|${githooks_regex})" \
+    | grep -Ev '(^|/)(test_.*|tests_.*|.*_test)[.]py$' \
     || true
 )"
 existing_paths=""
@@ -80,8 +87,15 @@ if [[ -z "$paths" ]]; then
   exit 0
 fi
 
-pairs_file="/repo/audit/mutmut-repo-pairs.txt"
-test_target="${XF_MUTMUT_TESTS:-scripts/test_python_repo_mutation.py}"
+mkdir -p .tmp
+pairs_file=".tmp/mutmut-repo-pairs.txt"
+test_target="${XF_MUTMUT_TESTS:-}"
+if [[ -z "$test_target" ]]; then
+  test_target="scripts/test_python_repo_mutation.py"
+  if grep -qx "scripts/bazel_default.py" <<< "$paths"; then
+    test_target="$test_target scripts/test_bazel_default.py"
+  fi
+fi
 rm -f "$pairs_file"
 while IFS= read -r path; do
   [[ -z "$path" ]] && continue
@@ -100,11 +114,10 @@ fi
 echo "repo-mutmut:dell-required"
 
 tmp_dir="/tmp/xf-mutmut-repo-scope"
-test_target="${XF_MUTMUT_TESTS:-scripts/test_python_repo_mutation.py}"
 mutmut_children="${XF_MUTMUT_CHILDREN:-}"
 if [[ -z "$mutmut_children" ]]; then
   if ! mutmut_children="$(
-    "${docker_cmd[@]}" --context dell run --rm "$image" python -c 'import os; print(max(2, min(16, os.cpu_count() or 2)))'
+    "${docker_cmd[@]}" "${docker_context_args[@]}" run --rm "$image" python -c 'import os; print(max(2, min(16, os.cpu_count() or 2)))'
   )"; then
     echo "repo-mutmut:tool-missing"
     echo "Dell cannot run $image, so Python mutation cannot run."
@@ -118,7 +131,7 @@ quality_docker_compose_run() {
   local label="$1"
   local service="$2"
   shift 2
-  "${docker_cmd[@]}" --context dell run --rm \
+  "${docker_cmd[@]}" "${docker_context_args[@]}" run --rm \
     -v xf_test_repo:/repo \
     -v xf_dell_quality_cache:/tmp/xf-test-cache \
     -w /repo \
@@ -126,10 +139,10 @@ quality_docker_compose_run() {
     "$image" "$@"
 }
 
-"${docker_cmd[@]}" --context dell run --rm -i \
+"${docker_cmd[@]}" "${docker_context_args[@]}" run --rm -i \
   -v xf_test_repo:/repo \
   alpine:latest sh -c "rm -rf /repo/* && tar -xf - -C /repo && mkdir -p /repo/audit && chmod 777 /repo/audit" \
-  < <(tar -cf - scripts .githooks)
+  < <(tar -cf - scripts .githooks tools/quality)
 
 quality_docker_compose_run python-repo-mutation backend-mutation-tools bash -lc "
 set -euo pipefail
@@ -142,17 +155,25 @@ from pathlib import Path
 
 changed_paths = $changed_paths_json
 paths_to_mutate = changed_paths
+test_target = '$test_target'
+test_targets = test_target.split()
 Path('$tmp_dir/pyproject.toml').write_text(
     '[tool.mutmut]\n'
     + 'paths_to_mutate = ' + json.dumps(paths_to_mutate) + '\n'
-    + 'runner = ' + json.dumps('python -m pytest -q $test_target') + '\n'
-    + 'tests_dir = [' + json.dumps('$test_target') + ']\n'
-    + 'also_copy = [' + json.dumps('scripts/') + ', ' + json.dumps('.githooks/') + ']\n',
+    + 'runner = ' + json.dumps(f'python -m pytest -q {test_target}') + '\n'
+    + 'tests_dir = ' + json.dumps(test_targets) + '\n'
+    + 'also_copy = [' + json.dumps('scripts/') + ', ' + json.dumps('.githooks/') + ', ' + json.dumps('tools/quality/') + ']\n',
+    encoding='utf-8',
+)
+Path('/repo/audit/mutmut-repo-pairs.txt').write_text(
+    ''.join(f'{path}\t{test_target}\n' for path in changed_paths),
     encoding='utf-8',
 )
 PY
 cp -R scripts '$tmp_dir/scripts'
 cp -R .githooks '$tmp_dir/.githooks'
+mkdir -p '$tmp_dir/tools'
+cp -R tools/quality '$tmp_dir/tools/quality'
 cd '$tmp_dir'
 mutmut run --max-children '$mutmut_children'
 python - <<'PY'
@@ -169,13 +190,9 @@ kill_rate = 100.0 if total == 0 else (len(killed) / total) * 100.0
 print(json.dumps({'kill_rate': round(kill_rate, 1), 'killed': len(killed), 'survived': len(survivors), 'survivors': survivors[:20]}))
 # Repo target: >90% kill rate (not 100% — do not chase every last mutant).
 if kill_rate >= 90.0:
-    print("mutation passed")
+    print('mutation passed')
     sys.exit(0)
 sys.exit(1)
 PY
-if [ $? -eq 0 ]; then
-  python /repo/scripts/quality_cache.py record-pairs --tool mutmut-repo --pairs-file /repo/audit/mutmut-repo-pairs.txt --root /repo || true
-  exit 0
-fi
-exit 1
+python /repo/scripts/quality_cache.py record-pairs --tool mutmut-repo --pairs-file /repo/audit/mutmut-repo-pairs.txt --root /repo || true
 "

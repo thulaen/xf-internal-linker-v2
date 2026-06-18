@@ -132,6 +132,8 @@ When you must mention a technical concept, use the plain-English version from th
 | the background task runner | celery worker |
 | the framework that builds the visual interface | Angular |
 | the framework that handles data storage and business logic | Django |
+| the read-only screen that shows local accuracy-check reports for MATLAB and number comparisons | Accuracy Lab |
+| the math program used as an independent checker for numeric results | MATLAB |
 | a background checker that physically blocks saves if coding rules (like writing tests first) are skipped | Agent Guard Daemon |
 | the Django setting that lists the app's database connections | DATABASES |
 | the Django setting value that selects which database type Django should use | ENGINE |
@@ -211,6 +213,10 @@ When you must mention a technical concept, use the plain-English version from th
 | the build tool that creates repeatable outputs from a declared build graph | Bazel |
 | the small launcher that downloads and runs the pinned Bazel version | Bazelisk |
 | the optional Bazel web service for shared build cache and build result viewing | BuildBuddy |
+| a paid Google service that runs short batch jobs and stops when they finish | Google Cloud Batch |
+| a cheaper Google Cloud virtual machine that can be stopped by Google at any time | Spot VM / Spot VMs |
+| a saved Google Cloud cost table that scripts can query before spending more money | billing export |
+| a Google Cloud spending alert that can call another service when a budget threshold is reached | budget notification |
 | the folder setting that tells the live backend where to write resolved-issue lookup audit logs | XF_AUDIT_DIR |
 | the settings file that tells kubectl how to reach a Kubernetes cluster | kubeconfig |
 | the command-line tool that talks to Kubernetes | kubectl |

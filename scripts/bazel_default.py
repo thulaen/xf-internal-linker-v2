@@ -77,6 +77,15 @@ def changed_paths(root: Path) -> str:
             check=False,
         )
         paths.update(path.strip().replace("\\", "/") for path in result.stdout.splitlines())
+    if not paths:
+        result = subprocess.run(
+            ["git", "diff-tree", "--no-commit-id", "--name-only", "--diff-filter=ACM", "-r", "HEAD"],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        paths.update(path.strip().replace("\\", "/") for path in result.stdout.splitlines())
     return "\n".join(sorted(path for path in paths if path))
 
 
@@ -150,14 +159,23 @@ def _remote_bazel_script(*, workspace: str, mode: str, paths: str, bazel_command
 def bazel_args_for_workspace(argv: list[str], workspace: str) -> list[str]:
     if argv and argv[0] == "test":
         return [argv[0], f"--test_env=BUILD_WORKSPACE_DIRECTORY={workspace}", *argv[1:]]
+    if argv and argv[0] == "run" and "//tools/quality:" in " ".join(argv):
+        if "--" in argv:
+            split_at = argv.index("--")
+            return [*argv[: split_at + 1], f"--repo-root={workspace}", *argv[split_at + 1 :]]
+        return [*argv, "--", f"--repo-root={workspace}"]
     return argv
+
+
+def requires_remote_bazel(argv: list[str]) -> bool:
+    return bool(argv and argv[0] == "run" and "//tools/quality:mutation" in argv)
 
 
 def run_bazel(argv: list[str]) -> int:
     root = repo_root()
     bazel = local_bazel()
     env = bazel_env(root)
-    if bazel:
+    if bazel and not requires_remote_bazel(argv):
         bazel_args = bazel_args_for_workspace(argv, str(root))
         return _run([bazel, *bazel_args], cwd=root, env=env)
     return remote_bazel(argv, root)

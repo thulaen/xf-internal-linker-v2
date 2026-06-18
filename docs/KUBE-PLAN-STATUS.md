@@ -28,8 +28,8 @@ now runs on Dell.
 | 11 Dell Postgres | done | `docs/specs/fr-k8s-postgres-on-dell.md` | `bash tools/preflight/test_postgres_service.sh` |
 | 12 cluster Postgres Service | done | `docs/specs/fr-k8s-postgres-selectorless-service.md` | `bash tools/preflight/test_postgres_service.sh` |
 | 13 database migration | done | `docs/specs/fr-k8s-db-migration.md` | `bash tools/migration/04_verify_equal.sh --source-counts /mnt/c/tmp/kube-row-counts-msi-final.txt --target-counts /mnt/c/tmp/kube-row-counts-dell-final.txt` |
-| 14 PgBouncer and test DB shards | done | `docs/specs/fr-k8s-test-db-sharding.md` | `python scripts/run_pytest_on_context.py --targets apps/audit/tests_test_database_shards.py` |
-| 15 MSI kubectl console | rehearsed | `docs/specs/fr-msi-kubectl-console.md` | `pwsh k8s/console/verify-console.ps1` |
+| 14 PgBouncer and test DB shards | done | `docs/specs/fr-k8s-test-db-sharding.md` | `python scripts/bazel_default.py run //tools/quality:python` |
+| 15 MSI kubectl console | documented replacement | `docs/specs/fr-msi-kubectl-console.md` | MSI now asks Mint to run Kubernetes commands when Windows has no `kubectl`; do not reinstall Windows `kubectl` for this slice |
 | 16 Redis-compatible cache | done; Dell-backed | `docs/specs/fr-redis-in-cluster.md` | `kubectl -n xf-app exec deploy/valkey -- valkey-cli ping` |
 | 17 backend deployment | done | `docs/specs/fr-backend-deployment.md` | `ssh mint-wifi "kubectl -n xf-app exec deploy/backend -- python manage.py check"` |
 | 18 workers and scheduler | done | `docs/specs/fr-celery-workers-beat.md` | `ssh mint-wifi kubectl -n xf-app get deploy,pods,svc --request-timeout=10s` |
@@ -43,8 +43,8 @@ now runs on Dell.
 | 26 distributed test adapters | done | `docs/specs/fr-k8s-distribute-tests.md` | `python -m pytest -q -p no:randomly tools/test/test_quality_adapters.py scripts/test_distributed_test_coordinator.py` |
 | 27 coordinator and merge | done | `docs/specs/fr-k8s-coordinator.md` | `pwsh scripts/run-distributed-tests.ps1 -DryRun` |
 | 28 guarded cutover | done; Dell rollback archive retained | `docs/specs/fr-k8s-cutover.md` | `bash tools/migration/05_cutover.sh --proof-file /mnt/c/tmp/kube-db-cutover-proof.json --dry-run` |
-| 29 Google Cloud burst | rehearsed | `docs/specs/fr-k8s-29-gcp-spot-mutation-burst.md` | `python scripts/gcp_burst_executor.py --project xf --region europe-west1 --dry-run` |
-| 30 embedding provider evaluation | done | `docs/specs/fr232-embedding-provider-bakeoff.md` | `python scripts/run_pytest_on_context.py --targets apps/api/tests_embedding_views.py apps/pipeline/tests/test_run_embedding_provider_eval_command.py --cov-targets apps.api.embedding_views,apps.pipeline.management.commands.run_embedding_provider_eval` |
+| 29 Google Cloud burst | complete; no-spend proof only | `docs/specs/fr-k8s-29-gcp-spot-mutation-burst.md` | `python scripts/gcp_burst_executor.py --project xf --region europe-west1 --dry-run`; `python scripts/distributed_test_coordinator.py --dry-run --burst gcp --full` |
+| 30 embedding provider evaluation | done | `docs/specs/fr232-embedding-provider-bakeoff.md` | `python scripts/bazel_default.py run //tools/quality:provider_score_backend` |
 
 ## Closeout Notes
 
@@ -139,10 +139,9 @@ now runs on Dell.
   `python scripts/bazel_default.py test --cache_test_results=no
   //tools/quality:all` ran from MSI, then the source synced to Dell, Dell Bazel
   executed the default quality suite, and all 10 Bazel quality tests passed.
-- Given old language quality entry points could conflict with Bazel, when
-  `scripts/run-python-quality.sh`, `scripts/run-angular-quality.sh`, and
-  `scripts/run-rust-quality.sh` run directly, then they now enter Bazel first.
-  Bazel calls their old implementation only with `XF_BAZEL_INTERNAL=1`.
+- Given old language quality entry points could conflict with Bazel, when the
+  Bazel-only cleanup ran, then the old public language quality scripts were
+  deleted and Bazel became the only public quality entry point.
 - Given provider-score backend coverage was below target, when the branch tests
   were added and Dell pytest reran, then 38 backend tests passed and coverage
   rose to 97% across the checked provider-score backend files.
@@ -178,9 +177,9 @@ now runs on Dell.
   `--coverage=true`, and repeated `--include=<spec>` flags, and the Bazel
   frontend target passed.
 - Given old public language runners could conflict with Bazel, when public
-  hooks, GitHub Actions workflows, `scripts/verify.ps1`, and the old runner
-  script names were updated, then they call `scripts/bazel_default.py` or route
-  into Bazel, and `.githooks/check-bazel-public-entrypoints.py` passed.
+  hooks, GitHub Actions workflows, `scripts/verify.ps1`, and active docs were
+  updated, then they call `scripts/bazel_default.py`, and
+  `.githooks/check-bazel-public-entrypoints.py` passed.
 - Given live Kubernetes still ran the old `xf-linker-backend:v6` image, when
   the fixed backend was rebuilt as `10.10.10.91:5000/xf-linker-backend:v7`,
   pushed to the Mint registry, and rolled out to backend plus Celery

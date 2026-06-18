@@ -1,0 +1,38 @@
+{
+  "taskGroups": [
+    {
+      "taskSpec": {
+        "runnables": [
+          {
+            "container": {
+              "imageUri": "REGION-docker.pkg.dev/PROJECT/xf/xf-runner-mutation@sha256:REPLACE_WITH_DIGEST",
+              "commands": [
+                "tools/quality/mutation.sh"
+              ]
+            }
+          }
+        ],
+        "maxRunDuration": "1200s"
+      },
+      "taskCount": 1,
+      "parallelism": 1
+    }
+  ],
+  "allocationPolicy": {
+    "instances": [
+      {
+        "policy": {
+          "provisioningModel": "SPOT",
+          "machineType": "c3-highcpu-8"
+        }
+      }
+    ]
+  },
+  "labels": {
+    "xf-purpose": "mutation-burst",
+    "xf-paid": "explicit"
+  },
+  "logsPolicy": {
+    "destination": "CLOUD_LOGGING"
+  }
+}

@@ -22,7 +22,10 @@ export MSYS2_ARG_CONV_EXCL="*"
 if [[ -f /.dockerenv ]]; then
   git config --global --add safe.directory /repo 2>/dev/null || true
 fi
-repo_root="$(git rev-parse --show-toplevel)"
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$repo_root" ]]; then
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
 cd "$repo_root"
 
 . scripts/_quality_concurrency.sh

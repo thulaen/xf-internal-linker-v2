@@ -136,11 +136,11 @@ def test_agent_rule_files_make_cached_payload_the_default() -> None:
         assert "only run live startup commands when the user explicitly asks" in text.lower()
 
 
-def test_startup_banner_uses_payload_before_legacy_fallback() -> None:
+def test_startup_banner_uses_fast_payload_without_legacy_live_fallback() -> None:
     text = (ROOT / "scripts" / "session-start-banner.ps1").read_text(encoding="utf-8")
 
-    payload_index = text.index("scripts/session_start_payload.py")
-    legacy_index = text.index("print_open_issues")
-
-    assert payload_index < legacy_index
-    assert "refresh_session_start_payload" in text
+    assert "scripts/session_start_payload.py" in text
+    assert "print_open_issues" not in text
+    assert "print_resolved_issues" not in text
+    assert "REPORT-REGISTRY.md" not in text
+    assert "refresh_session_start_payload" not in text

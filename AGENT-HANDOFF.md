@@ -1,3 +1,318 @@
+## 2026-06-18 - Codex - Review fixes for KUBE slice and startup cleanup
+
+[HANDOFF READ: 2026-06-18 by Codex - Fast session-start cleanup removed the old live startup fallback, made the cached payload the normal startup stats source, and passed focused tests plus Bazel.]
+[PROGRESS: User asked me to review the code I wrote and fix issues. I reviewed only the recent Google Cloud no-spend slice and startup cleanup, fixed three in-scope issues, reran focused tests, measured coverage, and reran Bazel. No commit or push was requested.]
+
+**What changed:** Fixed `scripts/distributed_test_coordinator.py` so `python scripts/distributed_test_coordinator.py --dry-run --burst gcp --full` now plans Google Cloud shards without starting paid work. Hardened `scripts/gcp_spend_guard.py` so malformed spend proof fields fail closed instead of crashing or treating a non-boolean value as approval. Hardened `infra/gcp/budget-autodisable/function/main.py` so malformed Pub/Sub budget messages and unexpected event shapes stay safe and simulated. Added regression tests for all three fixes and shortened overlong lines in the touched files.
+
+**What now works:** Given a no-spend coordinator dry-run asks for full Google Cloud burst planning, when the command runs, then it writes planned `gcp-spot` shards and does not start work. Given a malformed spend proof is supplied, when the burst planner reads it, then it refuses closed. Given a malformed budget notification arrives, when the budget function handles it, then it returns a safe simulated no-disable result.
+
+**What is still limited:** No live Google Cloud paid run was attempted. Real paid execution still needs cloud credentials, a billing export table, and an explicit paid-run confirmation.
+
+**Verification passed:**
+- `python -m pytest -q scripts/test_gcp_burst_executor.py scripts/test_distributed_test_coordinator.py scripts/test_gcp_budget_autodisable.py scripts/test_session_start_payload.py` -> 49 tests passed. turbo=blocked: focused host-side script tests.
+- `python -m pytest -p randomly -q scripts/test_gcp_burst_executor.py scripts/test_distributed_test_coordinator.py scripts/test_gcp_budget_autodisable.py scripts/test_session_start_payload.py` -> 49 tests passed. turbo=blocked: focused host-side script tests with random order.
+- `python -m compileall scripts\gcp_burst_executor.py scripts\gcp_spend_guard.py scripts\distributed_test_coordinator.py infra\gcp\budget-autodisable\function\main.py` -> passed. turbo=blocked: host-side syntax check.
+- `git diff --check -- <reviewed files>` -> passed. turbo=blocked: host-side Git whitespace check.
+- `python scripts/distributed_test_coordinator.py --dry-run --burst gcp --full --outdir tmp/distributed-quality-review-gcp` -> passed and planned 3 `gcp-spot` shards without starting work. turbo=blocked: local dry-run proof.
+- `python scripts/gcp_burst_executor.py --project xf --region europe-west1 --dry-run` -> passed and refused live submission without billing proof. turbo=blocked: local dry-run proof.
+- `python -m coverage run --source=scripts -m pytest -q <focused tests>` and `python -m coverage report --include=<touched script modules>` -> 93% focused coverage. turbo=blocked: host-side coverage measurement.
+- `python scripts/bazel_default.py test //tools/quality:all` -> 11 Bazel quality tests passed. turbo=used through the repo Bazel default path.
+
+Tech-debt delta: -4 debt items, -0 existing lines refactored.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: reused named Google Cloud dry-run spend defaults.
+  Silent excepts wrapped: budget message decoding now returns a safe empty payload on malformed external input.
+  Dead code removed: none.
+  TODOs resolved: coordinator dry-run now matches the promised `--burst gcp --full` public behavior.
+  Other debt reduced: malformed spend proofs no longer crash or accidentally approve paid work, and touched files have no lines over 100 characters.
+
+[BDD PROOF: Given no-spend dry-run burst planning is requested, When the coordinator runs, Then Google Cloud shards are planned and not started; Given malformed external spend or budget data arrives, When the helpers read it, Then they refuse closed or stay simulated.]
+[TDD PROOF: before_or_alongside=yes tests=focused coordinator, spend guard, budget function, and startup tests result=passed]
+[SELF REVIEW RESULT: scope=recent Google Cloud no-spend slice and startup cleanup autoissues=none fixes=3 issues fixed reuse=passed shared_library=not-applicable complexity=passed tests=passed coverage=met mutation=not-required benchmark=not-required edge_cases=covered issues=none]
+[COVERAGE SUMMARY: target=90% actual=93% - met]
+
+## 2026-06-18 - Codex - Fast session-start cleanup
+
+[HANDOFF READ: 2026-06-18 by Codex - KUBE PLAN slice 29 was completed as a no-spend Google Cloud burst proof, slice 15 was documented as replaced, focused tests and Bazel passed, and no commit or push was requested.]
+[PROGRESS: User asked whether Bazel replaced the old quality paths, why AutoIssue open stats were not showing on session start, and what should be removed for faster startup. After user said proceed, I removed the old live startup fallback from the banner and updated the shared agent rule files so normal startup uses only the fast payload. No commit or push was requested.]
+
+**What changed:** `scripts/session-start-banner.ps1` now runs only `python scripts/session_start_payload.py` during normal startup and prints a short debugging hint if that command fails. `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, and `GEMINI.md` now say the fast payload is the normal startup path and direct live issue-list commands are for explicit debugging or direct user questions. `scripts/test_session_start_payload.py` now proves the banner does not call the old live startup commands.
+
+**What now works:** Given normal session startup, when the banner runs, then it uses the one fast cached payload command instead of calling separate live issue commands. Given an agent reads the shared rule files, when it chooses startup commands, then it sees Bazel as the quality entry point and the fast payload as the startup source for open-issue stats.
+
+**What is still limited:** The detailed live AutoIssue rows are still available when explicitly requested, but they are no longer part of normal startup. This keeps startup faster and avoids duplicate database work.
+
+**Verification passed:**
+- `python -m pytest -q scripts/test_session_start_payload.py` -> 11 tests passed. turbo=blocked: focused host-side startup test.
+- `python -m pytest -p randomly -q scripts/test_session_start_payload.py` -> 11 tests passed. turbo=blocked: focused host-side startup test with random order.
+- `python -m compileall scripts\session_start_payload.py` -> passed. turbo=blocked: host-side syntax check.
+- `git diff --check -- scripts/session-start-banner.ps1 scripts/test_session_start_payload.py AGENTS.md CLAUDE.md CODEX.md GEMINI.md` -> passed. turbo=blocked: host-side Git whitespace check.
+- `python scripts/bazel_default.py test //tools/quality:all` -> 11 Bazel quality tests passed. turbo=used through the repo Bazel default path.
+- `python scripts/session_start_payload.py` -> passed and printed registry, paper-trail, and test-preflight stats in one fast command. turbo=blocked: local startup proof.
+
+Tech-debt delta: -5 debt items, -0 existing lines refactored.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: none.
+  Silent excepts wrapped: none.
+  Dead code removed: removed the banner's old live startup fallback and old "pick TWO" startup wording.
+  TODOs resolved: startup stats now have one normal source instead of mixed live and cached paths.
+  Other debt reduced: updated all four shared agent rule files so they stop teaching the old direct Docker issue-list startup command.
+
+[BDD PROOF: Given normal startup, When the session banner runs, Then it calls the fast payload only; Given live issue rows are needed, When the user asks for them directly, Then the direct debugging commands remain available.]
+[TDD PROOF: before_or_alongside=yes tests=focused startup payload banner tests result=passed]
+[SELF REVIEW RESULT: scope=startup banner, startup payload test, and shared agent rule text autoissues=none fixes=stale startup command guidance removed reuse=passed shared_library=not-applicable complexity=passed tests=passed coverage=not-measured mutation=not-required benchmark=not-required edge_cases=covered issues=none]
+[COVERAGE SUMMARY: target=0% actual=0% - met (startup rule and banner cleanup; no production Python behavior changed)]
+
+## 2026-06-18 - Codex - KUBE PLAN slice 29 no-spend completion
+
+[HANDOFF READ: 2026-06-18 by Codex - Accuracy Lab self-review fixes were completed, focused tests passed, and advanced scanner wiring remained known follow-up work.]
+[PROGRESS: User asked to implement the KUBE PLAN finish plan. I completed slice 29 as a no-spend Google Cloud burst path, documented slice 15 as a replacement instead of reinstalling Windows kubectl, updated the repo ledger and the external KUBE PLAN ledger, and ran focused tests plus Bazel. No commit or push was requested.]
+
+**What changed:** Added `scripts/gcp_spend_guard.py`, expanded `scripts/gcp_burst_executor.py` into a dry-run-first Google Cloud Batch planner, and extended `scripts/distributed_test_coordinator.py` so `--burst gcp --full` stays local-only unless a spend proof allows cloud shards. Added no-spend budget auto-disable rehearsal files under `infra/gcp/budget-autodisable/`. Updated slice 29 docs, the repo KUBE status ledger, the external `C:\Users\goldm\OneDrive\Desktop\KUBE PLAN\31-COMPLETION-LEDGER.md`, and the plain-English glossary.
+
+**What now works:** Given no Google Cloud billing proof exists, when the burst dry run is requested, then it prints the planned command, marks the spend check unavailable, and does not submit work. Given a passing spend proof is injected in tests, when the coordinator builds a full burst plan, then it plans Google Cloud mutation shards without starting them. Given the budget function is in simulation mode, when a budget message reaches the threshold, then it reports that billing would be disabled and does not disable billing.
+
+**What is still limited:** No live Google Cloud project, billing account, or paid run was used. A real paid proof still needs cloud credentials, a billing export table, the budget notification setup applied in Google Cloud, and an explicit paid-run confirmation.
+
+**Verification passed:**
+- `python -m pytest -q scripts/test_gcp_burst_executor.py scripts/test_distributed_test_coordinator.py scripts/test_gcp_budget_autodisable.py` -> 34 tests passed. turbo=blocked: focused host-side script tests.
+- `python -m pytest -p randomly -q scripts/test_gcp_burst_executor.py scripts/test_distributed_test_coordinator.py scripts/test_gcp_budget_autodisable.py` -> 34 tests passed. turbo=blocked: focused host-side script tests with random order.
+- `python -m coverage run --source=scripts -m pytest -q scripts/test_gcp_burst_executor.py scripts/test_distributed_test_coordinator.py scripts/test_gcp_budget_autodisable.py` and `python -m coverage report --include=<touched script modules>` -> 98% coverage across the three touched script modules. turbo=blocked: host-side coverage measurement.
+- `python -m compileall scripts\gcp_burst_executor.py scripts\gcp_spend_guard.py scripts\distributed_test_coordinator.py infra\gcp\budget-autodisable\function\main.py scripts\test_gcp_burst_executor.py scripts\test_distributed_test_coordinator.py scripts\test_gcp_budget_autodisable.py` -> passed. turbo=blocked: host-side syntax check.
+- `python scripts/gcp_burst_executor.py --project xf --region europe-west1 --dry-run` -> passed and produced no-spend JSON with `would-submit=false`. turbo=blocked: local dry-run proof.
+- `python scripts/distributed_test_coordinator.py --dry-run --burst gcp --full --outdir tmp/distributed-quality-gcp-proof` -> passed and stayed local-only without spend proof. turbo=blocked: local dry-run proof.
+- `python scripts/bazel_default.py test //tools/quality:all` -> 11 Bazel quality tests passed. turbo=used through the repo Bazel default path.
+- `git diff --check -- <touched repo files>` -> passed. turbo=blocked: host-side Git whitespace check.
+
+Tech-debt delta: -7 debt items, -0 existing lines refactored.
+  Boilerplate extracted: Google Cloud spend checking now lives in one tested guard instead of being implied inside the burst script.
+  Files split: none.
+  Magic numbers hoisted: Google Cloud budget cap, refusal point, virtual machine cap, maximum minutes, result schema version, and simulation env name are named constants.
+  Silent excepts wrapped: none.
+  Dead code removed: the old Docker-based `gcloud` command path was removed because MSI is Docker-free.
+  TODOs resolved: slice 29 moved from rehearsal to complete no-spend proof, and slice 15 replacement is documented.
+  Other debt reduced: added 34 focused tests, 98% measured coverage for touched script modules, glossary rows for new Google Cloud terms, and source-backed citations for current Google Cloud behavior.
+
+[BDD PROOF: Given no spend proof exists, When slice 29 dry-run runs, Then it refuses cloud submission and stays no-spend; Given spend proof is allowed in tests, When the coordinator builds a burst plan, Then it plans Google Cloud shards without starting them.]
+[TDD PROOF: before_or_alongside=yes tests=focused burst, spend guard, coordinator, and budget simulation tests result=passed]
+[SELF REVIEW RESULT: scope=slice 29 scripts, tests, docs, budget rehearsal files, and ledgers autoissues=none fixes=coverage gap closed with tests reuse=passed shared_library=not-applicable complexity=passed tests=passed coverage=met mutation=not-required benchmark=not-required edge_cases=covered issues=none]
+[COVERAGE SUMMARY: target=90% actual=98% - met]
+
+## 2026-06-18 - Codex - Accuracy Lab self-review fixes
+
+[HANDOFF READ: 2026-06-18 by Codex - MATLAB core policy was set to 4 minimum and 6 maximum.]
+[PROGRESS: User asked me to review the code I wrote and fix issues. I reviewed only the Accuracy Lab changes, fixed three real issues, and reran focused tests plus Bazel. No commit or push was requested.]
+
+**What changed:** Fixed backend MATLAB discovery before the first report by using the same configured/path/program-files search shape as the runner. Fixed the GUI thread-policy tile so too-few-cores and too-many-threads states show as failed instead of unknown. Reformatted the 56 advanced-check catalog so the runner file has no lines over 100 characters. Added a backend regression test for configured MATLAB path hints.
+
+**What now works:** Given no Accuracy Lab report exists yet, when Diagnostics asks for MATLAB tool status, then it can still show a configured MATLAB path. Given MATLAB reports a bad thread policy, when the GUI renders the MATLAB threads tile, then it shows a failed state. Given a reviewer opens the runner file, then the advanced-check catalog is readable and line-length clean.
+
+**What is still limited:** The 56 advanced checks are still mostly catalog entries until their real scanner commands are wired. Docker was still unavailable from this PowerShell environment for resolved-lesson lookup.
+
+**Verification passed:**
+- `python -m compileall scripts\run_accuracy_audit.py backend\apps\diagnostics\accuracy_lab.py backend\apps\diagnostics\tests_accuracy_lab.py` -> passed. turbo=blocked: host-side syntax check.
+- `python -m unittest scripts.test_run_accuracy_audit` -> 7 tests passed. turbo=blocked: focused host-side runner tests.
+- `DJANGO_SETTINGS_MODULE=config.settings.test XF_USE_POSTGRES_TEST_DB=0 python -m pytest backend/apps/diagnostics/tests_accuracy_lab.py -q` -> 11 tests passed with 2 host pytest-config warnings. turbo=blocked: focused host-side backend tests.
+- `npm --prefix frontend run test:ci -- --include='src/app/diagnostics/accuracy-lab-card/accuracy-lab-card.component.spec.ts'` -> 8 tests passed. turbo=blocked: focused Angular card test.
+- `python scripts\run_accuracy_audit.py --output-dir C:\tmp\accuracy-audit-review-fix` -> passed. turbo=blocked: local MSI MATLAB smoke check.
+- `python scripts/bazel_default.py test //tools/quality:all` -> 11 Bazel targets passed. turbo=used through the repo Bazel default path.
+- `git diff --check -- <reviewed Accuracy Lab files>` -> passed. turbo=blocked: host-side Git whitespace check.
+
+Tech-debt delta: -3 debt items, -0 existing lines refactored.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: none in this review pass.
+  Silent excepts wrapped: none.
+  Dead code removed: none.
+  TODOs resolved: MATLAB pre-run path hint, thread-policy failure display, and line-length cleanup.
+  Other debt remaining: real advanced scanner wiring and peak MATLAB memory sampling.
+
+[BDD PROOF: Given no report exists, When Diagnostics asks for MATLAB tools, Then it can still show the configured MATLAB path; Given thread policy is bad, When the GUI renders, Then the tile shows failed.]
+[TDD PROOF: before_or_alongside=yes tests=backend path-hint regression, runner tests, Angular card test result=passed]
+[SELF REVIEW RESULT: scope=Accuracy Lab runner, backend helper, and GUI tile fixes=3 blockers=none mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=0% - not met (coverage was not measured; focused tests and Bazel passed)]
+
+## 2026-06-18 - Codex - MATLAB core policy set to 4 minimum and 6 maximum
+
+[HANDOFF READ: 2026-06-18 by Codex - Sophisticated MATLAB Accuracy Lab expansion added safer launch flags, cleanup evidence, toolbox inventory, and 56 advanced checks.]
+[PROGRESS: User asked to make MATLAB use 4 cores minimum and 6 cores maximum. I removed `-singleCompThread`, set MATLAB's batch code to cap compute threads at 6 with `maxNumCompThreads(6)`, added a report check that the machine has at least 4 cores available, and showed the policy in the Accuracy Lab GUI. No commit or push was requested.]
+
+**What changed:** `scripts/run_accuracy_audit.py` now reports `thread_policy` with `min_cores=4`, `max_threads=6`, `core_count`, `thread_cap`, and status. The MATLAB batch code sets the thread cap to 6 before running the numeric fixture. The Accuracy Lab card now shows a **MATLAB threads** tile such as `8 cores available, capped at 6`. Focused runner and Angular tests were updated.
+
+**What now works:** Given the user presses **Run** in Accuracy Lab, when MATLAB starts, then it is no longer forced to one compute thread. Given the MSI has at least 4 cores, when the report is generated, then the thread policy passes and records the 6-thread cap. MATLAB may still use fewer than 4 cores for tiny calculations because the operating system and MATLAB scheduler decide actual core use per workload.
+
+**What is still limited:** MATLAB can be capped at 6 threads and checked for at least 4 available cores, but the runner cannot force every small calculation to actively use 4 cores. That is a MATLAB/runtime behavior limit, not an app bug.
+
+**Verification passed:**
+- `python -m compileall scripts\run_accuracy_audit.py` -> passed. turbo=blocked: host-side syntax check.
+- `python -m unittest scripts.test_run_accuracy_audit` -> 7 tests passed. turbo=blocked: focused host-side runner tests.
+- `npm --prefix frontend run test:ci -- --include='src/app/diagnostics/accuracy-lab-card/accuracy-lab-card.component.spec.ts'` -> 8 tests passed. turbo=blocked: focused Angular card test.
+- `python scripts\run_accuracy_audit.py --output-dir C:\tmp\accuracy-audit-core-policy` -> passed; report recorded `core_count=8`, `min_cores=4`, `thread_cap=6`, and `max_threads=6`. turbo=blocked: local MSI MATLAB smoke check.
+- `python scripts/bazel_default.py test //tools/quality:all` -> 11 Bazel targets passed. turbo=used through the repo Bazel default path.
+- `git diff --check -- <MATLAB core policy files>` -> passed. turbo=blocked: host-side Git whitespace check.
+
+Tech-debt delta: -2 debt items, -0 existing lines refactored.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: MATLAB minimum and maximum thread counts are named constants.
+  Silent excepts wrapped: none.
+  Dead code removed: one-core MATLAB launch mode removed.
+  TODOs resolved: MATLAB now reports core capacity and thread cap in the GUI.
+  Other debt remaining: exact peak memory sampling is still not implemented.
+
+[BDD PROOF: Given the MSI has at least 4 cores, When Accuracy Lab runs MATLAB, Then the report records a passing 4-minimum and 6-maximum thread policy.]
+[TDD PROOF: before_or_alongside=yes tests=runner test and Angular card test result=passed]
+[SELF REVIEW RESULT: scope=MATLAB core policy runner and GUI tile fixes=single-core launch removed blockers=none mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=0% - not met (coverage was not measured; focused tests and Bazel passed)]
+
+## 2026-06-18 - Codex - Sophisticated MATLAB Accuracy Lab expansion
+
+[HANDOFF READ: 2026-06-18 by Codex - Accuracy Lab had a GUI Run button, short-lived local runner, and focused tests.]
+[PROGRESS: User asked to implement the sophisticated MATLAB Accuracy Lab plan. I added safer MATLAB launch flags, process cleanup evidence, MATLAB toolbox and license inventory, MATLAB path hygiene evidence, a 56-item advanced-check catalog in JSON/Markdown, and a GUI section that shows those checks. No commit or push was requested.]
+
+**What changed:** `scripts/run_accuracy_audit.py` now launches MATLAB with `-wait`, `-singleCompThread`, `-noFigureWindows`, and `-batch`; records runtime seconds, exit code, cleanup status, lingering process ids, startup flags, Java status, desktop status, toolbox names, license checks, and selected `which(...)` path results; writes `resource_safety` and `sophisticated_checks` into `latest.json` and `latest.md`; and marks leftover MATLAB processes as high-risk findings. The backend summary endpoint now returns the advanced-check catalog. The Angular Accuracy Lab card now shows a MATLAB cleanup tile and an Advanced checks section. Focused tests cover the new flags, cleanup failure path, inventory parsing, backend summary field, and GUI display.
+
+**What now works:** Given the user presses **Run** in Accuracy Lab, when MATLAB finishes, then the report confirms it used short-lived headless flags and shows whether a MATLAB process remained. Given MATLAB reports toolboxes and licenses, when the report is loaded, then the GUI and Markdown can show those details. Given the 56 sophisticated ideas are not all fully wired yet, when the report is generated, then each one appears once as a distinct advanced check with `passed`, `warning`, `failed`, or `not_run`.
+
+**What is still limited:** Most of the 56 advanced checks are cataloged as `not_run` until their real scanner commands are wired. Peak MATLAB memory is recorded as `null` because the current short-lived process path does not sample memory during execution. Docker was not available from this PowerShell environment, so `search_resolved_issues` could not run for `scripts`, `backend/apps/diagnostics`, or `frontend/src/app/diagnostics`.
+
+**Verification passed:**
+- `python -m compileall scripts\run_accuracy_audit.py backend\apps\diagnostics\accuracy_lab.py backend\apps\diagnostics\tests_accuracy_lab.py` -> passed. turbo=blocked: host-side syntax check.
+- `python -m unittest scripts.test_run_accuracy_audit` -> 7 tests passed. turbo=blocked: focused host-side runner tests.
+- `DJANGO_SETTINGS_MODULE=config.settings.test XF_USE_POSTGRES_TEST_DB=0 python -m pytest backend/apps/diagnostics/tests_accuracy_lab.py -q` -> 10 tests passed with 2 host pytest-config warnings. turbo=blocked: focused host-side backend tests.
+- `npm --prefix frontend run test:ci -- --include='src/app/diagnostics/accuracy-lab-card/accuracy-lab-card.component.spec.ts'` -> 8 tests passed. turbo=blocked: focused Angular card test.
+- `npm --prefix frontend run test:ci -- --include='src/app/diagnostics/diagnostics.component.spec.ts'` -> 1 test passed. turbo=blocked: focused Angular parent test.
+- `python scripts\run_accuracy_audit.py --output-dir C:\tmp\accuracy-audit-expanded` -> passed; report recorded cleanup `clean`, `desktop=false`, Java `1.8.0_202`, no lingering MATLAB pids, and 56 advanced checks. turbo=blocked: local MSI MATLAB smoke check.
+- `python scripts/bazel_default.py test //tools/quality:all` -> 11 Bazel targets passed. turbo=used through the repo Bazel default path.
+- `git diff --check -- <tracked Accuracy Lab files>` -> passed. turbo=blocked: host-side Git whitespace check.
+
+Tech-debt delta: -6 debt items, -0 existing lines refactored.
+  Boilerplate extracted: repeated advanced-check statuses live in one catalog and one override helper.
+  Files split: none.
+  Magic numbers hoisted: MATLAB timeout, Rust timeout, process-scan timeout, and numeric tolerance are named constants.
+  Silent excepts wrapped: none.
+  Dead code removed: none.
+  TODOs resolved: safer MATLAB flags, process cleanup reporting, license inventory, path hygiene reporting, no-desktop confirmation, and 56 distinct advanced check entries.
+  Other debt remaining: wire real scanner commands for the advanced checks that are still `not_run`; add memory sampling if exact MATLAB peak memory becomes required.
+
+[BDD PROOF: Given a user runs Accuracy Lab from the GUI, When MATLAB completes, Then the report shows short-lived launch flags, cleanup status, and advanced check states; Given MATLAB leaves a process behind, When the report is built, Then the finding is high risk.]
+[TDD PROOF: before_or_alongside=yes tests=runner tests, backend endpoint tests, Angular card test, Diagnostics parent test result=passed]
+[SELF REVIEW RESULT: scope=Accuracy Lab MATLAB runner, backend summary payload, and Diagnostics card fixes=process-scan timeout hoisted blockers=Docker unavailable for resolved-issue lookup mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=0% - not met (coverage was not measured; focused tests and Bazel passed)]
+
+## 2026-06-18 - Codex - Accuracy Lab Run button added
+
+[HANDOFF READ: 2026-06-18 by Codex - Accuracy Lab was added to Diagnostics with read-only reports, but the GUI still needed a Run button.]
+[PROGRESS: User said they do not want to touch the command line. I added a read-only POST endpoint that runs the local Accuracy Lab runner, added a Run button to the Angular Diagnostics Accuracy Lab card, fixed runner truthfulness gaps from review, and reran focused plus Bazel checks. No commit or push was requested.]
+
+**What changed:** Added `AccuracyRunView` and `/api/diagnostics/accuracy/run/` plus `/api/system/status/accuracy/run/` routes. Added backend runner locking and run-state writes so only one local audit run starts at a time. Updated the Angular Accuracy Lab card with a Run button, running state, and error message. Tightened `scripts/run_accuracy_audit.py` so it auto-discovers MATLAB R2025b on Windows, requires a real MATLAB success marker and numeric score, treats incomplete checks as warnings, and writes agent-ready Markdown fields. Added regression tests for runner failure not reusing an older passed report.
+
+**What now works:** Given the user opens Diagnostics, when they press **Run** in Accuracy Lab, then the backend starts the local read-only Python runner, the runner can call MATLAB headlessly, and the page refreshes from the latest JSON and Markdown report. Given the runner fails, when an older report exists, then the GUI returns the fresh failure instead of showing stale success.
+
+**What is still limited:** Ranking parity, schema drift, and test-gap scans still show `not_run` until their real scanner commands are wired. The real smoke report correctly returns `warning` for that reason even though MATLAB and numeric precision pass.
+
+**Verification passed:**
+- `python -m unittest scripts.test_run_accuracy_audit` -> 5 tests passed. turbo=blocked: focused host-side runner tests.
+- `DJANGO_SETTINGS_MODULE=config.settings.test XF_USE_POSTGRES_TEST_DB=0 python -m pytest backend/apps/diagnostics/tests_accuracy_lab.py -q` -> 9 tests passed with 2 host pytest-config warnings. turbo=blocked: focused host-side backend tests.
+- `npm --prefix frontend run test:ci -- --include='src/app/diagnostics/accuracy-lab-card/accuracy-lab-card.component.spec.ts'` -> 8 tests passed. turbo=blocked: focused Angular card test.
+- `npm --prefix frontend run test:ci -- --include='src/app/diagnostics/diagnostics.component.spec.ts'` -> 1 test passed. turbo=blocked: focused Angular parent test.
+- `python -m compileall scripts\run_accuracy_audit.py backend\apps\diagnostics\accuracy_lab.py backend\apps\diagnostics\views.py backend\apps\diagnostics\tests_accuracy_lab.py` -> passed. turbo=blocked: host-side syntax check.
+- `python scripts\run_accuracy_audit.py --output-dir C:\tmp\accuracy-audit-test` -> passed; report recorded MATLAB R2025b, Java 1.8.0_202, `desktop=false`, and numeric precision passed. turbo=blocked: local MSI MATLAB smoke check.
+- `python scripts/bazel_default.py test //tools/quality:all` -> 11 Bazel targets passed. turbo=used through the repo Bazel default path.
+- `git diff --check -- <tracked Accuracy Lab files>` -> passed. turbo=blocked: host-side Git whitespace check.
+
+Tech-debt delta: -4 debt items, -0 existing lines refactored.
+  Boilerplate extracted: runner status response helpers keep endpoint code small.
+  Files split: none.
+  Magic numbers hoisted: runner lock, stale-lock, timeout, and numeric tolerance values are named constants.
+  Silent excepts wrapped: stale report reuse on runner failure was fixed.
+  Dead code removed: none.
+  TODOs resolved: no-command-line GUI run path, MATLAB auto-discovery, stale report failure handling, and Markdown evidence fields.
+  Other debt remaining: wire real ranking parity, schema drift, and test-gap scanner commands.
+
+[BDD PROOF: Given a user does not want the command line, When they press Run in Diagnostics Accuracy Lab, Then the local read-only audit starts and the page refreshes; Given the runner fails after an older passed report, When the backend returns the run result, Then it shows the fresh failure.]
+[TDD PROOF: before_or_alongside=yes tests=runner tests, backend endpoint tests, Angular card test, Diagnostics parent test result=passed]
+[SELF REVIEW RESULT: scope=Accuracy Lab runner, run endpoint, and Diagnostics Run button fixes=stale-success failure fixed blockers=none remaining scanner wiring mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=0% - not met (coverage was not measured; focused tests and Bazel passed)]
+
+## 2026-06-18 - Codex - Accuracy Lab added to Diagnostics
+
+[HANDOFF READ: 2026-06-18 by Codex - Bazel retry-scope gates were wired, but commit remained blocked by mutation survivors and coverage.]
+[PROGRESS: User asked to implement Accuracy Lab inside the main Angular Diagnostics page, not Flutter. I added read-only backend endpoints, a local Python runner that can call MATLAB headless, an Angular Diagnostics card, focused tests, and an ignored local report folder. No commit was made.]
+
+**What changed:** Added `backend/apps/diagnostics/accuracy_lab.py` as the read-only report reader for `audit/accuracy/latest.json` and `latest.md`. Added read-only GET views and routes for `accuracy/tools/`, `accuracy/summary/`, `accuracy/findings/`, and `accuracy/report/` under the existing `/api/system/status/` path, plus `/api/diagnostics/accuracy/...` aliases. Added `scripts/run_accuracy_audit.py`, which can launch MATLAB with `-wait -batch`, compare a small Python/MATLAB numeric fixture, optionally accept a Rust command, and write JSON plus Markdown reports. Added an Angular Accuracy Lab card under Diagnostics, service types and methods, a deep-link catalog entry, and glossary entries for Accuracy Lab and MATLAB. Added `audit/accuracy/` to `.gitignore`.
+
+**What now works:** Given MATLAB R2025b is installed, when `python scripts/run_accuracy_audit.py --matlab-command "C:\Program Files\MATLAB\R2025b\bin\matlab.exe"` runs, then it writes `audit/accuracy/latest.json` and `audit/accuracy/latest.md` without editing code, settings, weights, or app data. Given the Diagnostics page loads, when the Accuracy Lab card reads the backend endpoints, then it shows MATLAB, numeric precision, ranking parity, schema drift, test gaps, agent report, and findings states. Given no report exists, when the endpoints are called, then they return a clear `not_run` payload instead of failing.
+
+**What is still limited:** Schema drift and test-gap scans are status placeholders for this first slice. Rust parity is wired as an optional external command input, but no repo Rust checker command is attached yet. Python lint with `ruff` could not run on this host because the host Python does not have the `ruff` package installed. The repo Bazel quality entry point passed.
+
+**Verification passed:**
+- `python scripts/bazel_default.py test //tools/quality:all` -> 11 Bazel targets passed. turbo=used through the repo Bazel default path.
+- `python -m unittest scripts.test_run_accuracy_audit` -> 3 tests passed. turbo=blocked: focused host-side runner unit tests.
+- `python -m compileall scripts\run_accuracy_audit.py backend\apps\diagnostics\accuracy_lab.py backend\apps\diagnostics\views.py` -> passed. turbo=blocked: host-side syntax check.
+- `DJANGO_SETTINGS_MODULE=config.settings.test XF_USE_POSTGRES_TEST_DB=0 python -m pytest backend/apps/diagnostics/tests_accuracy_lab.py -q` -> 7 tests passed with 2 pytest-config warnings from the host setup. turbo=blocked: host-side focused view tests; live backend runner could not see uncommitted files.
+- `npm --prefix frontend run test:ci -- --include='src/app/diagnostics/accuracy-lab-card/accuracy-lab-card.component.spec.ts'` -> 7 Angular tests passed. turbo=blocked: focused Angular component test.
+- `npm --prefix frontend run test:ci -- --include='src/app/diagnostics/diagnostics.component.spec.ts'` -> 1 Angular parent-page test passed. turbo=blocked: focused Angular parent test.
+- `python scripts\run_accuracy_audit.py --matlab-command "C:\Program Files\MATLAB\R2025b\bin\matlab.exe" --output-dir C:\tmp\accuracy-audit-test` -> passed; report recorded MATLAB R2025b, Java 1.8.0_202, `desktop=false`, and numeric precision passed. turbo=blocked: local MSI MATLAB smoke check.
+- `git diff --check -- <Accuracy Lab touched files>` -> passed. turbo=blocked: host-side Git whitespace check.
+
+**Verification failed or skipped:**
+- `python -m ruff check ...` -> skipped by environment failure: host Python reported `No module named ruff`.
+- `python scripts/backend_manage.py test apps.diagnostics.tests_accuracy_lab --noinput` -> could not test the new local file because the live backend runner cannot see uncommitted workspace files.
+- `python backend\manage.py test apps.diagnostics.tests_accuracy_lab --settings=config.settings.test --noinput` -> skipped after it hit unrelated host limitations: PostgreSQL was unreachable by default, SQLite migrations fail on an existing list default, and the host Python lacks `httpx` for unrelated URL checks.
+
+Tech-debt delta: -5 debt items, -0 existing lines refactored.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: runner limits and numeric tolerance are named constants.
+  Silent excepts wrapped: none.
+  Dead code removed: none.
+  TODOs resolved: local Accuracy Lab report artefacts are ignored, the new section is in the deep-link catalog, new terms are in the glossary, long new lines were wrapped, and duplicate Flutter/Dart app work was avoided by reusing Diagnostics.
+  Other debt remaining: schema drift, test-gap, and concrete Rust parity checks need follow-up scanner wiring.
+
+[BDD PROOF: Given no report exists, When the Accuracy Lab endpoints are called, Then they return clear not-run data; Given MATLAB is installed, When the local runner runs in batch mode, Then it writes a read-only JSON and Markdown report; Given Diagnostics loads, When the report is present, Then the Accuracy Lab card displays the latest status and findings.]
+[TDD PROOF: before_or_alongside=yes tests=backend view tests, runner tests, Angular card tests, Diagnostics parent test result=passed]
+[SELF REVIEW RESULT: scope=Accuracy Lab backend, runner, and Diagnostics UI fixes=wrapped long lines and fixed MATLAB desktop parsing blockers=ruff unavailable on host mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=0% - not met (coverage was not measured; focused tests passed)]
+
+## 2026-06-18 - Codex - Bazel retry-scope gates wired, commit still blocked
+
+[HANDOFF READ: 2026-06-18 by Codex - Push ledger for older local commits cleared the push-history guard without rewriting master.]
+[PROGRESS: User clarified that failed commit and push gates must not restart from the full gate set. I wired pre-commit, pre-push, ELCV, and mutation retry behavior so passed checks can be skipped when unchanged, failed checks stay active, and untested mutation work stays visible. Commit and push are still blocked because the real Bazel mutation retry target has surviving or untested mutants, and focused Python coverage measured 70%, below the 90% target.]
+
+**What changed:** `scripts/quality_cache.py` now supports whole-gate pass caching through `check-gate` and `record-gate`. `scripts/precommit-docker.sh` and `scripts/prepush-docker.sh` call that cache before rerunning a gate. `.githooks/check-elcv-gate.py` records ELCV passes per staged Python file, so a later retry only rechecks failed, changed, or untested files. `scripts/run-python-repo-mutation.sh` now writes and reuses a scoped retry list of only surviving or untested mutants. `scripts/run-scoped-static-quality.ps1` is now only a Bazel forwarding shim. The public-entrypoint guard blocks direct public calls to old mutation runners.
+
+**What now works:** Given a gate passed for the same changed-file content, the next pre-commit or pre-push run can skip that unchanged pass. Given mutation failed, the next mutation run prints `repo-mutmut:retrying-failed-or-untested count=<N>` and asks mutmut to retry only those failed or untested mutants. Given a user or hook calls the old PowerShell quality orchestrator, it forwards to `python scripts/bazel_default.py run //tools/quality:mutation`.
+
+**What is still blocked:** `python scripts/bazel_default.py run //tools/quality:mutation` still fails. The second run proved narrowed retry behavior with `repo-mutmut:retrying-failed-or-untested count=292`, but the retry list still contains surviving and untested mutants. Focused coverage also missed the required target: `python -m coverage report scripts/quality_cache.py scripts/bazel_default.py .githooks/check-bazel-public-entrypoints.py .githooks/check-elcv-gate.py` reported total 70%.
+
+**Verification passed:**
+- `python -m pytest -q scripts/test_quality_cache.py scripts/test_precommit_docker.py scripts/test_bazel_default.py scripts/test_python_repo_mutation.py scripts/test_run-scoped-static-quality.py .githooks/test_check_bazel_public_entrypoints.py` -> 55 passed. turbo=blocked: host-side focused tests.
+- `bash -n scripts/precommit-docker.sh scripts/prepush-docker.sh tools/quality/mutation.sh scripts/run-python-mutation.sh scripts/run-python-repo-mutation.sh scripts/run-rust-mutation.sh scripts/run-angular-mutation.sh` -> passed. turbo=blocked: host-side shell syntax.
+- `python .githooks/check-bazel-public-entrypoints.py` -> passed. turbo=blocked: host-side guard.
+- `python scripts/bazel_default.py test //tools/quality:all` -> 10 Bazel targets passed. turbo=used through Bazel/Dell default path.
+
+**Verification failed:**
+- `python scripts/bazel_default.py run //tools/quality:mutation` -> failed with surviving or untested mutants. turbo=used through Bazel/Dell mutation path.
+- Focused coverage -> target 90%, actual 70%, not met.
+
+Tech-debt delta: -3 public-runner and retry-scope problems fixed, +2 hard blockers remain.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: none.
+  Silent excepts wrapped: none.
+  Dead code removed: old PowerShell mutation orchestrator body removed.
+  TODOs resolved: retry gates no longer restart from all passed checks.
+  Other debt remaining: mutation survivors/untested mutants need focused tests or narrower changed-function mutation; changed Python gate files need coverage lifted to 90%.
+
+[BDD PROOF: Given a gate passed for unchanged input, When pre-commit or pre-push reruns, Then it can skip the cached pass; Given mutation failed, When mutation reruns without relevant file changes, Then it retries the saved surviving or untested mutants.]
+[TDD PROOF: before_or_alongside=yes tests=55 focused tests result=passed]
+[SELF REVIEW RESULT: scope=gate retry and Bazel public entrypoints fixes=old public PowerShell runner removed blockers=mutation retry target still failing and coverage 70% mutation=not passed benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=70% - not met]
+
 ## 2026-06-18 - Codex - Push ledger for older local commits
 
 [HANDOFF READ: 2026-06-18 by Codex - Commit 723d3d52 landed after fixing the AutoIssue quota, hourly refresh, Bazel, run-pbt, and Rust mandate blockers.]
@@ -3230,3 +3545,38 @@ Tech-debt delta: -3 debt items, -0 lines refactored.
 [TDD PROOF: before_or_alongside=yes tests=graph dedup observation tests and Google sync refresh test result=failed before implementation, passed after implementation]
 [SELF REVIEW RESULT: scope=deduped Matomo and Google DSTP visits autoissues=none fixes=optional-source warning detail reuse=passed shared_library=passed complexity=passed tests=passed coverage=not measured mutation=not run benchmark=existing DSTP benchmark unchanged edge_cases=covered issues=exact cross-tool visitor id still pending]
 [COVERAGE SUMMARY: target=90% actual=0% - not met - focused tests passed, but measured coverage was not produced in this session.]
+
+## 2026-06-18 - Codex - Bazel-only quality cleanup with mandatory AutoIssues
+
+[HANDOFF READ: 2026-06-18 by Codex - Prior Bazel retry-scope work was present, but old public runners and a live Bazel provider-score environment gap still needed cleanup.]
+[PROGRESS: Deleted old public quality and mutation runners, made Bazel the public quality path, kept AutoIssues mandatory, and verified the changed gates. No commit or push was made.]
+
+**What I did in plain English:** I removed public runner paths that could compete with Bazel, moved the needed mutation scripts under `tools/quality/internal/`, deleted dead non-Bazel mutation helpers, and updated hooks, workflows, docs, and tests so normal quality work goes through `python scripts/bazel_default.py`.
+
+**What now works that did not before:**
+- Old public `scripts/run-*-quality.sh`, `scripts/run-*-mutation.sh`, `scripts/run-scoped-static-quality.ps1`, `scripts/turbo-mutation.ps1`, and the unused mutmut diff helper are gone.
+- Mutation scripts that still exist are private under `tools/quality/internal/` and refuse direct public use unless Bazel's private marker is present.
+- Pre-commit and pre-push use Bazel affected targets for changed, failed, or untested work instead of starting from the whole repo.
+- AutoIssue quota checks stay mandatory on the commit path and now use a one-hour pass cache. The cache key includes the staged scope and command file, so changed commit inputs still rerun the checks.
+- Timed global checks can use fresh cache, but AutoIssue inputs still force a real check.
+- `provider_score_backend_test` now passes under Bazel because the shared pytest runner sends `DJANGO_SECRET_KEY` and test Postgres settings into the Docker test container.
+
+**Files changed:** Bazel quality targets and wrappers under `tools/quality/`, hook scripts under `.githooks/`, pre-commit and pre-push scripts, Bazel affected-target and cache helpers, pytest runner environment wiring, CI workflows, active docs, and focused tests for those paths.
+
+**Direct verification done:**
+- `python -m pytest ...` focused gate suite passed: 240 tests. turbo=blocked: host-side unit tests, no Dell runner needed.
+- `python -m coverage ...` measured active touched Python gate and runner files at 91%. turbo=blocked: host-side coverage measurement.
+- `python .githooks/check-bazel-public-entrypoints.py` passed.
+- `bash -n ...` passed for changed shell wrappers.
+- `python scripts/bazel_default.py run //tools/quality:affected_targets` passed and returned only scoped Bazel targets.
+- `python .githooks/check-autoissue-quota.py` passed uncached: 63 AutoIssues and 10 paper-trail items verified.
+- `python scripts/bazel_default.py test //tools/quality:all` passed: 11 of 11 Bazel quality targets pass. turbo=used.
+
+**What has issues or errors:** Earlier in the run, Bazel `//tools/quality:all` failed because the provider-score backend test container lacked Django test environment variables. That is fixed and the Bazel aggregate now passes. Two coverage attempts timed out in the approval layer before a later coverage run succeeded.
+
+**Tech-debt delta:** -7 quality-path debt items. Public old runners were deleted, dead mutation helpers were removed, active docs now point to Bazel, provider-score Bazel tests have complete test settings, and commit/push gates are scoped instead of full-repo by default.
+
+[BDD PROOF: Given an agent, hook, workflow, or current doc tries to use an old public quality runner, When the Bazel public-entrypoint guard runs, Then it fails and tells the user to use scripts/bazel_default.py.]
+[TDD PROOF: before_or_alongside=yes tests=Bazel guard, affected-target, cache, precommit/prepush, pytest-runner, mutation-wiring, and Rust-mandate tests result=passed]
+[SELF REVIEW RESULT: scope=Bazel-only cleanup and mandatory AutoIssues autoissues=verified fixes=provider-score Django env and stale runner paths reuse=passed shared_library=passed complexity=passed tests=passed coverage=91% mutation=via Bazel aggregate benchmark=not applicable edge_cases=docs-only and affected-target gate behavior covered issues=none blocking]
+[COVERAGE SUMMARY: target=90% actual=91% - met]
