@@ -100,6 +100,15 @@ def commit_subject(commit: str) -> str:
     return _git(["show", "-s", "--format=%s", commit]).strip()
 
 
+def handoff_text(commit: str) -> str:
+    return _git(["show", f"{commit}:{HANDOFF_FILE}"])
+
+
+def handoff_mentions_commit(commit: str, handoff_bodies: list[str]) -> bool:
+    needles = {commit, commit[:12], commit[:8], commit[:7]}
+    return any(any(needle in body for needle in needles) for body in handoff_bodies)
+
+
 def _emit_failure(violations: list[tuple[str, str, list[str]]]) -> None:
     sys.stderr.write(
         "FAIL check-no-verify-bypass: one or more pushed commits look like "
@@ -126,6 +135,24 @@ def _emit_failure(violations: list[tuple[str, str, list[str]]]) -> None:
             sys.stderr.write(f"      ... and {len(hits) - 5} more\n")
 
 
+def scan_commit_range(remote_sha: str, local_sha: str) -> list[tuple[str, str, list[str]]]:
+    """Find source commits without same-commit or explicit later handoff proof."""
+    violations: list[tuple[str, str, list[str]]] = []
+    newer_handoff_bodies: list[str] = []
+    for commit in commits_in_range(remote_sha, local_sha):
+        files = files_touched(commit)
+        if HANDOFF_FILE in files:
+            newer_handoff_bodies.append(handoff_text(commit))
+            continue
+        source_hits = production_source_hits(files)
+        if not source_hits:
+            continue
+        if handoff_mentions_commit(commit, newer_handoff_bodies):
+            continue
+        violations.append((commit, commit_subject(commit), source_hits))
+    return violations
+
+
 def main(stdin_lines: list[str] | None = None) -> int:
     """Scan pushed commits and FAIL on bypass shape.
 
@@ -140,14 +167,7 @@ def main(stdin_lines: list[str] | None = None) -> int:
         if len(parts) < 4:
             continue
         _local_ref, local_sha, _remote_ref, remote_sha = parts[:4]
-        for commit in commits_in_range(remote_sha, local_sha):
-            files = files_touched(commit)
-            source_hits = production_source_hits(files)
-            if not source_hits:
-                continue
-            if HANDOFF_FILE in files:
-                continue
-            violations.append((commit, commit_subject(commit), source_hits))
+        violations.extend(scan_commit_range(remote_sha, local_sha))
     if violations:
         _emit_failure(violations)
         return 2

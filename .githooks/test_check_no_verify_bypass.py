@@ -85,6 +85,49 @@ class NoVerifyBypassTests(TestCase):
         self.assertIn("--no-verify", text)
         self.assertIn("backend/apps/realtime/x.py", text)
 
+    def test_later_handoff_commit_that_names_sha_covers_source_commit(self) -> None:
+        stdin = ["refs/heads/main handoff999 refs/heads/main bbbb2222\n"]
+
+        def fake_git(args):
+            joined = " ".join(args)
+            if "rev-list" in joined:
+                return "handoff999\nsource111\n"
+            if "--name-only" in joined and "handoff999" in joined:
+                return "AGENT-HANDOFF.md\n"
+            if "--name-only" in joined and "source111" in joined:
+                return "backend/apps/realtime/x.py\n"
+            if "handoff999:AGENT-HANDOFF.md" in joined:
+                return "Push ledger: source111 changed realtime routing with tests.\n"
+            if "--format=%s" in joined:
+                return "source commit\n"
+            return ""
+
+        with patch.object(hook, "_git", side_effect=fake_git):
+            self.assertEqual(hook.main(stdin_lines=stdin), 0)
+
+    def test_generic_later_handoff_commit_does_not_cover_source_commit(self) -> None:
+        stdin = ["refs/heads/main handoff999 refs/heads/main bbbb2222\n"]
+
+        def fake_git(args):
+            joined = " ".join(args)
+            if "rev-list" in joined:
+                return "handoff999\nsource111\n"
+            if "--name-only" in joined and "handoff999" in joined:
+                return "AGENT-HANDOFF.md\n"
+            if "--name-only" in joined and "source111" in joined:
+                return "backend/apps/realtime/x.py\n"
+            if "handoff999:AGENT-HANDOFF.md" in joined:
+                return "Generic handoff with no commit reference.\n"
+            if "--format=%s" in joined:
+                return "source commit\n"
+            return ""
+
+        captured = io.StringIO()
+        with patch.object(hook, "_git", side_effect=fake_git), \
+             patch.object(hook.sys, "stderr", captured):
+            self.assertEqual(hook.main(stdin_lines=stdin), 2)
+        self.assertIn("source111", captured.getvalue())
+
     def test_docs_only_commit_passes_without_handoff(self) -> None:
         stdin = ["refs/heads/main aaaa1111 refs/heads/main bbbb2222\n"]
         def fake_git(args):
