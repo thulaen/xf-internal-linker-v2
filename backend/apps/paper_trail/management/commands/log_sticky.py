@@ -15,13 +15,13 @@ Two modes:
 
 Examples:
 
-    docker compose exec -T backend python manage.py log_sticky \\
+    python scripts/backend_manage.py log_sticky \\
         --title "Spec-Driven Gradual Rewrite Policy" \\
         --abstract-file /repo/backend/tmp/sticky_1_body.md \\
         --severity critical \\
         --deferred-by user
 
-    docker compose exec -T backend python manage.py log_sticky \\
+    python scripts/backend_manage.py log_sticky \\
         --id 11 \\
         --abstract-file /repo/backend/tmp/sticky_1_body_v2.md
 """

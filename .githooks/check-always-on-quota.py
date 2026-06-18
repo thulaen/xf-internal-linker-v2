@@ -74,8 +74,8 @@ def _cutoff_stamp() -> str | None:
 
 def _verify_cmd(source: str, threshold: int, cutoff: str | None) -> list[str]:
     cmd = [
-        "docker", "compose", "exec", "-T", "backend",
-        "python", "manage.py", "verify_always_on_quota",
+        sys.executable, str(REPO_ROOT / "scripts" / "backend_manage.py"),
+        "verify_always_on_quota",
         "--source", source, "--threshold", str(threshold),
     ]
     if cutoff:
@@ -90,7 +90,7 @@ def _run(cmd: list[str]) -> tuple[int, str]:
             encoding="utf-8", errors="replace", check=False,
         )
     except FileNotFoundError:
-        return 2, "Docker is not available."
+        return 2, "The backend management helper is not available."
     except OSError as exc:
         return 2, f"System error: {exc}"
     return result.returncode, (result.stdout + result.stderr).strip()

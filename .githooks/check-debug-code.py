@@ -112,7 +112,7 @@ def main() -> int:
     sys.stderr.write(
         "\nIf you believe this is a false positive (e.g. the regex flagged "
         "a docstring example), file the report first with:\n"
-        "  docker compose exec -T backend python manage.py "
+        "  python scripts/backend_manage.py "
         "report_hook_false_positive --hook check-debug-code "
         "--context \"<explanation>\"\n"
     )

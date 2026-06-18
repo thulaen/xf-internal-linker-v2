@@ -109,12 +109,7 @@ fi
 
 # Dell uses an SSH transport; the first connection in a fresh process can lose
 # a race before the control channel is up, so probe with a few retries.
-dell_ready=0
-for _try in 1 2 3 4; do
-  if docker --context "$PBT_DOCKER_CONTEXT" info >/dev/null 2>&1; then dell_ready=1; break; fi
-  sleep 2
-done
-if [[ "$dell_ready" -ne 1 ]]; then
+if ! xf_remote_context_reachable "$PBT_DOCKER_CONTEXT" 4 2; then
   echo "FAIL run-pbt: Dell context '$PBT_DOCKER_CONTEXT' is required and not reachable." >&2
   echo "WHY: property tests run on Dell ONLY; there is no Windows fallback." >&2
   echo "UNBLOCK: wake/fix the Dell Docker context, then retry the commit." >&2
@@ -144,7 +139,7 @@ if [[ -n "$py_targets" ]]; then
   if [[ -n "$changed_backend" ]]; then
     # shellcheck disable=SC2086
     tar -cf - $changed_backend \
-      | docker --context "$PBT_DOCKER_CONTEXT" run --rm -i -v xf_test_repo:/repo \
+      | "$PY" scripts/remote_docker.py --host "$PBT_DOCKER_CONTEXT" -- run --rm -i -v xf_test_repo:/repo \
           alpine:latest sh -c "tar -xf - -C /repo"
   fi
   py_oneline="$(printf '%s' "$py_targets" | tr '\n' ' ')"
@@ -154,7 +149,7 @@ if [[ -n "$py_targets" ]]; then
   # uses. Property tests are pure (no DB/network), so a dummy secret key and
   # placeholder service hosts are enough for django.setup() to import — nothing
   # here ever opens a connection.
-  if docker --context "$PBT_DOCKER_CONTEXT" run --rm \
+  if "$PY" scripts/remote_docker.py --host "$PBT_DOCKER_CONTEXT" -- run --rm \
       -v xf_test_repo:/repo -w //repo/backend \
       -e DJANGO_SETTINGS_MODULE=config.settings.test \
       -e DJANGO_SECRET_KEY=pbt-dummy-key-pure-tests-never-use-it \
@@ -175,13 +170,13 @@ if [[ -n "$script_targets" ]]; then
   s0=$(date +%s)
   if [[ -n "$changed_scripts" ]]; then
     tar -cf - scripts/*.py scripts/tests/*.py 2>/dev/null \
-      | docker --context "$PBT_DOCKER_CONTEXT" run --rm -i -v xf_test_repo:/repo \
+      | "$PY" scripts/remote_docker.py --host "$PBT_DOCKER_CONTEXT" -- run --rm -i -v xf_test_repo:/repo \
           alpine:latest sh -c "mkdir -p /repo && tar -xf - -C /repo"
   fi
   scripts_oneline="$(printf '%s' "$script_targets" | tr '\n' ' ')"
   echo "[run-pbt] Scripts overlay: $(( $(date +%s) - s0 ))s."
   t0=$(date +%s)
-  if docker --context "$PBT_DOCKER_CONTEXT" run --rm \
+  if "$PY" scripts/remote_docker.py --host "$PBT_DOCKER_CONTEXT" -- run --rm \
       -v xf_test_repo:/repo -w //repo \
       -e HYPOTHESIS_PROFILE="$HYPOTHESIS_PROFILE" \
       -e PBT_REMAINING="$(_remaining)" -e PBT_FILES="$scripts_oneline" \
@@ -199,13 +194,13 @@ if [[ -n "$rust_crates" ]]; then
   if [[ -n "$changed_rust" ]]; then
     # shellcheck disable=SC2086
     tar -cf - $changed_rust \
-      | docker --context "$PBT_DOCKER_CONTEXT" run --rm -i -v xf_rust_mutation_repo:/repo \
+      | "$PY" scripts/remote_docker.py --host "$PBT_DOCKER_CONTEXT" -- run --rm -i -v xf_rust_mutation_repo:/repo \
           alpine:latest sh -c "tar -xf - -C /repo"
   fi
   pkg_flags=""; while IFS= read -r c; do [[ -n "$c" ]] && pkg_flags="$pkg_flags -p $c"; done <<< "$rust_crates"
   echo "[run-pbt] Rust overlay: $(( $(date +%s) - s0 ))s."
   t0=$(date +%s)
-  if docker --context "$PBT_DOCKER_CONTEXT" run --rm \
+  if "$PY" scripts/remote_docker.py --host "$PBT_DOCKER_CONTEXT" -- run --rm \
       -v xf_rust_mutation_repo:/repo -v xf_sccache:/sccache \
       -e RUSTC_WRAPPER=sccache -e SCCACHE_DIR=/sccache \
       -e PROPTEST_CASES="$PROPTEST_CASES" -e PBT_REMAINING="$(_remaining)" \

@@ -132,7 +132,7 @@ reuse the same fingerprint.
 Run this immediately after `print_open_issues`:
 
 ```
-docker compose exec -T backend python manage.py print_open_paper_trail
+python scripts/backend_manage.py print_open_paper_trail
 ```
 
 It emits a marker line you MUST paste into chat verbatim:
@@ -158,7 +158,7 @@ Before any **code-changing commit** (anything under `backend/`,
 picked entries MUST be resolved with two-part lessons:
 
 ```
-docker compose exec -T backend python manage.py resolve_paper_trail \
+python scripts/backend_manage.py resolve_paper_trail \
     --id <N> [--id <M> ...] \
     --lessons-learned "Trap: ... non-obvious context ... Fix shape: ... what worked ..." \
     --agent claude
@@ -176,7 +176,7 @@ no "skip" path. This matches the discipline of the 30-AutoIssue quota:
 | Marker missing from staged handoff | FAIL | Run `print_open_paper_trail`, paste the marker |
 | Fewer than 10 ids picked (drought form) | FAIL | File new entries via `defer_work` until the queue has 10, then resolve those 10 |
 | `[PAPER TRAIL QUOTA VERIFIED: 10 resolved]` marker missing | FAIL | Run `verify_paper_trail_quota` and paste the success line |
-| Docker not on PATH | FAIL | Start Docker Desktop and re-run the commit |
+| Kubernetes backend unreachable | FAIL | Restore cluster access and re-run the commit |
 | `verify_paper_trail_quota` timeout (60 s) | FAIL | Wait for the backend stack to become healthy and re-run |
 | `verify_paper_trail_quota` non-zero exit | FAIL | Fix the underlying issue per the command's error output (any pick unresolved / pre-handoff `resolved_at` / missing two-part lesson / count mismatch) |
 
@@ -190,7 +190,7 @@ fail. Skipping this check is explicitly forbidden.
 When you decide NOT to do something this session, run:
 
 ```
-docker compose exec -T backend python manage.py defer_work \
+python scripts/backend_manage.py defer_work \
     --title "..." \
     --category cve_upgrade \
     --abstract "Detailed multi-paragraph explanation, max 600 words." \
@@ -374,7 +374,7 @@ These scenarios are also wired into the operator-facing rules in
 Before touching a folder, search for prior deferrals there:
 
 ```
-docker compose exec -T backend python manage.py search_paper_trail \
+python scripts/backend_manage.py search_paper_trail \
     --area backend/apps/audit \
     [--category cve_upgrade] \
     [--severity high] \
@@ -442,7 +442,7 @@ Use `migrate_handoff_deferrals` to bulk-import deferrals already written
 in `AGENT-HANDOFF.md` prose:
 
 ```
-docker compose exec -T backend python manage.py migrate_handoff_deferrals \
+python scripts/backend_manage.py migrate_handoff_deferrals \
     [--handoff-path /repo/AGENT-HANDOFF.md] \
     [--from-date 2026-05-01] \
     [--dry-run]

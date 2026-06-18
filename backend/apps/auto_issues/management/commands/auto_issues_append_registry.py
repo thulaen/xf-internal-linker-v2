@@ -16,11 +16,11 @@ high-severity row. The command:
    a "duplicate; not appending" log line.
 
 Run manually (one AutoIssue → one registry entry):
-    docker compose exec -T backend python manage.py \\
+    python scripts/backend_manage.py \\
         auto_issues_append_registry --issue-id 163
 
 Run for every high-severity AutoIssue created today:
-    docker compose exec -T backend python manage.py \\
+    python scripts/backend_manage.py \\
         auto_issues_append_registry --since today --severity high
 """
 

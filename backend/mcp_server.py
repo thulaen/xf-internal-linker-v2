@@ -6,8 +6,8 @@ so it has the same Django settings + database access as the rest of the app.
 
 Transport: stdio (the most stable transport in the MCP SDK). Claude Code
 launches the server via the project-scope `.mcp.json` at the repo root,
-which spawns this process with `docker compose exec -T backend python
-/app/backend/mcp_server.py` whenever a session opens in this folder.
+which spawns this process through the Kubernetes backend runner whenever a
+session opens in this folder.
 
 KISS v1 ships three tools. Adding a tool is a one-function change at the
 bottom of this file:

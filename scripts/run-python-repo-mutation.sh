@@ -108,7 +108,7 @@ if [[ -z "$mutmut_children" ]]; then
   )"; then
     echo "repo-mutmut:tool-missing"
     echo "Dell cannot run $image, so Python mutation cannot run."
-    echo "Build it with: docker --context dell compose --profile quality build backend-mutation-tools"
+    echo "Build it with: ssh dell docker compose --profile quality build backend-mutation-tools"
     exit 1
   fi
 fi

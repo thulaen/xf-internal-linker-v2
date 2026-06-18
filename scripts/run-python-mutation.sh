@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Scoped Python (backend) mutation testing — Dell-only, fail-closed.
 #
-# mutmut runs ONLY on the Dell helper machine via `docker --context dell`
+# mutmut runs ONLY on the Dell helper machine via `ssh dell docker`
 # inside xf-linker-backend-mutation-tools:latest. There is no Windows or
 # local-container fallback: if Dell is unreachable this script fails
 # closed (exit 1) and the push stops.
@@ -146,7 +146,7 @@ fi
 mutation_targets="$(awk '{print $1}' "$to_run_pairs_file" | sed 's|^backend/||' | tr '\n' ' ')"
 mutation_test_targets="$(awk '{print $2}' "$to_run_pairs_file" | sed 's|^backend/||' | tr '\n' ' ')"
 
-if ! docker --context "$PYTHON_MUTATION_DOCKER_CONTEXT" info >/dev/null 2>&1; then
+if ! ssh "$PYTHON_MUTATION_DOCKER_CONTEXT" docker info >/dev/null 2>&1; then
   fail_three_part \
     "the Dell docker context is unreachable." \
     "all mutation testing runs on Dell only -- there is no Windows fallback." \
@@ -156,13 +156,13 @@ fi
 
 mapfile -t tar_excludes < <("${python_cmd[@]}" scripts/_sync_tar_excludes.py | tr -d "\r")
 if ! tar -cf - "${tar_excludes[@]}" backend \
-    | docker --context "$PYTHON_MUTATION_DOCKER_CONTEXT" run --rm -i \
+    | "${python_cmd[@]}" scripts/remote_docker.py --host "$PYTHON_MUTATION_DOCKER_CONTEXT" -- run --rm -i \
         -v "$PYTHON_MUTATION_VOLUME":/repo \
         alpine:latest sh -c "rm -rf /repo/backend && tar -xf - -C /repo"; then
   fail_three_part \
     "the source sync to Dell failed." \
     "mutmut mutates the backend tree inside the $PYTHON_MUTATION_VOLUME volume on Dell; without a fresh sync it would test stale code." \
-    "check 'docker --context dell info' and free disk space on Dell, then re-run git push."
+    "check 'ssh dell docker info' and free disk space on Dell, then re-run git push."
   exit 1
 fi
 
@@ -170,7 +170,7 @@ dell_log=".tmp/python-mutation-run.log"
 stats_file=".tmp/python-mutation-stats.json"
 rm -f "$dell_log" "$stats_file"
 set +e
-docker --context "$PYTHON_MUTATION_DOCKER_CONTEXT" run --rm \
+"${python_cmd[@]}" scripts/remote_docker.py --host "$PYTHON_MUTATION_DOCKER_CONTEXT" -- run --rm \
   -v "$PYTHON_MUTATION_VOLUME":/repo \
   -v xf_dell_quality_cache:/tmp/xf-test-cache \
   -w /repo/backend \
@@ -248,7 +248,7 @@ tail -n 60 "$dell_log" 2>/dev/null || true
 if [[ "$dell_status" -ne 0 ]]; then
   write_mutation_evidence \
     --status failed \
-    --command "docker --context $PYTHON_MUTATION_DOCKER_CONTEXT run $PYTHON_MUTATION_IMAGE mutmut run (targets: $mutation_targets)" \
+    --command "ssh $PYTHON_MUTATION_DOCKER_CONTEXT docker run $PYTHON_MUTATION_IMAGE mutmut run (targets: $mutation_targets)" \
     --summary "The Dell mutmut container exited with status $dell_status before producing stats." \
     --failure-fingerprint "mutmut:dell-run-failed" \
     --actual-percent 0 \
@@ -256,7 +256,7 @@ if [[ "$dell_status" -ne 0 ]]; then
   fail_three_part \
     "the mutmut run on Dell exited with status $dell_status before producing stats." \
     "the container itself failed (missing image, broken tool, or Dell-side error), so no kill rate could be measured." \
-    "read .tmp/python-mutation-run.log; if the image is missing, build it with: docker --context dell compose --profile quality build backend-mutation-tools, then re-run git push."
+    "read .tmp/python-mutation-run.log; if the image is missing, build it with: ssh dell docker compose --profile quality build backend-mutation-tools, then re-run git push."
   exit 1
 fi
 
@@ -300,17 +300,18 @@ if [[ "$mutation_status" == "passed" ]]; then
 fi
 
 if [[ -s "$stats_file" ]]; then
-  QUALITY_FILE_MUTANTS_CONTAINER="$(quality_docker_container_name file-mutants-mutmut)"
-  quality_register_container "$QUALITY_FILE_MUTANTS_CONTAINER"
-  docker compose run --rm -T --no-deps --name "$QUALITY_FILE_MUTANTS_CONTAINER" \
-    -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \
-    backend sh -lc '
-    cd /repo/backend
-    python manage.py file_mutation_survivors \
-      --tool mutmut \
-      --report /repo/.tmp/python-mutation-stats.json \
-      --agent claude
-  ' || echo "WARN: file_mutation_survivors mutmut step failed (non-blocking)"
+  backend_namespace="${XF_BACKEND_MANAGE_NAMESPACE:-xf-app}"
+  backend_pod="$(kubectl -n "$backend_namespace" get pod -l "${XF_BACKEND_MANAGE_SELECTOR:-app=backend}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  if [[ -n "$backend_pod" ]] \
+      && kubectl -n "$backend_namespace" cp "$stats_file" "$backend_pod:/tmp/python-mutation-stats.json" \
+      && "${python_cmd[@]}" scripts/backend_manage.py file_mutation_survivors \
+        --tool mutmut \
+        --report /tmp/python-mutation-stats.json \
+        --agent claude; then
+    :
+  else
+    echo "WARN: file_mutation_survivors mutmut step failed (non-blocking)"
+  fi
 fi
 
 if [[ "$mutation_status" != "passed" ]]; then

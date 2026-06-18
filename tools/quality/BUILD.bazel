@@ -1,0 +1,141 @@
+sh_binary(
+    name = "python",
+    srcs = ["python.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "frontend",
+    srcs = ["frontend.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "rust",
+    srcs = ["rust.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "provider_score_backend",
+    srcs = ["provider_score_backend.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "distributed_dry_run",
+    srcs = ["distributed_dry_run.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "bazel_generators",
+    srcs = ["bazel_generators.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "bazel_target_tags",
+    srcs = ["bazel_target_tags.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "msi_docker_free",
+    srcs = ["msi_docker_free.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "mutation",
+    srcs = ["mutation.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "affected_targets",
+    srcs = ["affected_targets.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "bazel_public_entrypoints",
+    srcs = ["bazel_public_entrypoints.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_test(
+    name = "python_test",
+    srcs = ["python.sh"],
+    tags = ["local", "manual", "requires-network"],
+)
+
+sh_test(
+    name = "frontend_test",
+    srcs = ["frontend.sh"],
+    tags = ["local", "manual", "requires-network"],
+)
+
+sh_test(
+    name = "rust_test",
+    srcs = ["rust.sh"],
+    tags = ["local", "manual", "requires-network"],
+)
+
+sh_test(
+    name = "provider_score_backend_test",
+    srcs = ["provider_score_backend.sh"],
+    tags = ["local", "manual", "requires-network"],
+)
+
+sh_test(
+    name = "distributed_dry_run_test",
+    srcs = ["distributed_dry_run.sh"],
+    tags = ["local", "manual"],
+)
+
+sh_test(
+    name = "bazel_generators_test",
+    srcs = ["bazel_generators.sh"],
+    tags = ["local"],
+)
+
+sh_test(
+    name = "bazel_target_tags_test",
+    srcs = ["bazel_target_tags.sh"],
+    tags = ["local"],
+)
+
+sh_test(
+    name = "msi_docker_free_test",
+    srcs = ["msi_docker_free.sh"],
+    tags = ["local"],
+)
+
+sh_test(
+    name = "affected_targets_test",
+    srcs = ["affected_targets.sh"],
+    tags = ["local"],
+)
+
+sh_test(
+    name = "bazel_public_entrypoints_test",
+    srcs = ["bazel_public_entrypoints.sh"],
+    tags = ["local"],
+)
+
+test_suite(
+    name = "all",
+    tests = [
+        ":affected_targets_test",
+        ":bazel_generators_test",
+        ":bazel_public_entrypoints_test",
+        ":bazel_target_tags_test",
+        ":distributed_dry_run_test",
+        ":frontend_test",
+        ":msi_docker_free_test",
+        ":provider_score_backend_test",
+        ":python_test",
+        ":rust_test",
+    ],
+)

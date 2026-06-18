@@ -41,7 +41,7 @@ Defaults baked into the hook:
 | `edge_cases` | ≥ 1 | The change is a pure rename / a one-line constant bump / a doc comment update — the underlying behaviour did not change |
 | `resource_release` | ≥ 1 if the change adds state | The function is pure / stateless / a one-shot helper that does not retain anything across calls |
 | `latency` | ≥ 1 if the change is on a hot path | The function runs ≤ 1× per request / ≤ 1× per minute / ≤ 1× per process lifetime |
-| `smoke` | ≥ 1 | Pure infrastructure-only commits (Dockerfile, compose, config) — but even these usually have a `docker compose up` smoke check |
+| `smoke` | >= 1 | Pure infrastructure-only commits — but even these usually need a Kubernetes or helper-host smoke check |
 | `e2e` | ≥ 1 | Pure-Python helper not reachable from any user-facing path; the change is a hook or governance script that runs ONLY at commit time |
 
 The hook validates structural compliance (counts ≥ 1 OR `N/A` with a reason) but does NOT run the tests itself — the test runner is the source of truth. An agent that lies in the marker (claims `smoke=3` when 0 smoke tests exist) is caught by the next pre-commit run that actually exercises the tests.
@@ -133,7 +133,7 @@ After Green, look at the production code AND the test for repetition, unclear na
 Run:
 
 ```bash
-docker compose exec -T backend python manage.py log_tdd_lesson \
+python scripts/backend_manage.py log_tdd_lesson \
   --file <relative/path/to/source.py> \
   --red-test <relative/path/to/test.py> \
   --red-test-name <test_function_name> \
@@ -193,7 +193,7 @@ After `[HANDOFF READ:]`, `[REGISTRY READ:]`, `[CI FAILED RUNS READ:]`, and `[PAP
 The agent runs:
 
 ```bash
-docker compose exec -T backend python manage.py read_scoped_lessons --area <path> [--area <path2> ...]
+python scripts/backend_manage.py read_scoped_lessons --area <path> [--area <path2> ...]
 ```
 
 for every area they anticipate touching. `read_scoped_lessons` queries the `ScopedLessonIndex` (the existing ART-keyed lesson registry) and returns:
@@ -221,7 +221,7 @@ def test_compute_priority_returns_zero_for_negative_score():
 
 Run it inside the backend container:
 ```
-docker compose exec -T backend python -m pytest -p randomly apps/suggestions/tests/test_priority.py::test_compute_priority_returns_zero_for_negative_score -x
+scripts/run-python-quality.sh
 ```
 
 Record the timestamp:
@@ -253,7 +253,7 @@ The function is 3 lines; nothing to refactor. Record `refactor="none"`.
 **Step 4 — Log:**
 
 ```
-docker compose exec -T backend python manage.py log_tdd_lesson \
+python scripts/backend_manage.py log_tdd_lesson \
   --file apps/suggestions/services/priority.py \
   --red-test apps/suggestions/tests/test_priority.py \
   --red-test-name test_compute_priority_returns_zero_for_negative_score \

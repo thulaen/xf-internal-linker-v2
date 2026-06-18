@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["tool", "killed", "survived", "errors", "score", "status"],
+  "properties": {
+    "tool": { "type": "string" },
+    "killed": { "type": "integer", "minimum": 0 },
+    "survived": { "type": "integer", "minimum": 0 },
+    "errors": { "type": "integer", "minimum": 0 },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "status": { "enum": ["passed", "survivor", "run_failure"] }
+  }
+}

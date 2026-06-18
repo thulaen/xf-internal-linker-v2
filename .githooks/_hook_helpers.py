@@ -17,7 +17,7 @@ This module is the single source of truth for:
     TDD / test-case / paper-trail marker requirements)
   - Strict ISO8601 parsing for `red_run_at` / `green_run_at` markers
   - Caching `manage.py verify_*` results per ID so a 100-marker commit
-    shells docker once per unique ID, not per marker
+    calls the backend once per unique ID, not per marker
 
 Hook authors: prefer these helpers over rolling your own. The shared
 discipline (UTF-8 fallback, list-form subprocess args, 10-second
@@ -32,6 +32,8 @@ import re
 import subprocess
 import sys
 import traceback
+from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone as dt_tz
 from pathlib import Path
 from typing import Callable
@@ -41,7 +43,6 @@ _FINDING_SEVERITIES = {"low", "medium", "high", "critical"}
 _SUBJECT_RE = re.compile(r"^.+:\d+$")
 _HELPER_CRASH_LIMIT = 5
 _HELPER_CRASH_WINDOW = timedelta(minutes=60)
-LAST_HELPER_WARNING = ""
 
 _BATCH_FLAG_BY_GROUP = {
     "tdd_lessons": "--tdd-lessons",
@@ -183,7 +184,7 @@ def cached_verifier(verify_callable: Callable[[int], dict]) -> Callable[[int], d
 
     The cache is per-callable so different verifiers (e.g.
     verify_tdd_lesson vs verify_test_case) don't pollute each other.
-    Cuts a 100-marker commit's docker-exec count from O(markers) to
+    Cuts a 100-marker commit's backend-check count from O(markers) to
     O(unique IDs).
     """
     cache: dict[int, dict] = {}
@@ -203,10 +204,7 @@ def shell_batch_verify(
     timeout: int = 60,
 ) -> dict:
     """Run manage.py verify_chain_batch once and return its JSON payload."""
-    cmd = [
-        "docker", "compose", "exec", "-T", "backend",
-        "python", "manage.py", "verify_chain_batch", "--json",
-    ]
+    cmd = _backend_manage_command("verify_chain_batch", "--json")
     for group, ids in categories.items():
         clean_ids = [str(entry_id) for entry_id in ids]
         if not clean_ids:
@@ -246,25 +244,48 @@ class CIHardBlock(RuntimeError):
     """Raised when CI must keep the original hard-block behavior."""
 
 
+@dataclass(frozen=True)
+class FindingRequest:
+    category: str
+    severity: str
+    subject: str
+    message: str
+
+
+@dataclass(frozen=True)
+class FindingOptions:
+    repo_root: Path | None = None
+    hook: str = "check-hook"
+    agent: str = "codex"
+    reliability_required: bool = False
+    finding_timeout: int = 10
+    health_timeout: int = 60
+
+
+_LAST_HELPER_WARNING: ContextVar[str] = ContextVar("_LAST_HELPER_WARNING", default="")
+
+
+def last_helper_warning() -> str:
+    return _LAST_HELPER_WARNING.get()
+
+
+def _set_last_helper_warning(warning: str) -> None:
+    _LAST_HELPER_WARNING.set(warning)
+
+
 def file_finding_or_hard(
     *,
-    category: str,
-    severity: str,
-    subject: str,
-    message: str,
-    hook: str,
-    repo_root: Path | None = None,
-    reliability_required: bool = False,
-    finding_timeout: int = 10,
-    health_timeout: int = 60,
+    request: FindingRequest,
+    options: FindingOptions | None = None,
 ) -> int:
     """File a local hook finding, while preserving CI hard-stop behavior."""
-    root = repo_root or Path(__file__).resolve().parents[1]
-    if reliability_required and os.environ.get("XF_QUALITY_ENV") != "ci":
-        healthy, problem = _run_reliability_health(root, timeout=health_timeout)
+    opts = options or FindingOptions()
+    root = opts.repo_root or Path(__file__).resolve().parents[1]
+    if opts.reliability_required and os.environ.get("XF_QUALITY_ENV") != "ci":
+        healthy, problem = _run_reliability_health(root, timeout=opts.health_timeout)
         if not healthy:
             sys.stderr.write(
-                f"FAIL {hook}: cannot file a soft finding because the "
+                f"FAIL {opts.hook}: cannot file a soft finding because the "
                 f"{problem} health check failed.\n"
                 "UNBLOCK: fix the named verification subsystem first, then "
                 "rerun the hook so local findings can be recorded safely.\n"
@@ -272,34 +293,39 @@ def file_finding_or_hard(
             return 2
     try:
         autoissue_id = file_finding_as_autoissue(
-            category=category,
-            severity=severity,
-            subject=subject,
-            message=message,
-            repo_root=root,
-            hook=hook,
-            timeout=finding_timeout,
+            request=request,
+            options=AutoIssueFindingOptions(
+                repo_root=root,
+                hook=opts.hook,
+                agent=opts.agent,
+                timeout=opts.finding_timeout,
+            ),
         )
     except CIHardBlock:
-        sys.stderr.write(message)
-        if not message.endswith("\n"):
+        sys.stderr.write(request.message)
+        if not request.message.endswith("\n"):
             sys.stderr.write("\n")
         return 2
     except HelperEscalatedHard as exc:
-        sys.stderr.write(f"FAIL {hook}: {exc}\n")
+        sys.stderr.write(f"FAIL {opts.hook}: {exc}\n")
         return 2
     if autoissue_id is None:
-        print(f"[FINDING FILED: hook={hook} autoissue=#buffered severity={severity}]")
+        print(f"[FINDING FILED: hook={opts.hook} autoissue=#buffered severity={request.severity}]")
     else:
-        print(f"[FINDING FILED: hook={hook} autoissue=#{autoissue_id} severity={severity}]")
+        print(f"[FINDING FILED: hook={opts.hook} autoissue=#{autoissue_id} severity={request.severity}]")
     return 0
 
 
+@dataclass(frozen=True)
+class AutoIssueFindingOptions:
+    hook: str
+    repo_root: Path | None = None
+    agent: str = "codex"
+    timeout: int = 10
+
+
 def _run_reliability_health(repo_root: Path, *, timeout: int = 60) -> tuple[bool, str]:
-    cmd = [
-        "docker", "compose", "exec", "-T", "backend",
-        "python", "manage.py", "verify_chain_batch", "--health", "--json",
-    ]
+    cmd = _backend_manage_command("verify_chain_batch", "--health", "--json")
     try:
         result = subprocess.run(
             cmd,
@@ -348,32 +374,37 @@ def _parse_last_json_object(text: str) -> dict | None:
 
 def file_finding_as_autoissue(
     *,
-    category: str,
-    severity: str,
-    subject: str,
-    message: str,
-    repo_root: Path | None = None,
-    hook: str = "check-hook",
-    agent: str = "codex",
-    timeout: int = 10,
+    request: FindingRequest,
+    options: AutoIssueFindingOptions | None = None,
 ) -> int | None:
-    """File one hook finding as an AutoIssue, or buffer it when Docker is down."""
-    root = repo_root or Path(__file__).resolve().parents[1]
-    _validate_finding_inputs(category, severity, subject, message)
+    """File one hook finding as an AutoIssue, or buffer it when the backend is down."""
+    opts = options or AutoIssueFindingOptions(hook="check-hook")
+    root = opts.repo_root or Path(__file__).resolve().parents[1]
+    _validate_finding_inputs(
+        request.category,
+        request.severity,
+        request.subject,
+        request.message,
+    )
     _raise_if_hard_blocked(root)
-    payload = _finding_payload(category, severity, subject, message)
+    payload = _finding_payload(
+        request.category,
+        request.severity,
+        request.subject,
+        request.message,
+    )
     try:
-        completed = _run_file_hook_finding_command(payload, root, agent, timeout)
+        completed = _run_file_hook_finding_command(payload, root, opts.agent, opts.timeout)
         if completed.returncode != 0:
-            _handle_backend_command_failure(root, hook, payload, completed)
-            _buffer_finding(payload, repo_root=root, agent=agent)
+            _handle_backend_command_failure(root, opts.hook, payload, completed)
+            _buffer_finding(payload, repo_root=root, agent=opts.agent)
             return None
         return _parse_autoissue_id(completed.stdout)
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
-        _buffer_finding(payload, repo_root=root, agent=agent)
+        _buffer_finding(payload, repo_root=root, agent=opts.agent)
         return None
     except Exception as exc:  # noqa: BLE001 - hook failures must be visible and soft.
-        _handle_helper_crash(root, hook, payload, exc)
+        _handle_helper_crash(root, opts.hook, payload, exc)
         return None
 
 
@@ -406,15 +437,14 @@ def _run_file_hook_finding_command(
     timeout: int,
 ) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [
-            "docker", "compose", "exec", "-T", "backend",
-            "python", "manage.py", "file_hook_finding",
+        _backend_manage_command(
+            "file_hook_finding",
             "--category", payload["category"],
             "--severity", payload["severity"],
             "--subject", payload["subject"],
             "--message", payload["message"],
             "--agent", agent,
-        ],
+        ),
         cwd=str(repo_root),
         capture_output=True,
         text=True,
@@ -423,6 +453,14 @@ def _run_file_hook_finding_command(
         timeout=timeout,
         check=False,
     )
+
+
+def _backend_manage_command(*args: str) -> list[str]:
+    return [
+        sys.executable,
+        str(Path(__file__).resolve().parents[1] / "scripts" / "backend_manage.py"),
+        *args,
+    ]
 
 
 def _handle_helper_crash(repo_root: Path, hook: str, payload: dict, exc: Exception) -> None:
@@ -439,8 +477,7 @@ def _handle_helper_crash(repo_root: Path, hook: str, payload: dict, exc: Excepti
         payload["subject"],
         _recent_crash_count(repo_root=repo_root),
     )
-    global LAST_HELPER_WARNING
-    LAST_HELPER_WARNING = warning
+    _set_last_helper_warning(warning)
     print(warning, file=sys.stderr)
 
 
@@ -467,8 +504,7 @@ def _handle_backend_command_failure(
         f"WARN {hook}: backend command failed while filing finding for "
         f"{payload['subject']}. Logged to audit/helper_failures.jsonl."
     )
-    global LAST_HELPER_WARNING
-    LAST_HELPER_WARNING = warning
+    _set_last_helper_warning(warning)
     print(warning, file=sys.stderr)
 
 
@@ -646,17 +682,12 @@ def is_production_source(path: str) -> bool:
     predicate previously duplicated in check-tdd-strict.py and
     check-test-case-mandate.py — those hooks now import this function.
     """
-    if not any(path.startswith(p) for p in PRODUCTION_PREFIXES):
-        return False
-    if path.endswith(NON_PRODUCTION_EXTENSIONS):
-        return False
+    excluded = (
+        not any(path.startswith(p) for p in PRODUCTION_PREFIXES)
+        or path.endswith(NON_PRODUCTION_EXTENSIONS)
+    )
     name = path.rsplit("/", 1)[-1]
-    if name in NON_PRODUCTION_NAMES or name.startswith("README"):
-        return False
-    for pattern in TEST_FILE_PATTERNS:
-        if pattern.search(path):
-            return False
-    for pattern in GENERATED_PATTERNS:
-        if pattern.search(path):
-            return False
-    return True
+    excluded = excluded or name in NON_PRODUCTION_NAMES or name.startswith("README")
+    excluded = excluded or any(pattern.search(path) for pattern in TEST_FILE_PATTERNS)
+    excluded = excluded or any(pattern.search(path) for pattern in GENERATED_PATTERNS)
+    return not excluded

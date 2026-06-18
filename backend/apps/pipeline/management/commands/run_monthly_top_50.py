@@ -3,7 +3,7 @@
 Single entry point used by:
 - The Windows scheduled task (`scripts/run-monthly-top-50.ps1`).
 - The frontend "Run Now" button (calls this via a thin DRF view).
-- Operator manual runs (`docker compose exec backend python manage.py
+- Operator manual runs (`python scripts/backend_manage.py
   run_monthly_top_50 --month=YYYY-MM`).
 
 Strategy auto-detection happens here so the same command works whether
@@ -51,20 +51,38 @@ class Command(BaseCommand):
             default=50,
             help="Number of picks to write (default 50).",
         )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Show the selected strategy without writing a report or updating schedule state.",
+        )
 
     def handle(self, *args, **opts):
         month = opts.get("month") or datetime.now(timezone.utc).strftime("%Y-%m")
         if not _is_valid_month(month):
             raise CommandError(f"--month must be YYYY-MM, got {month!r}")
 
-        from apps.core.services.schedule_tracker import record_run
         from apps.pipeline.services.strategy_router import pick_strategy
 
         strategy_override = opts["strategy"]
         active = pick_strategy(override=strategy_override)
+        if opts["dry_run"]:
+            self.stdout.write(
+                self.style.NOTICE(
+                    "Dry run only. Would run monthly top-50 report with "
+                    f"month={month} strategy={active} limit={opts['limit']}."
+                )
+            )
+            return
+
+        self._run_report(month, active, opts)
+
+    def _run_report(self, month: str, active: str, opts) -> None:
+        from apps.core.services.schedule_tracker import record_run
+
+        strategy_override = opts["strategy"]
         scheduled_for = _slot_for_month(month)
         started_at = datetime.now(timezone.utc)
-
         record_run(TASK_NAME, scheduled_for, status="running", started_at=started_at)
         self.stdout.write(
             self.style.NOTICE(

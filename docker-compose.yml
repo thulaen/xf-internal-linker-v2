@@ -60,6 +60,18 @@ services:
       timeout: 5s
       retries: 5
 
+  # ─────────────────────────────────────────────
+  # Documentation site image — optional tooling target.
+  # Built through scripts/smart_build.py so MSI does not run Docker locally.
+  # ─────────────────────────────────────────────
+  docs-site:
+    build:
+      context: ./docs-site
+      dockerfile: Dockerfile
+    image: xf_docs_image
+    profiles:
+      - tools
+
 
   # ─────────────────────────────────────────────
   # Django 5.2 LTS backend — production settings + Daphne/uvicorn ASGI

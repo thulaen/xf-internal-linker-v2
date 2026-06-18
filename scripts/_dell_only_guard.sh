@@ -4,7 +4,7 @@
 # Tests, lint, coverage, and mutation runs are FORBIDDEN on this Windows
 # host — the Dell helper carries 100% of that work. These functions let
 # the quality and mutation runners refuse any path that would execute
-# work locally, even when someone overrides the docker-context or split
+# work locally, even when someone overrides the remote helper or split
 # environment variables. CI runners (CI / GITHUB_ACTIONS set) and
 # containers are exempt: the lock targets exactly one machine — the
 # local Windows desktop.
@@ -23,31 +23,80 @@ xf_on_msi_host() {
 }
 
 xf_require_remote_context() {
-  # Usage: xf_require_remote_context <runner-label> <docker-context-name>
-  # Blocks the run when the context names the LOCAL Docker Desktop engine.
+  # Usage: xf_require_remote_context <runner-label> <remote-helper-name>
+  # Blocks the run when the helper names the retired local container engine.
   local label="$1" context="${2:-}"
   xf_on_msi_host || return 0
   case "$context" in
-    ""|default|desktop-linux|desktop-windows)
+    ""|__local__|local|default|desktop-linux|desktop-windows)
       echo "FAIL $label: tests and mutation runs are blocked on this Windows machine (MSI)." >&2
-      echo "WHY: the docker context '${context:-<empty>}' is the local Docker Desktop engine; all test and mutation work runs on the Dell helper only." >&2
-      echo "UNBLOCK: remove the context override (the default is 'dell'), or fix the Dell docker context, then re-run." >&2
+      echo "WHY: the helper '${context:-<empty>}' is the retired local container engine; all test and mutation work runs on the Dell helper only." >&2
+      echo "UNBLOCK: remove the helper override (the default is 'dell'), or fix SSH access to Dell, then re-run." >&2
       exit 1
       ;;
   esac
 }
 
+xf_prepare_ssh_home() {
+  # Git Bash usually creates HOME for interactive shells, but Bazel-launched
+  # sh_binary targets may inherit only the Windows profile variables. SSH needs
+  # HOME so it can read the same keys and config the terminal uses.
+  [[ -n "${HOME:-}" ]] && return 0
+  local candidate="${USERPROFILE:-}"
+  if [[ -z "$candidate" && -n "${HOMEDRIVE:-}" && -n "${HOMEPATH:-}" ]]; then
+    candidate="${HOMEDRIVE}${HOMEPATH}"
+  fi
+  if [[ -z "$candidate" ]]; then
+    for powershell_path in \
+      powershell.exe \
+      /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+    do
+      if command -v "$powershell_path" >/dev/null 2>&1 || [[ -x "$powershell_path" ]]; then
+        candidate="$("$powershell_path" -NoProfile -Command '[Environment]::GetFolderPath("UserProfile")' 2>/dev/null | tr -d '\r')"
+        [[ -n "$candidate" ]] && break
+      fi
+    done
+  fi
+  [[ -n "$candidate" ]] || return 0
+  if command -v cygpath >/dev/null 2>&1; then
+    HOME="$(cygpath -u "$candidate")"
+  else
+    HOME="$candidate"
+  fi
+  export HOME
+}
+
 xf_remote_context_reachable() {
-  # Usage: xf_remote_context_reachable <docker-context-name> [attempts] [sleep_seconds]
-  # Probe `docker --context <ctx> info` with retries. The FIRST SSH/docker call
+  # Usage: xf_remote_context_reachable <remote-helper-name> [attempts] [sleep_seconds]
+  # Probe `ssh <host> docker version` with retries. The FIRST SSH/docker call
   # to an idle Dell frequently times out on a cold connection, so a single-shot
   # probe reports a false "unreachable" and wrongly blocks the commit. Retrying
   # mirrors the resilience already in scripts/machine_routing.py. Returns 0 as
   # soon as the context answers, non-zero only after all attempts fail.
-  local context="$1" attempts="${2:-3}" sleep_s="${3:-2}" i
+  local context="$1" attempts="${2:-3}" sleep_s="${3:-2}" i last_error=""
+  if [[ "$context" == "__local__" || "$context" == "local" ]]; then
+    docker version >/dev/null 2>&1
+    return $?
+  fi
+  xf_prepare_ssh_home
+  local ssh_args=(-o BatchMode=yes -o ConnectTimeout=10)
+  if [[ -n "${HOME:-}" && -f "${HOME}/.ssh/config" ]]; then
+    ssh_args+=(-F "${HOME}/.ssh/config")
+  fi
   for (( i = 1; i <= attempts; i++ )); do
-    if docker --context "$context" version >/dev/null 2>&1; then
-      return 0
+    last_error="$(ssh "${ssh_args[@]}" "$context" docker version 2>&1 >/dev/null)" && return 0
+    if [[ -n "$last_error" && "$i" -eq "$attempts" ]]; then
+      printf 'Dell probe context: home=%s config=%s\n' "${HOME:-<unset>}" "${HOME:+${HOME}/.ssh/config}" >&2
+      printf 'Dell probe failed: %s\n' "$last_error" >&2
+    fi
+    if [[ -n "$last_error" && "$i" -lt "$attempts" && "${XF_DELL_PROBE_DEBUG:-0}" == "1" ]]; then
+      printf 'Dell probe attempt %s failed: %s\n' "$i" "$last_error" >&2
+    fi
+    if [[ -z "$last_error" && "$i" -eq "$attempts" ]]; then
+      printf 'Dell probe failed without SSH output.\n' >&2
+    fi
+    if [[ -z "$last_error" && "${XF_DELL_PROBE_DEBUG:-0}" == "1" ]]; then
+      printf 'Dell probe attempt %s failed without SSH output.\n' "$i" >&2
     fi
     if [[ "$i" -lt "$attempts" ]]; then
       sleep "$sleep_s"

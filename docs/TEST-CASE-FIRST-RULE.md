@@ -284,7 +284,7 @@ The agent must not continue from a violated state as if nothing happened.
 ### Step 1 — Find existing test cases
 
 ```
-docker compose exec -T backend python manage.py shell -c "
+python scripts/backend_manage.py shell -c "
 from apps.auto_issues.models import AutoIssue
 qs = AutoIssue.objects.filter(category__key='test_case', affected_files__contains=['apps/suggestions/services/exposure_prob.py'])
 for ai in qs: print(ai.pk, ai.title)
@@ -296,7 +296,7 @@ If empty, file a new contract:
 ### Step 2 — File a test case BEFORE coding
 
 ```
-docker compose exec -T backend python manage.py log_test_case \
+python scripts/backend_manage.py log_test_case \
   --file apps/suggestions/services/exposure_prob.py \
   --title "exposure_prob rejects negative inputs with a clear validation error" \
   --given "the exposure_prob function is called with a numeric input" \

@@ -57,7 +57,7 @@ def mcp_health(request):
             "mcp_json_present": mcp_json.exists(),
             "server_script_present": server_path.exists(),
             "mcp_python_pkg_installed": has_mcp_pkg,
-            "transport": "stdio (docker compose exec)",
+            "transport": "stdio through Kubernetes backend runner",
             "tools_exposed": [
                 "get_top_candidates",
                 "get_dashboard_metrics",

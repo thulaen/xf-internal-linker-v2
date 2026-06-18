@@ -19,12 +19,12 @@ Get-Content -Path 'AGENT-HANDOFF.md' -TotalCount 3
 
 Write-Host ""
 Write-Host "=== OPEN AUTO-ISSUES ===" -ForegroundColor Cyan
-docker compose exec -T backend python manage.py print_open_issues --limit 10 2>$null |
+python scripts/backend_manage.py print_open_issues --limit 10 2>$null |
     Where-Object { $_ -match '^\[REGISTRY READ:|^\s+#' }
 
 Write-Host ""
 Write-Host "=== RECENT RESOLUTIONS (last 14 days) ===" -ForegroundColor Cyan
-docker compose exec -T backend python manage.py print_resolved_issues --limit 5 --days 14 2>$null |
+python scripts/backend_manage.py print_resolved_issues --limit 5 --days 14 2>$null |
     Where-Object { $_ -match '^\[RESOLVED HISTORY:|^\s+#' }
 
 Write-Host ""

@@ -31,17 +31,18 @@ def test_remote_pytest_cmd_joins_dell_test_net_and_overrides_db_host():
     points the DB/Redis at Dell's own stack — never the live database."""
     m = _mod()
     cmd = m._remote_pytest_cmd("dell", ["apps/foo/tests.py"])
-    assert cmd[:5] == ["docker", "--context", "dell", "run", "--rm"]
-    assert "--network" in cmd and "xf_dell_test_net" in cmd
-    assert "xf_test_repo:/repo" in cmd
-    assert "xf_dell_compiled_repo:/opt/xf/compiled" in cmd
+    assert cmd[:2] == ["ssh", "dell"]
+    remote = cmd[2]
+    assert "--network" in remote and "xf_dell_test_net" in remote
+    assert "xf_test_repo:/repo" in remote
+    assert "xf_dell_compiled_repo:/opt/xf/compiled" in remote
     # DB + Redis point at Dell's test-stack service names, not the live host.
-    assert "POSTGRES_HOST=postgres" in cmd
-    assert "REDIS_URL=redis://redis:6379/0" in cmd
-    assert "PYTHONPATH=/opt/xf/compiled/active:/opt/xf/compiled:/repo/backend" in cmd
-    assert "config.settings.test" in " ".join(cmd)
-    assert cmd[-1] == "apps/foo/tests.py"
-    assert "--reuse-db" in cmd
+    assert "POSTGRES_HOST=postgres" in remote
+    assert "REDIS_URL=redis://redis:6379/0" in remote
+    assert "PYTHONPATH=/opt/xf/compiled/active:/opt/xf/compiled:/repo/backend" in remote
+    assert "config.settings.test" in remote
+    assert remote.endswith("apps/foo/tests.py")
+    assert "--reuse-db" in remote
 
 
 def test_sync_roots_feed_the_tar_command_and_cover_test_reads():
@@ -70,8 +71,21 @@ def test_sync_source_makes_audit_writable_for_dell_tests():
     """Given Dell tests write audit logs, When syncing, Then audit is writable."""
     m = _mod()
     source = inspect.getsource(m._sync_source_to_context)
-    assert "mkdir -p /repo/audit" in source
-    assert "chmod 777 /repo/audit" in source
+    assert "(\"mkdir\", \"-p\", \"/repo/audit\")" in source
+    assert "(\"chmod\", \"777\", \"/repo/audit\")" in source
+
+
+def test_remote_docker_cmd_quotes_as_one_ssh_command():
+    """Given a shell-sensitive Docker command, When building it, Then SSH gets one quoted command."""
+    m = _mod()
+    cmd = m._remote_docker_cmd("dell", "run", "alpine:latest", "sh", "-c", "echo ok")
+    assert cmd[:2] == ["ssh", "dell"]
+    assert cmd[2] == "docker run alpine:latest sh -c 'echo ok'"
+
+
+def test_remote_docker_cmd_can_use_direct_local_docker():
+    m = _mod()
+    assert m._remote_docker_cmd("__local__", "info") == ["docker", "info"]
 
 
 
@@ -86,6 +100,13 @@ def test_pytest_routing_config_puts_100_percent_on_dell():
     cfg = json.loads((ROOT / "config" / "mutation-routing.json").read_text(encoding="utf-8"))
     assert cfg["pytest_machines"][0]["name"] == "dell"
     assert cfg["pytest_machines"][0]["weight"] == 1.0
+
+
+def test_pytest_routing_context_can_be_overridden_for_bazel_on_dell(monkeypatch):
+    m = _mod()
+    monkeypatch.setenv("XF_PYTEST_DOCKER_CONTEXT", "__local__")
+    machines = m._load_pytest_routing_config()["machines"]
+    assert machines[0]["context"] == "__local__"
 
 
 def test_no_local_only_carveout_remains():
@@ -136,13 +157,14 @@ def test_cov_targets_add_cov_flags_to_remote_command():
     cmd = m._remote_pytest_cmd(
         "dell", ["apps/foo/tests.py"], cov_targets=["apps.foo", "apps.bar"]
     )
-    assert "--cov=apps.foo" in cmd
-    assert "--cov=apps.bar" in cmd
-    assert "--cov-report=term" in cmd
-    assert cmd[-1] == "apps/foo/tests.py"
+    remote = cmd[2]
+    assert "--cov=apps.foo" in remote
+    assert "--cov=apps.bar" in remote
+    assert "--cov-report=term" in remote
+    assert remote.endswith("apps/foo/tests.py")
     # Without cov targets the command stays unchanged.
     plain = m._remote_pytest_cmd("dell", ["apps/foo/tests.py"])
-    assert all(not part.startswith("--cov") for part in plain)
+    assert "--cov" not in plain[2]
 
 
 def test_main_threads_cov_targets_into_the_shard_runner(monkeypatch):

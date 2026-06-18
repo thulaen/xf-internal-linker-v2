@@ -63,6 +63,7 @@ import {
 } from './silo-settings.service';
 import { PerformanceSettingsComponent } from './performance-settings/performance-settings.component';
 import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.component';
+import { EmbeddingProviderScoreboardComponent } from './embedding-provider-scoreboard/embedding-provider-scoreboard.component';
 // Phase MS — Meta Algorithm Settings tab (new at the end of the tab group).
 import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithms-tab.component';
 import { ConnectSyncTabComponent } from './connect-sync-tab/connect-sync-tab.component';
@@ -111,6 +112,7 @@ type FieldSeverity = 'none' | 'warn' | 'danger';
     SettingsOverviewComponent,
     PerformanceSettingsComponent,
     HelpersSettingsComponent,
+    EmbeddingProviderScoreboardComponent,
     WeightDiagnosticsCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -212,6 +214,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     performance: 6,
     helpers: 7,
     'meta-algorithms': 8,
+    'embedding-provider-scoreboard': 9,
   };
 
   onTabChange(index: number): void {

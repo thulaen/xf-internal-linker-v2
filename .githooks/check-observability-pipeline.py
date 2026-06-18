@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
-"""Safe Docker prune + observability-pipeline freshness check.
+"""Observability-pipeline freshness check through the Kubernetes backend.
 
-Two jobs, in order:
-
-  1. SAFE PRUNE — `docker system prune -f` removes stopped containers,
-     dangling images, unused networks, and build cache. It NEVER touches
-     named volumes (no `-v`), so pgdata / sidecars_data / etc. are safe. This
-     reclaims the disk the Docker VHDX silently accumulates on Windows.
-
-  2. PIPELINE FRESHNESS — confirms the observability stack is actually
+This confirms the observability stack is actually
      *sending problems to AutoIssues*. For each observability source it checks
      whether any AutoIssue was seen in the last 24h. A silent source (running
      container, but no findings) is a WARNING, not a block — a quiet system is
@@ -20,7 +13,7 @@ Whether each container is *running* is enforced separately and earlier by
 check-observability-stack.py; this gate does not duplicate that.
 
 Exit codes:
-    0 — prune ran (or was skipped) and the pipeline freshness check ran.
+    0 — the pipeline freshness check ran.
     1 — the pipeline freshness check could not run (backend unreachable).
 """
 
@@ -43,31 +36,17 @@ def _fail(detail: str) -> int:
         "         2. Query AutoIssue.lessons_learned from the database for past fixes to this specific problem.\n"
         "         3. Fix the underlying issue using TDD and unit tests so it doesn't happen again.\n"
         "         4. Record your fix and root-cause in a new lessons_learned entry.\n"
-        "         5. Ensure the backend container is up (docker compose up -d backend) and re-run.\n"
+        "         5. Ensure the Kubernetes backend pod is Running and Ready, then re-run.\n"
         f"\nDetail:\n{detail}\n"
     )
     return 1
 
 
-def _safe_prune() -> str:
-    """Run `docker system prune -f` (no volumes). Best-effort; never blocks."""
-    try:
-        proc = subprocess.run(
-            ["docker", "system", "prune", "-f"],
-            cwd=REPO_ROOT, text=True, encoding="utf-8", errors="replace",
-            capture_output=True, check=False, timeout=120,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return "prune skipped (docker unavailable)"
-    lines = (proc.stdout or "").strip().splitlines()
-    return lines[-1] if lines else "prune ran (nothing to reclaim)"
-
-
 def _check_pipeline() -> tuple[bool, str]:
     """Run the freshness command in warn mode. Returns (ran_ok, output)."""
     cmd = [
-        "docker", "compose", "exec", "-T", "backend",
-        "python", "manage.py", "verify_observability_pipeline", "--hours", "24",
+        sys.executable, str(REPO_ROOT / "scripts" / "backend_manage.py"),
+        "verify_observability_pipeline", "--hours", "24",
     ]
     try:
         proc = subprocess.run(
@@ -75,7 +54,7 @@ def _check_pipeline() -> tuple[bool, str]:
             capture_output=True, check=False, timeout=120,
         )
     except FileNotFoundError:
-        return False, "Docker is not available."
+        return False, "Backend management helper is not available."
     except subprocess.TimeoutExpired:
         return False, "Pipeline check timed out."
     if proc.returncode != 0:
@@ -84,9 +63,6 @@ def _check_pipeline() -> tuple[bool, str]:
 
 
 def main() -> int:
-    prune_summary = _safe_prune()
-    sys.stdout.write(f"[DOCKER PRUNE: {prune_summary}]\n")
-
     ran_ok, output = _check_pipeline()
     if not ran_ok:
         return _fail(output or "(no output)")

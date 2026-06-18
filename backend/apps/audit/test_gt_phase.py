@@ -39,11 +39,11 @@ class FixSuggestionsTests(TestCase):
 
     def test_spacy_missing_matches(self):
         fix = fix_suggestions.suggest("Can't find model 'en_core_web_sm'", "", "")
-        self.assertIn("spacy download", fix)
+        self.assertIn("Rebuild the backend image on Dell", fix)
 
     def test_redis_connection_matches(self):
         fix = fix_suggestions.suggest("ConnectionError: redis refused", "", "")
-        self.assertIn("restart redis", fix)
+        self.assertIn("kubectl -n xf-app get pods -l app=valkey", fix)
 
     def test_disk_full_matches(self):
         fix = fix_suggestions.suggest("No space left on device", "", "")
@@ -58,7 +58,7 @@ class FixSuggestionsTests(TestCase):
         # The step name itself contains the spaCy model identifier which
         # our spaCy-missing rule keys on (en_core_web_sm).
         fix = fix_suggestions.suggest("", "", "load en_core_web_sm")
-        self.assertIn("spacy download", fix)
+        self.assertIn("Rebuild the backend image on Dell", fix)
 
 
 class FingerprintNormalisationTests(TestCase):

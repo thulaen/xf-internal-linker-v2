@@ -354,8 +354,8 @@ def _build_transition_event(
             severity=severity,
             plain_english=(
                 f"{label} dropped to the Python fallback path. Performance "
-                f"may be 5-50x slower. Rebuild the C++ extension via "
-                f"'docker compose build backend' to recover."
+                f"may be 5-50x slower. Rebuild the extension on Dell and "
+                f"roll the Kubernetes backend deployment to recover."
             ),
             duration_seconds=duration_seconds,
         )
@@ -392,8 +392,8 @@ def _build_persists_event(
         severity=severity,
         plain_english=(
             f"{label} has been on the Python fallback path for {duration_human}. "
-            f"Performance impact is ongoing. Rebuild via 'docker compose build "
-            f"backend' to restore the fast path."
+            f"Performance impact is ongoing. Rebuild on Dell and roll the "
+            f"Kubernetes backend deployment to restore the fast path."
         ),
         duration_seconds=duration_seconds,
     )

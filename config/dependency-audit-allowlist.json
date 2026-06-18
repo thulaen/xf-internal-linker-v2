@@ -25,6 +25,14 @@
       "reason": "Same pyarrow use-after-free as PYSEC-2026-113. No untrusted Arrow IPC ingestion in this app; the only fix is the breaking pyarrow 23.x jump described in the pip_audit_ignore entry above.",
       "revisit_when": "Arrow consumers support pyarrow>=23.0.1. Then bump pyarrow and delete this entry.",
       "paper_trail": "filed via manage.py defer_work"
+    },
+    {
+      "id": "98068",
+      "package": "paramiko",
+      "cve": "CVE-2026-44405",
+      "reason": "Same Paramiko SHA-1 advisory as GHSA-r374-rxx8-8654. Paramiko is used only for trusted internal SSH calls to known helper machines, and no fixed Paramiko release is available yet.",
+      "revisit_when": "Paramiko publishes a fixed release. Then bump Paramiko and delete this entry.",
+      "paper_trail": "filed via manage.py defer_work"
     }
   ]
 }

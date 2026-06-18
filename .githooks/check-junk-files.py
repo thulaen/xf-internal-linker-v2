@@ -99,7 +99,7 @@ def main() -> int:
         "UNBLOCK: `git rm --cached <file>` for each match, then add the "
         "pattern to `.gitignore` so it stays out. If the file is "
         "legitimately repo-tracked (rare), file a false-positive report:\n"
-        "  docker compose exec -T backend python manage.py "
+        "  python scripts/backend_manage.py "
         "report_hook_false_positive --hook check-junk-files "
         "--context \"<explanation>\"\n"
     )

@@ -1,5 +1,7 @@
 # Codex Execution Prompt — Finish the Python + Rust Migration in 15 Slices
 
+Historical note: this document describes the retired MSI Docker-era workflow. Current MSI commands must use Kubernetes, `python scripts/backend_manage.py`, or SSH to Dell/Mint helpers.
+
 > **Paste this whole file to Codex as its task.** It is the single source of truth for the
 > remaining migration work. Work **one slice at a time, in order, each as its own commit.** Stop
 > and report after every slice. Do not start the next slice until the current one is committed.
@@ -447,3 +449,4 @@ package; kill survivors by strengthening tests.
 
 Quote the commit hash and the `[QUALITY GATE RESULT]`, `[COVERAGE SUMMARY]`, and `turbo=` lines. Then
 stop and wait for "next slice" unless told to continue.
+Historical note: this document describes the retired MSI Docker-era workflow. Current MSI commands must use Kubernetes, `python scripts/backend_manage.py`, or SSH to Dell/Mint helpers.

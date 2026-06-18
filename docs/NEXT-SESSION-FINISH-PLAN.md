@@ -999,3 +999,4 @@ crept in, the system matches every spec, and there is genuinely no stone left un
   NetworKit's 10 signals live and feeding the Optuna-tunable, governance-gated ranker; the nine modules
   behind enforced `api.py` boundaries; coverage ≥95% on touched modules; the docs/config/glossary truthful;
   `git status` clean; the close-out handoff written.
+Historical note: this document describes an older Docker-era finish plan. Current MSI commands must use Kubernetes, `python scripts/backend_manage.py`, or SSH to Dell/Mint helpers.

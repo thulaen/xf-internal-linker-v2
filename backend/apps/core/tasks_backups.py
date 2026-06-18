@@ -11,8 +11,7 @@ laptop window after midnight; operators in earlier timezones can
 adjust without touching this file.
 
 Manual trigger:
-    docker compose exec backend \\
-        celery -A config.celery call core.create_database_snapshot
+    python scripts/backend_manage.py shell -c "from config.celery import app; app.send_task('core.create_database_snapshot')"
 """
 
 from __future__ import annotations

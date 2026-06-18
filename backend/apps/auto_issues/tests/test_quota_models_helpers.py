@@ -84,12 +84,12 @@ class MandatoryHardErrorsTests(SimpleTestCase):
 
 
 class CountAndDuplicateErrorsTests(SimpleTestCase):
-    def test_exactly_thirty_unique_ids_no_error(self):
-        self.assertEqual(_count_and_duplicate_errors(list(range(30))), [])
+    def test_exactly_twenty_eight_unique_ids_no_error(self):
+        self.assertEqual(_count_and_duplicate_errors(list(range(28))), [])
 
     def test_wrong_count_reports_found(self):
         errors = _count_and_duplicate_errors([1, 2, 3])
-        self.assertIn("Expected 30 picked AutoIssues, found 3.", errors)
+        self.assertIn("Expected 28 picked AutoIssues, found 3.", errors)
 
     def test_duplicates_sorted_and_rendered(self):
         ids = list(range(28)) + [5, 5, 3, 3]

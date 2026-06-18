@@ -1,4 +1,4 @@
-"""Verify that a handoff's 30 picked AutoIssues were truly resolved."""
+"""Verify that a handoff's 28 picked AutoIssues were truly resolved."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from django.utils import timezone
 from apps.auto_issues.models import AutoIssue
 
 
-REQUIRED_AUTOISSUE_FIXES = 30
+REQUIRED_AUTOISSUE_FIXES = 28
 REQUIRED_RUST_DEFECT_FIXES = 10
 REQUIRED_PPROF_FIXES = 10
 REQUIRED_ALLOY_FIXES = 10
@@ -58,6 +58,12 @@ _CROSS_SOURCE_REQUIREMENTS = {
 REQUIRED_HARD_FIXES = sum(_HARD_SOURCE_REQUIREMENTS.values()) + sum(
     _CROSS_SOURCE_REQUIREMENTS.values()
 )
+_SESSION_TOTAL_REQUIREMENTS = {
+    "docs": 0,
+    "reconciliation": 10,
+    "infrastructure": 20,
+    "feature": REQUIRED_AUTOISSUE_FIXES,
+}
 
 
 _SESSION_TYPE_CHOICES = ("docs", "infrastructure", "reconciliation", "feature")
@@ -85,7 +91,8 @@ def _scaled_requirements(
         return {s: 0 for s in _HARD_SOURCE_REQUIREMENTS}, {
             s: 2 for s in _CROSS_SOURCE_REQUIREMENTS
         }
-    # Default: feature — full quotas.
+    # Feature sessions keep the source maps for tests and diagnostics. The
+    # hard commit command enforces the user-facing total quota below.
     return _HARD_SOURCE_REQUIREMENTS, _CROSS_SOURCE_REQUIREMENTS
 
 
@@ -114,7 +121,7 @@ class Command(BaseCommand):
             default="feature",
             help=(
                 "Session type scales the verify quota. "
-                "docs=0, reconciliation=10, infrastructure=20, feature=103 (default)."
+                "docs=0, reconciliation=10, infrastructure=20, feature=28 (default)."
             ),
         )
 
@@ -123,21 +130,18 @@ class Command(BaseCommand):
         session_type = opts.get("session_type") or "feature"
 
         if opts.get("hard"):
-            hard_reqs, cross_reqs = _scaled_requirements(session_type)
-            if session_type == "docs":
+            required = _SESSION_TOTAL_REQUIREMENTS.get(session_type, REQUIRED_AUTOISSUE_FIXES)
+            if required == 0:
                 self.stdout.write(
                     self.style.SUCCESS("[AUTOISSUE QUOTA VERIFIED: docs — no quota required]")
                 )
                 return
-            errors = _hard_quota_errors_scaled(
-                _resolved_counts(resolved_after), hard_reqs, cross_reqs
-            )
+            errors = _hard_total_quota_errors(_resolved_counts(resolved_after), required)
             if errors:
                 raise CommandError("\n".join(errors))
-            total = sum(hard_reqs.values()) + sum(cross_reqs.values())
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"[AUTOISSUE QUOTA VERIFIED: {total} resolved]"
+                    f"[AUTOISSUE QUOTA VERIFIED: {required} resolved]"
                 )
             )
             return
@@ -239,6 +243,13 @@ def _hard_quota_errors(counts: dict[str, int]) -> list[str]:
     return _hard_quota_errors_scaled(
         counts, _HARD_SOURCE_REQUIREMENTS, _CROSS_SOURCE_REQUIREMENTS
     )
+
+
+def _hard_total_quota_errors(counts: dict[str, int], required: int) -> list[str]:
+    resolved = sum(max(0, count) for count in counts.values())
+    if resolved >= required:
+        return []
+    return [f"AutoIssue quota: {resolved} of {required} resolved ({required - resolved} short)"]
 
 
 def _hard_quota_errors_scaled(

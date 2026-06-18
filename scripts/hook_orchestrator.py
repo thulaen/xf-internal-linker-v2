@@ -50,9 +50,18 @@ def main():
     # Define the core hooks.
     all_hooks = [
         {"name": "tool-readiness", "cmd": ["sh", "scripts/run-tool-readiness.sh"]},
-        {"name": "run-python-quality", "cmd": ["sh", "scripts/quality_cache.sh", "sh", "scripts/run-python-quality.sh"]},
-        {"name": "run-angular-quality", "cmd": ["sh", "scripts/quality_cache.sh", "sh", "scripts/run-angular-quality.sh"]},
-        {"name": "run-rust-quality", "cmd": ["sh", "scripts/quality_cache.sh", "sh", "scripts/run-rust-quality.sh"]},
+        {
+            "name": "bazel-python-quality",
+            "cmd": ["python", "scripts/bazel_default.py", "run", "//tools/quality:python"],
+        },
+        {
+            "name": "bazel-frontend-quality",
+            "cmd": ["python", "scripts/bazel_default.py", "run", "//tools/quality:frontend"],
+        },
+        {
+            "name": "bazel-rust-quality",
+            "cmd": ["python", "scripts/bazel_default.py", "run", "//tools/quality:rust"],
+        },
     ]
 
     to_run = []

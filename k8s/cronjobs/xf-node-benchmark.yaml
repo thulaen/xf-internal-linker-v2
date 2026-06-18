@@ -1,0 +1,18 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: xf-node-benchmark
+  namespace: xf-test
+spec:
+  schedule: "17 3 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          nodeSelector:
+            xf.io/can-test: "true"
+          containers:
+            - name: benchmark
+          image: 10.10.10.91:5000/xf-runner-python@sha256:9838f284407976418a52a13239a96f01545d9817cb3e562a45630310cafa4654
+              command: ["/bin/sh", "-lc", "tools/benchmark/xf-node-benchmark.sh"]

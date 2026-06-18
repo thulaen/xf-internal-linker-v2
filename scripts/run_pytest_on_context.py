@@ -44,6 +44,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import shlex
 import subprocess
 import sys
 import threading
@@ -139,6 +140,15 @@ def _load_pytest_routing_config() -> dict:
             {"name": "dell", "transport": "docker_context", "context": "dell",
              "weight": 1.0, "max_weight": 1.0},
         ]
+    context_override = os.environ.get("XF_PYTEST_DOCKER_CONTEXT")
+    if context_override:
+        machines = [
+            {
+                **machine,
+                "context": context_override,
+            }
+            for machine in machines
+        ]
     return {"machines": machines}
 
 
@@ -194,14 +204,30 @@ def _tar_producer(env: dict) -> subprocess.Popen:
     )
 
 
+def _remote_docker_cmd(context: str, *args: str) -> list[str]:
+    """Return a command that runs Docker on the helper host through SSH."""
+    if context == "__local__":
+        return ["docker", *args]
+    remote_command = "docker " + " ".join(shlex.quote(arg) for arg in args)
+    return ["ssh", context, remote_command]
+
+
 def _sync_source_to_context(context: str, env: dict) -> str | None:
     """Push a FULL source snapshot into xf_test_repo on the remote context."""
-    extractor = [
-        "docker", "--context", context, "run", "--rm", "-i",
-        "-v", f"{_TEST_VOLUME}:/repo",
-        "alpine:latest", "sh", "-c",
-        "tar -xf - -C /repo && mkdir -p /repo/audit && chmod 777 /repo/audit",
-    ]
+    extractor = _remote_docker_cmd(
+        context,
+        "run",
+        "--rm",
+        "-i",
+        "-v",
+        f"{_TEST_VOLUME}:/repo",
+        "alpine:latest",
+        "tar",
+        "-C",
+        "/repo",
+        "-xf",
+        "-",
+    )
     try:
         tar = _tar_producer(env)
         sink = subprocess.Popen(
@@ -211,24 +237,62 @@ def _sync_source_to_context(context: str, env: dict) -> str | None:
         )
         tar.stdout.close()
         out, _ = sink.communicate(timeout=300)
+        tar_err = tar.stderr.read().decode("utf-8", errors="replace") if tar.stderr else ""
         tar_rc = tar.wait()
     except FileNotFoundError:
-        return f"{context} source sync failed: tar or docker not found on PATH."
+        return f"{context} source sync failed: tar or ssh not found on PATH."
     except subprocess.TimeoutExpired:
         return f"{context} source sync timed out after 5 minutes."
     if tar_rc != 0 or sink.returncode != 0:
-        return f"{context} source sync failed:\n" + (out or "")
+        return f"{context} source sync failed:\n" + (tar_err or "") + (out or "")
+    for command in (("mkdir", "-p", "/repo/audit"), ("chmod", "777", "/repo/audit")):
+        setup_error = _run_repo_setup(context, command, env)
+        if setup_error:
+            return setup_error
+    return None
+
+
+def _run_repo_setup(context: str, command: tuple[str, ...], env: dict) -> str | None:
+    cmd = _remote_docker_cmd(
+        context,
+        "run",
+        "--rm",
+        "-v",
+        f"{_TEST_VOLUME}:/repo",
+        "alpine:latest",
+        *command,
+    )
+    proc = subprocess.run(
+        cmd,
+        cwd=REPO_ROOT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        timeout=60,
+        env=env,
+        check=False,
+    )
+    if proc.returncode:
+        return f"{context} repo setup failed:\n{proc.stdout}{proc.stderr}"
     return None
 
 
 def _run_remote_sha(context: str, env: dict):
     """Return ``run_remote(rel_slice)->(rc,out)`` that sha256sums the remote copy."""
     def run_remote(rel_slice: list[str]) -> tuple[int, str]:
-        cmd = [
-            "docker", "--context", context, "run", "--rm",
-            "-v", f"{_TEST_VOLUME}:/repo", "-w", "/repo/backend",
-            "alpine:latest", "sh", "-c", "sha256sum " + " ".join(_target_files(rel_slice)),
-        ]
+        cmd = _remote_docker_cmd(
+            context,
+            "run",
+            "--rm",
+            "-v",
+            f"{_TEST_VOLUME}:/repo",
+            "-w",
+            "/repo/backend",
+            "alpine:latest",
+            "sha256sum",
+            *_target_files(rel_slice),
+        )
         try:
             proc = subprocess.run(
                 cmd, cwd=REPO_ROOT, text=True, encoding="utf-8",
@@ -262,7 +326,7 @@ def _verify_snapshot(run_remote, rel_slice: list[str],
 
 def _remote_pytest_cmd(context: str, targets: list[str],
                        cov_targets: list[str] | None = None) -> list[str]:
-    """The ``docker --context <ctx> run`` command that runs a pytest slice on Dell.
+    """The SSH-to-helper command that runs a pytest slice on Dell.
 
     Joins Dell's test-stack network so `postgres`/`redis` resolve to Dell's own
     empty test database, passes the repo .env for required settings (SECRET_KEY
@@ -273,22 +337,25 @@ def _remote_pytest_cmd(context: str, targets: list[str],
     cov_flags: list[str] = []
     if cov_targets:
         cov_flags = [f"--cov={t}" for t in cov_targets] + ["--cov-report=term"]
-    return [
-        "docker", "--context", context, "run", "--rm",
+    return _remote_docker_cmd(
+        context,
+        "run",
+        "--rm",
         "--network", _DELL_TEST_NET,
         "-v", f"{_TEST_VOLUME}:/repo",
         "-v", f"{_DELL_COMPILED_VOLUME}:/opt/xf/compiled",
         "-v", "xf_dell_quality_cache:/tmp/xf-test-cache",
         "-w", "/repo/backend",
-        "--env-file", str(REPO_ROOT / ".env"),
         "-e", "DJANGO_SETTINGS_MODULE=config.settings.test",
+        "-e", "SECRET_KEY=dell-pytest-secret",
+        "-e", "ALLOWED_HOSTS=*",
         "-e", "POSTGRES_HOST=postgres",
         "-e", "REDIS_URL=redis://redis:6379/0",
         "-e", "CELERY_BROKER_URL=redis://redis:6379/2",
         "-e", "PYTHONPATH=/opt/xf/compiled/active:/opt/xf/compiled:/repo/backend",
         _IMAGE,
         "python", "-m", "pytest", *_PYTEST_FLAGS, *cov_flags, *targets,
-    ]
+    )
 
 
 def _run(cmd: list[str], env: dict, timeout: int) -> tuple[int, str]:
@@ -318,7 +385,22 @@ def _pytest_slice_on_remote(context: str, targets: list[str],
         print("VERIFY ERR: snapshot mismatch!")
         return None
     # Fix permission for xf_dell_quality_cache before pytest runs as non-root user
-    subprocess.run(["docker", "--context", context, "run", "--rm", "-v", "xf_dell_quality_cache:/tmp/xf-test-cache", "alpine:latest", "chmod", "-R", "777", "/tmp/xf-test-cache"], env=env, check=False)
+    subprocess.run(
+        _remote_docker_cmd(
+            context,
+            "run",
+            "--rm",
+            "-v",
+            "xf_dell_quality_cache:/tmp/xf-test-cache",
+            "alpine:latest",
+            "chmod",
+            "-R",
+            "777",
+            "/tmp/xf-test-cache",
+        ),
+        env=env,
+        check=False,
+    )
     return _run(_remote_pytest_cmd(context, targets, cov_targets), env, timeout=1800)
 
 

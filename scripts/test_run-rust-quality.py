@@ -15,7 +15,8 @@ import re
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
-SCRIPT = SCRIPTS / "run-rust-quality.sh"
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "tools" / "quality" / "internal" / "run-rust-quality.sh"
 
 
 def test_scope_guard_exits_early_on_no_rust_files():
@@ -39,9 +40,9 @@ def test_scope_guard_exports_quality_rust_paths():
 def test_rust_quality_runs_inside_compiled_mutation_tools_on_dell():
     """Host runs must enter Dell's Docker-managed compiled mutation image."""
     text = SCRIPT.read_text()
-    assert 'docker --context "$RUST_MUTATION_DOCKER_CONTEXT" run --rm' in text
+    assert 'scripts/remote_docker.py --host "$RUST_MUTATION_DOCKER_CONTEXT" -- run --rm' in text
     assert "xf-linker-compiled-mutation-tools:latest" in text
-    assert "bash /repo/scripts/run-rust-quality.sh" in text
+    assert "bash /repo/tools/quality/internal/run-rust-quality.sh" in text
     assert "XF_QUALITY_INNER=1" in text
 
 
@@ -111,7 +112,8 @@ def test_rust_quality_routes_host_runs_to_dell_mutation_image():
     text = SCRIPT.read_text()
 
     assert 'RUST_MUTATION_DOCKER_CONTEXT="${RUST_MUTATION_DOCKER_CONTEXT:-dell}"' in text
-    assert 'docker --context "$RUST_MUTATION_DOCKER_CONTEXT" run --rm' in text
+    assert 'RUST_MUTATION_DOCKER_CONTEXT="__local__"' in text
+    assert 'scripts/remote_docker.py --host "$RUST_MUTATION_DOCKER_CONTEXT" -- run --rm' in text
     assert "xf-linker-compiled-mutation-tools:latest" in text
 
 
@@ -300,7 +302,7 @@ def test_host_scope_guard_exits_before_dell_sync():
     Dell sync on every commit."""
     text = SCRIPT.read_text()
     skip_pos = text.find("skipping Dell sync and Rust quality run")
-    probe_pos = text.find('docker --context "$RUST_MUTATION_DOCKER_CONTEXT" info')
+    probe_pos = text.find('xf_remote_context_reachable "$RUST_MUTATION_DOCKER_CONTEXT"')
     assert skip_pos != -1, "host block must have its own no-Rust early exit"
     assert probe_pos != -1, "host block must keep the Dell probe"
     assert skip_pos < probe_pos, (

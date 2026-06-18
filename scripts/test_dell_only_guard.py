@@ -59,7 +59,7 @@ class MsiHostDetectionTests(unittest.TestCase):
 @unittest.skipUnless(_ON_WINDOWS, "exercises the Windows host's Git Bash")
 class RemoteContextLockTests(unittest.TestCase):
     def test_local_docker_contexts_are_blocked_on_msi(self) -> None:
-        for context in ("default", "desktop-linux", ""):
+        for context in ("default", "desktop-linux", "__local__", "local", ""):
             result = _bash(
                 f'xf_require_remote_context demo-runner "{context}"'
             )
@@ -75,6 +75,14 @@ class RemoteContextLockTests(unittest.TestCase):
     def test_ci_runner_may_use_any_context(self) -> None:
         result = _bash(
             'xf_require_remote_context demo-runner "default"', CI="true"
+        )
+        self.assertEqual(result.returncode, 0)
+
+    def test_ssh_home_is_recovered_from_windows_profile(self) -> None:
+        result = _bash(
+            'xf_prepare_ssh_home; test -n "$HOME"',
+            HOME=None,
+            USERPROFILE=r"C:\Users\goldm",
         )
         self.assertEqual(result.returncode, 0)
 
@@ -103,9 +111,9 @@ class GuardWiringTests(unittest.TestCase):
     def test_context_runners_validate_their_context_override(self) -> None:
         expectations = {
             "scripts/run-python-mutation.sh": "$PYTHON_MUTATION_DOCKER_CONTEXT",
-            "scripts/run-rust-quality.sh": "$RUST_MUTATION_DOCKER_CONTEXT",
+            "tools/quality/internal/run-rust-quality.sh": "$RUST_MUTATION_DOCKER_CONTEXT",
             "scripts/run-rust-mutation.sh": "$RUST_MUTATION_DOCKER_CONTEXT",
-            "scripts/run-angular-quality.sh": "$ANGULAR_DOCKER_CONTEXT",
+            "tools/quality/internal/run-angular-quality.sh": "$ANGULAR_DOCKER_CONTEXT",
             "scripts/run-angular-mutation.sh": "$ANGULAR_DOCKER_CONTEXT",
         }
         for rel, var in expectations.items():
@@ -115,7 +123,7 @@ class GuardWiringTests(unittest.TestCase):
             self.assertIn(var, text, rel)
 
     def test_python_quality_forces_dell_splits_and_guards_container(self) -> None:
-        text = self._text("scripts/run-python-quality.sh")
+        text = self._text("tools/quality/internal/run-python-quality.sh")
         self.assertIn("_dell_only_guard.sh", text)
         self.assertIn("xf_on_msi_host", text)
         self.assertIn("xf_block_local_quality_container", text)

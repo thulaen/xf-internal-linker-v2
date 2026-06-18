@@ -312,7 +312,7 @@
                 <p class="muted">No bake-offs yet. Click <strong>Run bake-off now</strong> in Run Control.</p>
               } @else {
                 <table mat-table [dataSource]="bakeoffRows()" class="full-width" aria-label="Provider bake-off results">
-                  <caption class="visually-hidden">MRR, NDCG, Recall, separation, cost, and latency for each provider bake-off run.</caption>
+                  <caption class="visually-hidden">MRR, NDCG, Recall, verdict, p-value, cost, and latency for each provider bake-off run.</caption>
                   <ng-container matColumnDef="provider">
                     <th mat-header-cell *matHeaderCellDef>Provider</th>
                     <td mat-cell *matCellDef="let r">{{ r.provider }}</td>
@@ -329,9 +329,37 @@
                     <th mat-header-cell *matHeaderCellDef>Recall@10</th>
                     <td mat-cell *matCellDef="let r">{{ r.recall_at_10 }}</td>
                   </ng-container>
+                  <ng-container matColumnDef="verdict">
+                    <th mat-header-cell *matHeaderCellDef>Verdict</th>
+                    <td mat-cell *matCellDef="let r">
+                      <div class="verdict-cell">
+                        <mat-chip [highlighted]="r.verdict === 'promote' || r.verdict === 'champion'">
+                          {{ r.verdict || 'pending' }}
+                        </mat-chip>
+                        @if (r.is_banned) {
+                          <button
+                            mat-stroked-button
+                            type="button"
+                            matTooltip="Allow this provider to be tested again"
+                            [disabled]="busyAction() === 'unban-' + r.provider"
+                            (click)="unbanProvider(r.provider)">
+                            <mat-icon aria-hidden="true">lock_open</mat-icon>
+                            <span>Unban</span>
+                          </button>
+                        }
+                      </div>
+                      @if (r.explanation) {
+                        <p class="muted table-note">{{ r.explanation }}</p>
+                      }
+                    </td>
+                  </ng-container>
                   <ng-container matColumnDef="separation_score">
                     <th mat-header-cell *matHeaderCellDef>Separation</th>
                     <td mat-cell *matCellDef="let r">{{ r.separation_score }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="p_value">
+                    <th mat-header-cell *matHeaderCellDef>p-value</th>
+                    <td mat-cell *matCellDef="let r">{{ r.p_value }}</td>
                   </ng-container>
                   <ng-container matColumnDef="cost_usd">
                     <th mat-header-cell *matHeaderCellDef>Cost (USD)</th>

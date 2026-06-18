@@ -55,7 +55,7 @@ Immediately after `[HANDOFF READ: …]` and before any other read marker,
 the agent runs:
 
 ```bash
-docker compose exec -T backend python manage.py preflight_tdd
+python scripts/backend_manage.py preflight_tdd
 ```
 
 The command prints a single line:
@@ -198,7 +198,7 @@ rule-introduction commit (which stages this very file) is grandfathered.
 At session end the agent runs:
 
 ```bash
-docker compose exec -T backend python manage.py session_close
+python scripts/backend_manage.py session_close
 ```
 
 The command verifies the session's lessons are logged and delegates to
@@ -280,7 +280,7 @@ to. The full proof triple for the rule-introduction commit is:
   tests="python .githooks/test_check_tdd_preflight.py && \
   python .githooks/test_check_decision_point.py && \
   python .githooks/test_check_session_close.py && \
-  docker compose exec -T backend python manage.py test \
+  python scripts/backend_manage.py test \
   apps.auto_issues.tests.test_preflight_tdd \
   apps.auto_issues.tests.test_decision_point \
   apps.auto_issues.tests.test_session_close --keepdb --noinput" \

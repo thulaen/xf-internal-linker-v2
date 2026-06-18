@@ -30,15 +30,7 @@ function Read-LocalEnv {
 }
 
 if (-not $KeepWindowsCopies) {
-    & docker --context desktop-linux compose stop compiled-tools pyroscope
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Windows Docker did not stop one or more quality-tool services. Continuing with Mint start."
-    }
-    & docker --context desktop-linux compose rm -f -s compiled-tools pyroscope
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Windows Docker did not remove one or more duplicate quality-tool containers. Continuing with Mint start."
-    }
-    Write-Host "[WINDOWS DUPLICATES REMOVED: services=compiled-tools,pyroscope volumes=preserved]"
+    Write-Host "[MSI DUPLICATE CLEANUP SKIPPED: MSI Docker runtime has been retired]"
 }
 
 Invoke-Mint "test -d '$MintRepoPath/.git' && test -f '$MintRepoPath/docker-compose.yml'"

@@ -48,23 +48,63 @@ quality_evidence_init() {
   rm -f "$path"
 }
 
+quality_python_cmd() {
+  if [[ -n "${PYTHON_CMD:-}" ]] && command -v "$PYTHON_CMD" >/dev/null 2>&1; then
+    printf "%s\n" "$PYTHON_CMD"
+    return 0
+  fi
+  if command -v python >/dev/null 2>&1; then
+    printf "%s\n" python
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    printf "%s\n" python3
+    return 0
+  fi
+  return 127
+}
+
+quality_backend_pod() {
+  local namespace="${XF_BACKEND_MANAGE_NAMESPACE:-xf-app}"
+  local selector="${XF_BACKEND_MANAGE_SELECTOR:-app=backend}"
+  kubectl -n "$namespace" get pod -l "$selector" \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null
+}
+
 quality_evidence_import() {
   local container_path="$1"
+  local host_path="${2:-}"
   if [[ "${QUALITY_EVIDENCE_SKIP_IMPORT:-0}" == "1" ]]; then
     echo "Quality evidence import skipped for this remote compute shard. Language checks still decide pass or fail." >&2
     return 0
   fi
   quality_evidence_acquire_import_lock
-  if [[ "${QUALITY_EVIDENCE_FORCE_DIRECT:-0}" != "1" ]] && command -v docker >/dev/null 2>&1; then
-    local docker_run_opts=()
-    mapfile -t docker_run_opts < <(quality_docker_run_opts)
+  if [[ -n "$host_path" ]] && command -v kubectl >/dev/null 2>&1; then
+    local pod_path="/tmp/$(basename "$host_path")"
+    local namespace="${XF_BACKEND_MANAGE_NAMESPACE:-xf-app}"
+    local pod
+    pod="$(quality_backend_pod)"
+    if [[ -z "$pod" ]]; then
+      echo "Quality evidence import could not find a running Kubernetes backend pod." >&2
+      quality_evidence_release_import_lock
+      return 127
+    fi
     set +e
-    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" docker compose run \
-      --rm -T "${docker_run_opts[@]}" backend \
-      python manage.py ingest_quality_evidence \
-        --path "$container_path" \
+    kubectl -n "$namespace" cp "$host_path" "$pod:$pod_path"
+    local copy_rc=$?
+    local manage_rc=0
+    if [[ "$copy_rc" -eq 0 ]]; then
+      "$(quality_python_cmd)" scripts/backend_manage.py ingest_quality_evidence \
+        --path "$pod_path" \
         --capture-raw-if-due
-    local rc=$?
+      manage_rc=$?
+    else
+      echo "Quality evidence import could not copy $host_path into backend pod $pod." >&2
+    fi
+    local rc=$copy_rc
+    if [[ "$copy_rc" -eq 0 ]]; then
+      rc=$manage_rc
+    fi
     set -e
     quality_evidence_release_import_lock
     return "$rc"
@@ -74,7 +114,7 @@ quality_evidence_import() {
     set +e
     (
       cd "$backend_dir"
-      python manage.py ingest_quality_evidence \
+      "$(quality_python_cmd)" manage.py ingest_quality_evidence \
       --path "$container_path" \
       --capture-raw-if-due
     )
@@ -83,7 +123,7 @@ quality_evidence_import() {
     quality_evidence_release_import_lock
     return "$rc"
   fi
-  echo "Quality evidence import needs either Docker on PATH or ${backend_dir}/manage.py." >&2
+  echo "Quality evidence import needs kubectl access to the Kubernetes backend or ${backend_dir}/manage.py." >&2
   quality_evidence_release_import_lock
   return 127
 }
@@ -93,13 +133,9 @@ quality_artifact_prune() {
     return 0
   fi
   quality_evidence_acquire_import_lock
-  if [[ "${QUALITY_EVIDENCE_FORCE_DIRECT:-0}" != "1" ]] && command -v docker >/dev/null 2>&1; then
-    local docker_run_opts=()
-    mapfile -t docker_run_opts < <(quality_docker_run_opts)
+  if command -v kubectl >/dev/null 2>&1; then
     set +e
-    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" docker compose run \
-      --rm -T "${docker_run_opts[@]}" backend \
-      python manage.py prune_quality_artifacts \
+    "$(quality_python_cmd)" scripts/backend_manage.py prune_quality_artifacts \
         --root /tmp \
         --apply \
         --prune-old-raw-snippets
@@ -113,9 +149,9 @@ quality_artifact_prune() {
     set +e
     (
       cd "$backend_dir"
-      python manage.py prune_quality_artifacts \
-      --root /tmp \
-      --apply \
+      "$(quality_python_cmd)" manage.py prune_quality_artifacts \
+        --root /tmp \
+        --apply \
       --prune-old-raw-snippets
     )
     local rc=$?
@@ -123,7 +159,7 @@ quality_artifact_prune() {
     quality_evidence_release_import_lock
     return "$rc"
   fi
-  echo "Quality artifact pruning needs either Docker on PATH or ${backend_dir}/manage.py." >&2
+  echo "Quality artifact pruning needs kubectl access to the Kubernetes backend or ${backend_dir}/manage.py." >&2
   quality_evidence_release_import_lock
   return 127
 }
@@ -133,7 +169,7 @@ quality_evidence_finalize() {
   local host_path="$2"
   local container_path="$3"
   if [[ -s "$host_path" ]]; then
-    if ! quality_evidence_import "$container_path"; then
+    if ! quality_evidence_import "$container_path" "$host_path"; then
       echo "Quality evidence import failed. Keeping full reports for inspection." >&2
       return 1
     fi
@@ -147,7 +183,7 @@ quality_evidence_finalize() {
 }
 
 quality_evidence_write() {
-  "${PYTHON_CMD:-python}" scripts/write_quality_evidence.py "$@"
+  "$(quality_python_cmd)" scripts/write_quality_evidence.py "$@"
 }
 
 quality_artifact_safe_prune_host() {
@@ -165,8 +201,8 @@ quality_artifact_safe_prune_host() {
   # files reference paths from a *resolved* PaperTrailEntry whose
   # `resolution_lessons` is populated. Dry-run by default; the trace
   # output goes to stdout so the operator can review.
-  if command -v docker >/dev/null 2>&1; then
-    docker compose exec -T backend python -c "
+  if quality_python_cmd >/dev/null 2>&1; then
+    "$(quality_python_cmd)" scripts/backend_manage.py shell -c "
 from pathlib import Path
 from apps.paper_trail.services.safe_prune import paper_trail_eligible_dirs
 import tempfile

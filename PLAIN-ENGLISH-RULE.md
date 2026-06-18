@@ -203,6 +203,19 @@ When you must mention a technical concept, use the plain-English version from th
 | the current Kubernetes pod-network mode used by this cluster | VXLAN |
 | a Kubernetes Service that points at something outside the pod set because it has no pod selector | selectorless Service |
 | a Kubernetes object that lists the network addresses behind a Service | EndpointSlice |
+| a small database connection pooler that reuses real PostgreSQL connections | PgBouncer |
+| a Redis-compatible cache server used here for disposable cache and live browser messages | Valkey |
+| a Kubernetes service port that opens on each node so a browser can reach a pod | NodePort |
+| the Kubernetes control address that `kubectl` contacts before it can list nodes or services | Kubernetes API server |
+| a numbered network doorway on a machine; `6443` is the usual Kubernetes API server port in this plan | TCP port |
+| the build tool that creates repeatable outputs from a declared build graph | Bazel |
+| the small launcher that downloads and runs the pinned Bazel version | Bazelisk |
+| the optional Bazel web service for shared build cache and build result viewing | BuildBuddy |
+| the folder setting that tells the live backend where to write resolved-issue lookup audit logs | XF_AUDIT_DIR |
+| the settings file that tells kubectl how to reach a Kubernetes cluster | kubeconfig |
+| the command-line tool that talks to Kubernetes | kubectl |
+| the user's Windows laptop that controls the cluster but should not run builds after cutover | MSI |
+| the lightweight Kubernetes distribution running the two-node cluster | k3s |
 | Kent Beck's book identifier for the test-first programming source used by the rule docs | ISBN-978-0321146533 |
 | the international test-documentation standard cited by the rule docs | ISO-IEC-IEEE-29119-3-2021 |
 | the official web protocol standard cited by the evidence rule docs | RFC-9110 |
@@ -248,6 +261,14 @@ When you must mention a technical concept, use the plain-English version from th
 | a missed scheduled run that the app fired late after noticing it had been skipped | recovered run |
 | safe to run twice — running it again doesn't cause harm or duplicates | idempotent |
 | a small random delay added so many things don't all run at the exact same second | jitter |
+| the current best provider that a new provider must beat before it can replace it | champion provider |
+| a provider being tested against the current best provider | challenger provider |
+| a saved comparison that scores embedding providers on quality and speed | provider score run |
+| a score that checks how high the first useful result appears in the top ten results | MRR@10 / mean reciprocal rank at ten |
+| the share of expected useful results that appeared in the top ten results | Recall@10 |
+| a statistical check that swaps paired wins and losses to see whether a provider's lead is likely real | paired permutation test |
+| a number from 0 to 1 that says how likely the measured lead could happen by chance | p-value |
+| stopping a provider from being tested automatically after repeated clear losses | provider ban |
 | a separate Docker container that runs alongside the main app | service / sidecar service |
 | a config file at the project's root that AI agents auto-discover | .mcp.json / project-scope MCP config |
 | numbered "feature request" specs in `docs/specs/fr*.md` — each one a contract for a feature | FR-014 / FR-016 / FR-XXX (any 3-digit feature number) |

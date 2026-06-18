@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from io import StringIO
+from unittest.mock import patch
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -13,28 +14,31 @@ from django.utils import timezone
 from apps.auto_issues.models import AutoIssue
 
 _DEFAULT_RESOLVED_AT = object()
+_EFFECTIVE_REQ_PATH = (
+    "apps.auto_issues.management.commands.verify_autoissue_quota._effective_requirement"
+)
 
 
 class VerifyAutoIssueQuotaCommandTests(TestCase):
-    def test_thirty_resolved_issues_with_lessons_pass(self) -> None:
-        issue_ids = _create_resolved_issues(30)
+    def test_twenty_eight_resolved_issues_with_lessons_pass(self) -> None:
+        issue_ids = _create_resolved_issues(28)
         out = StringIO()
         call_command("verify_autoissue_quota", ids=issue_ids, stdout=out)
-        self.assertIn("30 resolved", out.getvalue())
+        self.assertIn("28 resolved", out.getvalue())
 
-    def test_twenty_nine_issues_fail(self) -> None:
-        issue_ids = _create_resolved_issues(29)
-        with self.assertRaisesMessage(CommandError, "Expected 30 picked AutoIssues"):
+    def test_twenty_seven_issues_fail(self) -> None:
+        issue_ids = _create_resolved_issues(27)
+        with self.assertRaisesMessage(CommandError, "Expected 28 picked AutoIssues"):
             call_command("verify_autoissue_quota", ids=issue_ids)
 
     def test_duplicate_issue_id_fails(self) -> None:
-        issue_ids = _create_resolved_issues(29)
+        issue_ids = _create_resolved_issues(27)
         issue_ids.append(issue_ids[0])
         with self.assertRaisesMessage(CommandError, "Duplicate picked AutoIssue IDs"):
             call_command("verify_autoissue_quota", ids=issue_ids)
 
     def test_duplicate_canonical_work_fails(self) -> None:
-        issue_ids = _create_resolved_issues(30)
+        issue_ids = _create_resolved_issues(28)
         AutoIssue.objects.filter(id__in=issue_ids[:2]).update(
             canonical_fingerprint="same-autoissue-root"
         )
@@ -42,21 +46,21 @@ class VerifyAutoIssueQuotaCommandTests(TestCase):
             call_command("verify_autoissue_quota", ids=issue_ids)
 
     def test_open_issue_fails(self) -> None:
-        issue_ids = _create_resolved_issues(29)
+        issue_ids = _create_resolved_issues(27)
         open_issue = _create_issue(status=AutoIssue.STATUS_OPEN)
         issue_ids.append(str(open_issue.id))
         with self.assertRaisesMessage(CommandError, f"#{open_issue.id} is open"):
             call_command("verify_autoissue_quota", ids=issue_ids)
 
     def test_resolved_issue_without_lessons_fails(self) -> None:
-        issue_ids = _create_resolved_issues(29)
+        issue_ids = _create_resolved_issues(27)
         empty_lesson = _create_issue(lessons_learned="")
         issue_ids.append(str(empty_lesson.id))
         with self.assertRaisesMessage(CommandError, "has no lessons_learned note"):
             call_command("verify_autoissue_quota", ids=issue_ids)
 
     def test_missing_resolved_time_fails(self) -> None:
-        issue_ids = _create_resolved_issues(29)
+        issue_ids = _create_resolved_issues(27)
         missing_time = _create_issue()
         AutoIssue.objects.filter(id=missing_time.id).update(resolved_at=None)
         issue_ids.append(str(missing_time.id))
@@ -65,7 +69,7 @@ class VerifyAutoIssueQuotaCommandTests(TestCase):
 
     def test_issue_resolved_before_previous_handoff_fails(self) -> None:
         old_time = timezone.now() - timedelta(days=2)
-        issue_ids = _create_resolved_issues(29)
+        issue_ids = _create_resolved_issues(27)
         old_issue = _create_issue(resolved_at=old_time)
         issue_ids.append(str(old_issue.id))
         yesterday = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
@@ -81,7 +85,7 @@ class VerifyAutoIssueQuotaCommandTests(TestCase):
             call_command("verify_autoissue_quota", ids=["abc"])
 
     def test_invalid_resolved_after_fails(self) -> None:
-        issue_ids = _create_resolved_issues(30)
+        issue_ids = _create_resolved_issues(28)
         with self.assertRaisesMessage(CommandError, "YYYY-MM-DD HH:MM"):
             call_command(
                 "verify_autoissue_quota",
@@ -90,7 +94,7 @@ class VerifyAutoIssueQuotaCommandTests(TestCase):
             )
 
     def test_missing_issue_id_fails(self) -> None:
-        issue_ids = _create_resolved_issues(29)
+        issue_ids = _create_resolved_issues(27)
         issue_ids.append("999999")
         with self.assertRaisesMessage(CommandError, "do not exist"):
             call_command("verify_autoissue_quota", ids=issue_ids)
@@ -374,7 +378,8 @@ class ScaledRequirementsTests(TestCase):
         # Empty DB: every cross-source bucket is dry (0 open issues).
         h, c = _scaled_requirements("reconciliation")
         counts: dict = {}  # nothing resolved, but nothing exists to resolve
-        errors = _hard_quota_errors_scaled(counts, h, c)
+        with patch(_EFFECTIVE_REQ_PATH, return_value=0):
+            errors = _hard_quota_errors_scaled(counts, h, c)
         self.assertEqual(
             errors, [], f"Dry cross-source buckets must be exempt; got: {errors}"
         )
@@ -390,7 +395,8 @@ class ScaledRequirementsTests(TestCase):
         h, c = _scaled_requirements("feature")
         counts = {src: 3 for src in _CROSS_SOURCE_REQUIREMENTS}
         counts[AutoIssue.SOURCE_PYROSCOPE] = 0
-        errors = _hard_quota_errors_scaled(counts, h, c)
+        with patch(_EFFECTIVE_REQ_PATH, side_effect=_pyroscope_one_available):
+            errors = _hard_quota_errors_scaled(counts, h, c)
         self.assertTrue(
             any("pyroscope: 0 of 1 available resolved" in e for e in errors),
             f"Expected one available pyroscope row to block; got: {errors}",
@@ -403,12 +409,17 @@ class ScaledRequirementsTests(TestCase):
             lessons_learned="Trap: one row was available.\nFix shape: resolved the one row.",
         )
         counts[AutoIssue.SOURCE_PYROSCOPE] = 1
-        errors = _hard_quota_errors_scaled(counts, h, c)
+        with patch(_EFFECTIVE_REQ_PATH, side_effect=_pyroscope_one_available):
+            errors = _hard_quota_errors_scaled(counts, h, c)
         self.assertEqual(errors, [], f"Resolved available cross-source row: {errors}")
 
 
 def _create_resolved_issues(count: int) -> list[str]:
     return [str(_create_issue().id) for _ in range(count)]
+
+
+def _pyroscope_one_available(source: str, _required: int, _resolved_count: int) -> int:
+    return 1 if source == AutoIssue.SOURCE_PYROSCOPE else 0
 
 
 def _create_issue(

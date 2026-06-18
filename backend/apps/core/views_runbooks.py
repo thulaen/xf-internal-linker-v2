@@ -7,7 +7,7 @@ now has a matching safe, idempotent, confirmation-gated backend endpoint.
 Safety rules (never violated):
   - No endpoint rebuilds code, recompiles native extensions, or modifies
     ranking logic.
-  - No endpoint runs `docker compose down -v` or touches database volumes.
+- No endpoint touches database volumes or rollback archives.
   - Every mutation requires ``{"confirmed": true}`` in the POST body.
   - Every endpoint is idempotent — re-running returns ``already_done`` rather
     than double-acting.

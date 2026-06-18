@@ -1,0 +1,127 @@
+.provider-scoreboard {
+  display: grid;
+  gap: var(--space-5, 20px);
+  padding: var(--space-4, 16px) 0;
+}
+
+.scoreboard-toolbar {
+  align-items: start;
+  display: flex;
+  gap: var(--space-4, 16px);
+  justify-content: space-between;
+}
+
+.scoreboard-toolbar h2 {
+  font-size: var(--font-size-xl, 20px);
+  font-weight: 700;
+  margin: 0 0 var(--space-1, 4px);
+}
+
+.scoreboard-toolbar p {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.scoreboard-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3, 12px);
+  justify-content: flex-end;
+}
+
+.scoreboard-actions mat-form-field {
+  width: 150px;
+}
+
+.scoreboard-state,
+.scoreboard-empty,
+.scoreboard-error {
+  align-items: center;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-secondary);
+  display: flex;
+  gap: var(--space-3, 12px);
+  padding: var(--space-4, 16px);
+}
+
+.scoreboard-error {
+  color: var(--status-error);
+}
+
+.score-run-list {
+  display: grid;
+  gap: var(--space-4, 16px);
+}
+
+.score-run {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+}
+
+.score-run header {
+  align-items: center;
+  background: var(--surface-subtle);
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+}
+
+.score-run h3 {
+  font-size: var(--font-size-md, 16px);
+  margin: 0;
+}
+
+.score-table {
+  display: grid;
+}
+
+.score-row {
+  align-items: center;
+  border-top: 1px solid var(--border-subtle);
+  display: grid;
+  gap: var(--space-3, 12px);
+  grid-template-columns: minmax(160px, 1.4fr) repeat(3, minmax(76px, 0.7fr)) minmax(90px, 0.8fr) minmax(140px, 1fr) minmax(100px, 0.7fr);
+  min-height: 56px;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+}
+
+.score-row--header {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm, 13px);
+  font-weight: 700;
+}
+
+.score-row small {
+  color: var(--text-secondary);
+  display: block;
+  margin-top: var(--space-1, 4px);
+}
+
+mark {
+  background: var(--surface-subtle);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-primary);
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+}
+
+mark.is-banned {
+  color: var(--status-error);
+}
+
+@media (max-width: 900px) {
+  .scoreboard-toolbar {
+    display: grid;
+  }
+
+  .scoreboard-actions {
+    justify-content: start;
+  }
+
+  .score-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}

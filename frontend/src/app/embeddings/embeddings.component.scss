@@ -184,3 +184,18 @@ table.full-width {
     font-size: 13px;
   }
 }
+
+.verdict-cell {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+
+  button {
+    min-width: 104px;
+  }
+}
+
+.table-note {
+  margin: var(--space-sm) 0 0 0;
+}

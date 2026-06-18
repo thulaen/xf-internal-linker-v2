@@ -1,7 +1,9 @@
 from pathlib import Path
+from unittest.mock import patch
+
+import yaml
 from django.conf import settings
 from django.test import SimpleTestCase
-import yaml
 
 from apps.observability.management.commands.check_observability_health import (
     _service_state,
@@ -57,8 +59,46 @@ class ObservabilityStackFoundationTests(SimpleTestCase):
         self.assertTrue(vm["isDefault"])
         self.assertEqual(vm["url"], "http://vmsingle:8428")
 
-    def test_health_probe_matches_compose_service_or_container_name(self):
-        rows = [
+    def test_health_probe_reads_kubernetes_pod_readiness(self):
+        pod = {
+            "status": {
+                "phase": "Running",
+                "containerStatuses": [{"ready": True}],
+            },
+        }
+
+        with patch(
+            "apps.observability.management.commands.check_observability_health."
+            "_kubernetes_pods_for_service",
+            return_value=[pod],
+        ):
+            self.assertEqual(("Running", "Ready"), _service_state("vmsingle"))
+
+    def test_health_probe_reports_not_ready_kubernetes_pod(self):
+        pod = {
+            "status": {
+                "phase": "Running",
+                "containerStatuses": [{"ready": False}],
+            },
+        }
+
+        with patch(
+            "apps.observability.management.commands.check_observability_health."
+            "_kubernetes_pods_for_service",
+            return_value=[pod],
+        ):
+            self.assertEqual(("Running", "not-ready"), _service_state("vmsingle"))
+
+    def test_health_probe_reports_absent_kubernetes_pod(self):
+        with patch(
+            "apps.observability.management.commands.check_observability_health."
+            "_kubernetes_pods_for_service",
+            return_value=[],
+        ):
+            self.assertEqual(("absent", ""), _service_state("vmsingle"))
+
+    def test_health_probe_ignores_old_compose_rows(self):
+        old_compose_rows = [
             {
                 "Name": "xf_linker_vmsingle",
                 "Service": "vmsingle",
@@ -67,4 +107,10 @@ class ObservabilityStackFoundationTests(SimpleTestCase):
             }
         ]
 
-        self.assertEqual(("running", ""), _service_state(rows, "vmsingle"))
+        with patch(
+            "apps.observability.management.commands.check_observability_health."
+            "_kubernetes_pods_for_service",
+            return_value=[],
+        ):
+            self.assertEqual(("absent", ""), _service_state("vmsingle"))
+        self.assertEqual("vmsingle", old_compose_rows[0]["Service"])

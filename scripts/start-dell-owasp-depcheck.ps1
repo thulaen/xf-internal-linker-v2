@@ -4,10 +4,10 @@ $ErrorActionPreference = "Stop"
 Write-Host "Starting OWASP Dependency-Check on Dell..." -ForegroundColor Cyan
 
 try {
-    docker --context dell rm -f xf_dell_owasp_depcheck > $null 2>&1
+    ssh dell docker rm -f xf_dell_owasp_depcheck > $null 2>&1
 } catch {}
 
-docker --context dell run --rm `
+ssh dell docker run --rm `
   --name xf_dell_owasp_depcheck `
   --memory 768m `
   --network xf_dell_quality `

@@ -9,9 +9,9 @@ function Invoke-DellDocker {
         [Parameter(ValueFromRemainingArguments = $true)]
         [string[]]$DockerArgs
     )
-    & docker --context dell @DockerArgs
+    & ssh dell docker @DockerArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "Dell Docker command failed: docker --context dell $($DockerArgs -join ' ')"
+        throw "Dell Docker command failed: ssh dell docker $($DockerArgs -join ' ')"
     }
 }
 
@@ -35,20 +35,13 @@ if ($existingContainers.Count -gt 0) {
     Invoke-DellDocker @removeArgs
 }
 
-# Rebuild image if requested (building directly on Dell)
-# The docs-site must be synced to Dell first, but for now we build via buildx or local daemon
 if ($Rebuild) {
-    Write-Host "Building xf_docs_image locally and transferring to Dell..."
-    # Build locally
-    docker build -t xf_docs_image docs-site
-    if ($LASTEXITCODE -ne 0) { throw "Local build failed." }
-    
-    # Save, transfer and load
-    Write-Host "Transferring image..."
-    $tempTar = Join-Path $env:TEMP "xf_docs_image.tar"
-    docker save -o $tempTar xf_docs_image
-    docker --context dell load -i $tempTar
-    Remove-Item $tempTar -ErrorAction SilentlyContinue
+    Write-Host "Building xf_docs_image through smart build routing..."
+    $smartBuild = Join-Path $PSScriptRoot "smart_build.py"
+    python $smartBuild --target docs-site
+    if ($LASTEXITCODE -ne 0) {
+        throw "Smart build failed for docs-site."
+    }
 }
 
 # Start Docs container

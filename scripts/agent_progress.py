@@ -19,12 +19,11 @@ HOW AGENTS USE IT
     regardless of the cadence.
 
 WHAT "STUCK" MEANS HERE
-    The exact failure we keep hitting: a quality/mutation Docker container that has
-    been up for several minutes at near-zero CPU (a blocked wait, not real work),
-    or a mutation lock file held far longer than a run should take. Both are
-    reported in plain English. A warm helper whose only job is to idle (for
-    example ``tail -f /dev/null``) sits at ~0% CPU on purpose, so it is never
-    counted as stuck — that would be a false alarm that hides real stalls.
+    The old local-Docker stall check is optional now because MSI is allowed to
+    have no Docker command at all. When Docker is missing, this script still
+    checks the mutation lock file and the active chat task. A warm helper whose
+    only job is to idle (for example ``tail -f /dev/null``) sits at ~0% CPU on
+    purpose, so it is never counted as stuck.
 
 Plain-English only in all output — define nothing in jargon. No network calls.
 """
@@ -256,12 +255,33 @@ def _git_dirty_count() -> int:
 
 
 def _docker_quality_containers() -> list[dict]:
-    """name/up_minutes/cpu_percent/keepalive for running quality/mutation containers."""
-    names = subprocess.run(
-        ["docker", "ps", "--no-trunc", "--format", "{{.Names}}\t{{.RunningFor}}\t{{.Command}}"],
-        capture_output=True, text=True, check=False,
-    ).stdout
-    rows: list[dict] = []
+    """Return local quality containers, or an empty list when MSI has no Docker."""
+    targets = _docker_quality_targets()
+    if not targets:
+        return []
+    cpu = _docker_quality_cpu(targets)
+    return [
+        {
+            "name": name,
+            "up_minutes": meta["up_minutes"],
+            "cpu_percent": cpu.get(name, 0.0),
+            "keepalive": meta["keepalive"],
+        }
+        for name, meta in targets.items()
+    ]
+
+
+def _docker_quality_targets() -> dict[str, dict]:
+    try:
+        names_result = subprocess.run(
+            ["docker", "ps", "--no-trunc", "--format", "{{.Names}}\t{{.RunningFor}}\t{{.Command}}"],
+            capture_output=True, text=True, check=False,
+        )
+    except (FileNotFoundError, OSError):
+        return {}
+    if getattr(names_result, "returncode", 0) != 0:
+        return {}
+    names = names_result.stdout
     targets: dict[str, dict] = {}
     for ln in names.splitlines():
         parts = ln.split("\t")
@@ -274,26 +294,27 @@ def _docker_quality_containers() -> list[dict]:
             "up_minutes": _minutes_from_running_for(running_for),
             "keepalive": is_keepalive_command(command),
         }
-    if not targets:
-        return rows
-    stats = subprocess.run(
-        ["docker", "stats", "--no-stream", "--format", "{{.Name}}\t{{.CPUPerc}}", *targets],
-        capture_output=True, text=True, check=False,
-    ).stdout
+    return targets
+
+
+def _docker_quality_cpu(targets: dict[str, dict]) -> dict[str, float]:
+    try:
+        stats_result = subprocess.run(
+            ["docker", "stats", "--no-stream", "--format", "{{.Name}}\t{{.CPUPerc}}", *targets],
+            capture_output=True, text=True, check=False,
+        )
+    except (FileNotFoundError, OSError):
+        return {}
+    if getattr(stats_result, "returncode", 0) != 0:
+        return {}
+    stats = stats_result.stdout
     cpu: dict[str, float] = {}
     for ln in stats.splitlines():
         if "\t" not in ln:
             continue
         name, perc = ln.split("\t", 1)
         cpu[name] = float(perc.strip().rstrip("%") or 0.0)
-    for name, meta in targets.items():
-        rows.append({
-            "name": name,
-            "up_minutes": meta["up_minutes"],
-            "cpu_percent": cpu.get(name, 0.0),
-            "keepalive": meta["keepalive"],
-        })
-    return rows
+    return cpu
 
 
 def _minutes_from_running_for(text: str) -> float:

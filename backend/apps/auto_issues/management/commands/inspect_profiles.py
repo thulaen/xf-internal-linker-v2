@@ -198,7 +198,7 @@ def _image_version_at_least(image: str, minimum: tuple[int, int, int]) -> bool:
 def _proof_marker(
     *, service: str, scope: str, hotspots: list[tuple[str, float]]
 ) -> str:
-    baseline = "docker compose exec -T backend python manage.py inspect_profiles"
+    baseline = "python scripts/backend_manage.py inspect_profiles"
     return (
         "[PROFILING PROOF: "
         f"service={service} scope={scope} source=pyroscope+otel_profiles "

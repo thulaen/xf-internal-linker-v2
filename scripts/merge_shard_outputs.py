@@ -12,6 +12,7 @@ References:
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Callable
 
 
@@ -66,6 +67,38 @@ def check_failed_shards(manifest_entries: list[dict]) -> list[str]:
     return errors
 
 
+def summarize_entries(manifest_entries: list[dict], errors: list[str]) -> dict:
+    """Return small merge counts for final reporting."""
+    required = [entry for entry in manifest_entries if entry.get("required_for_merge", False)]
+    failed = [entry for entry in manifest_entries if entry.get("failed", False)]
+    return {
+        "total_entries": len(manifest_entries),
+        "required_entries": len(required),
+        "failed_entries": len(failed),
+        "error_count": len(errors),
+        "status": "failed" if errors else "passed",
+    }
+
+
+def render_final_report(run_id: str, manifest_entries: list[dict], errors: list[str]) -> str:
+    """Render a plain-English merge report for the distributed test run."""
+    summary = summarize_entries(manifest_entries, errors)
+    lines = [
+        f"# Distributed quality merge report {run_id}",
+        "",
+        f"Status: {summary['status']}",
+        f"Manifest entries checked: {summary['total_entries']}",
+        f"Required entries checked: {summary['required_entries']}",
+        f"Failed shard entries: {summary['failed_entries']}",
+        f"Merge errors: {summary['error_count']}",
+    ]
+    if errors:
+        lines.append("")
+        lines.append("## Errors")
+        lines.extend(f"- {error}" for error in errors)
+    return "\n".join(lines) + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point: merge-shard-outputs.py <run_id> [--mint-host H] [--ssh-user U]."""
     import argparse
@@ -76,6 +109,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--mint-host", default="mint", help="Mint SSH hostname")
     parser.add_argument("--ssh-user", default="xf", help="Mint SSH user")
     parser.add_argument("--mint-root", default="/srv/xf", help="Mint artifact root")
+    parser.add_argument("--report-out", help="Write a final Markdown report to this path")
     args = parser.parse_args(argv)
 
     store = MintBlobStore(args.mint_host, args.ssh_user, args.mint_root)
@@ -87,6 +121,10 @@ def main(argv: list[str] | None = None) -> int:
 
     errors = check_manifests(entries, blob_exists=store.blob_exists)
     errors.extend(check_failed_shards(entries))
+    report = render_final_report(args.run_id, entries, errors)
+    if args.report_out:
+        Path(args.report_out).write_text(report, encoding="utf-8")
+
     if errors:
         for err in errors:
             print(f"ERROR: {err}", file=sys.stderr)

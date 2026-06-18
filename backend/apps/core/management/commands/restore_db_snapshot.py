@@ -8,14 +8,14 @@ state is gone unless a more recent snapshot exists.
 
 Usage:
     # List available snapshots and pick one
-    docker compose exec backend python manage.py restore_db_snapshot --list
+    python scripts/backend_manage.py restore_db_snapshot --list
 
     # Restore by exact filename (must be in backups/)
-    docker compose exec backend python manage.py restore_db_snapshot \\
+    python scripts/backend_manage.py restore_db_snapshot \\
         snapshot-20260428-023000.dump --confirm
 
     # Or restore the most recent snapshot
-    docker compose exec backend python manage.py restore_db_snapshot \\
+    python scripts/backend_manage.py restore_db_snapshot \\
         --latest --confirm
 
 The ``--confirm`` flag is mandatory. Without it the command prints
@@ -69,6 +69,11 @@ class Command(BaseCommand):
                 "command prints the plan and exits."
             ),
         )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Print the restore plan without changing the database.",
+        )
 
     def handle(self, *args, **options):
         snapshots = list_existing_snapshots(DEFAULT_BACKUP_DIR)
@@ -112,7 +117,7 @@ class Command(BaseCommand):
         )
         self.stdout.write("")
 
-        if not options.get("confirm"):
+        if options.get("dry_run") or not options.get("confirm"):
             self.stdout.write(
                 self.style.NOTICE(
                     "Dry run only. Re-run with --confirm to actually restore."

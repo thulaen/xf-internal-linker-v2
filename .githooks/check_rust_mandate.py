@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tarfile
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -90,7 +92,7 @@ _MISSING_TOOL_MARKERS = (
 # `xf_dell_compiled_repo` volume, then cargo runs inside Dell's
 # xf-linker-compiled-tools image with the shared artifact + cache volumes mounted.
 DELL_CONTEXT = "dell"
-DELL_IMAGE = "xf-linker-compiled-tools:latest"
+DELL_IMAGE = "xf-linker-compiled-mutation-tools:latest"
 DELL_REPO_VOLUME = "xf_dell_compiled_repo"
 DELL_CACHE_VOLUME = "xf_dell_compiled_cache"
 DELL_ARTIFACTS_VOLUME = "compiled_artifacts"
@@ -99,11 +101,11 @@ DELL_ARTIFACTS_VOLUME = "compiled_artifacts"
 # workspaces (services/speccheck + rust/) live under these roots; .githooks and
 # scripts/ carry the coverage-ratchet script the coverage step shells.
 _DELL_SYNC_ROOTS = ("services", "rust", "scripts", ".githooks")
-_DELL_SYNC_EXCLUDES = (
-    "--exclude=services/speccheck/target",
-    "--exclude=rust/target",
-    "--exclude=rust/mutants.out",
-    "--exclude=rust/mutants.out.old",
+_DELL_SYNC_EXCLUDE_PATHS = (
+    "services/speccheck/target",
+    "rust/target",
+    "rust/mutants.out",
+    "rust/mutants.out.old",
 )
 
 
@@ -183,6 +185,27 @@ def _run_workspace_gate(root: Path, ws: RustWorkspace) -> int | str:
     Returns the exit code (2) on a hard failure, or the summary string on
     success. Missing graceful-step tools degrade to a warning + continue.
     """
+    reachability = subprocess.run(
+        _dell_docker_command("version"),
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=60,
+    )
+    if reachability.returncode != 0:
+        return _fail(
+            "Dell unavailable",
+            "WHY: Rust checks must run on Dell because MSI has no local Docker "
+            "toolchain.\n"
+            "UNBLOCK: restore SSH access to Dell Docker, then rerun the commit.\n"
+            f"{(reachability.stdout + reachability.stderr).strip()}",
+        )
+    sync_result = _sync_dell_source(root)
+    if sync_result.returncode != 0:
+        return _fail("Dell source sync", _process_output(sync_result))
     statuses: dict[str, str] = {}
     for name, cargo_command in _gate_steps(ws):
         result = subprocess.run(
@@ -207,16 +230,96 @@ def _run_workspace_gate(root: Path, ws: RustWorkspace) -> int | str:
     return _summary_line(ws, statuses)
 
 
+def _sync_dell_source(root: Path) -> subprocess.CompletedProcess:
+    """Copy the current Rust gate source roots into the Dell repo volume."""
+    existing_roots = [path for path in _DELL_SYNC_ROOTS if (root / path).exists()]
+    if not existing_roots:
+        return subprocess.CompletedProcess(args=["tar"], returncode=1, stdout="", stderr="no roots")
+
+    tmp_dir = root / ".tmp"
+    tmp_dir.mkdir(exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        prefix="rust-mandate-", suffix=".tar", dir=tmp_dir, delete=False
+    ) as tmp_file:
+        tar_path = Path(tmp_file.name)
+    try:
+        with tarfile.open(tar_path, "w") as archive:
+            for source_root in existing_roots:
+                archive.add(root / source_root, arcname=source_root, filter=_filter_tar_member)
+        return _upload_dell_source(root, tar_path)
+    finally:
+        tar_path.unlink(missing_ok=True)
+
+
+def _upload_dell_source(root: Path, tar_path: Path) -> subprocess.CompletedProcess:
+    """Upload one prepared source archive to Dell's Rust gate volume."""
+    extract_command = (
+        "rm -rf /repo/services /repo/rust /repo/scripts /repo/.githooks "
+        "&& tar -xf - -C /repo"
+    )
+    docker_cmd = _dell_docker_command(
+        "run",
+        "--rm",
+        "-i",
+        "-v",
+        f"{DELL_REPO_VOLUME}:/repo",
+        "alpine:latest",
+        "sh",
+        "-c",
+        extract_command,
+    )
+    with tar_path.open("rb") as source_archive:
+        return subprocess.run(
+            docker_cmd,
+            cwd=root,
+            stdin=source_archive,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=300,
+        )
+
+
+def _filter_tar_member(member: tarfile.TarInfo) -> tarfile.TarInfo | None:
+    """Drop generated Rust outputs from the source archive sent to Dell."""
+    name = member.name.replace("\\", "/")
+    for excluded in _DELL_SYNC_EXCLUDE_PATHS:
+        if name == excluded or name.startswith(f"{excluded}/"):
+            return None
+    return member
+
+
 def _docker_command(container_workspace: str, cargo_command: str) -> list[str]:
-    return [
-        "docker",
-        "compose",
-        "exec",
-        "-T",
-        "compiled-tools",
+    return _dell_docker_command(
+        "run",
+        "--rm",
+        "-v",
+        f"{DELL_REPO_VOLUME}:/repo",
+        "-v",
+        f"{DELL_CACHE_VOLUME}:/cargo-cache",
+        "-v",
+        f"{DELL_ARTIFACTS_VOLUME}:/opt/xf/compiled",
+        "-e",
+        "CARGO_TERM_COLOR=never",
+        "-w",
+        container_workspace,
+        DELL_IMAGE,
         "bash",
         "-lc",
-        f"cd {container_workspace} && {cargo_command}",
+        cargo_command,
+    )
+
+
+def _dell_docker_command(*docker_args: str) -> list[str]:
+    return [
+        sys.executable,
+        "scripts/remote_docker.py",
+        "--host",
+        DELL_CONTEXT,
+        "--",
+        *docker_args,
     ]
 
 
@@ -227,6 +330,16 @@ def _looks_like_missing_tool(returncode: int, output: str) -> bool:
         return True
     # `bash -lc "cargo audit ..."` returns 127 when the subcommand is absent.
     return returncode == 127
+
+
+def _process_output(result: subprocess.CompletedProcess) -> str:
+    stdout = result.stdout or ""
+    stderr = result.stderr or ""
+    if isinstance(stdout, bytes):
+        stdout = stdout.decode("utf-8", errors="replace")
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", errors="replace")
+    return (stdout + stderr).strip()
 
 
 def _warn_missing_tool(ws: RustWorkspace, step: str, detail: str) -> None:

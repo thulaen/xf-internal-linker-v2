@@ -223,5 +223,47 @@ class ConstantsExposedTests(unittest.TestCase):
         self.assertTrue(len(_hook_helpers.GENERATED_PATTERNS) > 0)
 
 
+class BackendRunnerTests(unittest.TestCase):
+    def test_shell_batch_verify_uses_shared_backend_runner(self):
+        seen = {}
+
+        def fake_run(command, **_kwargs):
+            seen["command"] = command
+            return subprocess.CompletedProcess(command, 0, '{"ok": true}', "")
+
+        with mock.patch.object(_hook_helpers.subprocess, "run", fake_run):
+            result = _hook_helpers.shell_batch_verify({"tdd_lessons": [1, 2]})
+
+        self.assertEqual(result, {"ok": True})
+        self.assertIn("backend_manage.py", seen["command"][1])
+        self.assertNotIn("docker", seen["command"])
+
+    def test_file_finding_uses_shared_backend_runner(self):
+        seen = {}
+        payload = {
+            "category": "quality",
+            "severity": "high",
+            "subject": "scripts/example.py:12",
+            "message": "This test message is long enough to pass validation.",
+        }
+
+        def fake_run(command, **_kwargs):
+            seen["command"] = command
+            return subprocess.CompletedProcess(command, 0, "[HOOK FINDING FILED: AutoIssue=#1]", "")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(_hook_helpers.subprocess, "run", fake_run):
+                result = _hook_helpers._run_file_hook_finding_command(
+                    payload,
+                    Path(tmp),
+                    "codex",
+                    10,
+                )
+
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("backend_manage.py", seen["command"][1])
+        self.assertNotIn("docker", seen["command"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -17,7 +17,7 @@ bullet is passed as a separate `--issue` value; no string substitution
 into source code anywhere.
 
 Usage:
-    docker compose exec -T backend python manage.py file_task_issues \\
+    python scripts/backend_manage.py file_task_issues \\
       --turn-id <uuid> \\
       --agent claude \\
       --issue "Mull is not file-scoped — still runs all 9 GTest binaries" \\
@@ -31,6 +31,8 @@ Markers emitted (machine-readable for the hook to parse):
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -43,6 +45,15 @@ _CATEGORY_LABEL = "Task follow-up"
 
 _MAX_TITLE_CHARS = 200
 _MAX_DESCRIPTION_CHARS = 4000
+
+
+@dataclass(frozen=True)
+class TaskIssueDraft:
+    raw: str
+    description: str
+    title: str
+    fingerprint: str
+    external_id: str
 
 
 def _get_or_create_category() -> AutoIssueCategory:
@@ -100,28 +111,18 @@ class Command(BaseCommand):
         now = timezone.now()
         filed = 0
         deduped = 0
+        drafts = [_draft_issue(raw) for raw in issues]
+        existing_by_external_id = _existing_issues_by_external_id(category, drafts)
 
-        for raw in issues:
-            # Title is first sentence or first 200 chars, whichever is
-            # shorter. Description is the full bullet.
-            description = raw[:_MAX_DESCRIPTION_CHARS]
-            short = raw.split(". ", 1)[0]
-            title = (short if len(short) <= _MAX_TITLE_CHARS
-                     else short[:_MAX_TITLE_CHARS - 3] + "...")
-            cf = canonical_fingerprint(title)
-            ext_id = f"task_followup::{cf}"
-
-            existing = AutoIssue.objects.filter(
-                external_id=ext_id,
-                category=category,
-            ).first()
+        for draft in drafts:
+            existing = existing_by_external_id.get(draft.external_id)
 
             if existing is not None:
                 existing.occurrence_count += 1
                 existing.last_seen = now
                 obs = {
                     "source": "task_followup",
-                    "external_id": ext_id,
+                    "external_id": draft.external_id,
                     "first_seen": existing.first_seen.isoformat()
                     if existing.first_seen else now.isoformat(),
                     "last_seen": now.isoformat(),
@@ -150,11 +151,11 @@ class Command(BaseCommand):
 
             ai = AutoIssue.objects.create(
                 source=AutoIssue.SOURCE_AGENT,
-                external_id=ext_id,
-                fingerprint=cf[:64],
-                canonical_fingerprint=cf,
-                title=title,
-                description=description,
+                external_id=draft.external_id,
+                fingerprint=draft.fingerprint[:64],
+                canonical_fingerprint=draft.fingerprint,
+                title=draft.title,
+                description=draft.description,
                 severity=AutoIssue.SEVERITY_MEDIUM,
                 category=category,
                 status=AutoIssue.STATUS_OPEN,
@@ -165,7 +166,7 @@ class Command(BaseCommand):
                 source_observations=[
                     {
                         "source": "task_followup",
-                        "external_id": ext_id,
+                        "external_id": draft.external_id,
                         "first_seen": now.isoformat(),
                         "last_seen": now.isoformat(),
                         "occurrence_count": 1,
@@ -175,7 +176,7 @@ class Command(BaseCommand):
                 ],
             )
             self.stdout.write(
-                f"[TASK ISSUE FILED: AutoIssue=#{ai.pk} title={title[:60]!r}]"
+                f"[TASK ISSUE FILED: AutoIssue=#{ai.pk} title={draft.title[:60]!r}]"
             )
             filed += 1
 
@@ -184,3 +185,31 @@ class Command(BaseCommand):
             f"[TASK ISSUES SUMMARY: turn={turn_id} filed={filed} "
             f"deduped={deduped} total={total}]"
         )
+
+
+def _draft_issue(raw: str) -> TaskIssueDraft:
+    description = raw[:_MAX_DESCRIPTION_CHARS]
+    short = raw.split(". ", 1)[0]
+    title = short if len(short) <= _MAX_TITLE_CHARS else short[:_MAX_TITLE_CHARS - 3] + "..."
+    fingerprint = canonical_fingerprint(title)
+    return TaskIssueDraft(
+        raw=raw,
+        description=description,
+        title=title,
+        fingerprint=fingerprint,
+        external_id=f"task_followup::{fingerprint}",
+    )
+
+
+def _existing_issues_by_external_id(
+    category: AutoIssueCategory,
+    drafts: list[TaskIssueDraft],
+) -> dict[str, AutoIssue]:
+    external_ids = [draft.external_id for draft in drafts]
+    return {
+        issue.external_id: issue
+        for issue in AutoIssue.objects.filter(
+            external_id__in=external_ids,
+            category=category,
+        )
+    }

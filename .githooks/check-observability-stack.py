@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 """
-Pre-commit hook: verify every observability + quality container is up.
+Pre-commit hook: verify every observability service is up in Kubernetes.
 
-Hard-blocks every code-changing commit when any container in the named
-tier is missing, exited, restarting, or unhealthy.  The list mirrors
+Hard-blocks every code-changing commit when any service in the named
+tier is missing or not Ready.  The list mirrors
 the ABSOLUTE rule added 2026-05-22 — see
 `docs/specs/fr-observability-always-on-and-no-deferral.md` and
 `CLAUDE.md` / `AGENTS.md` / `CODEX.md` / `GEMINI.md`.
 
 States the hook ACCEPTS:
-  * `State="running"` AND Health is `starting`, `healthy`, or absent.
+  * At least one pod with `status.phase="Running"` and every container Ready.
 
 States the hook BLOCKS on:
-  * `State` != `running` (created, paused, exited, dead, removing,
-    restarting)
-  * `Health` of `unhealthy`
-  * Container absent from `docker compose ps --format json` output.
+  * No matching pod.
+  * Any matching pod that is not Running and Ready.
 
 Run manually:
     python .githooks/check-observability-stack.py
@@ -24,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -31,6 +30,10 @@ import urllib.request
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+K8S_NAMESPACE = "xf-obs"
+KUBECTL_ENV = "XF_OBSERVABILITY_KUBECTL"
+K8S_SSH_HOST_ENV = "XF_OBSERVABILITY_K8S_SSH_HOST"
+DEFAULT_K8S_SSH_HOST = "mint-wifi"
 
 # 2026-05-23 — Phase K.4 DRY refactor: the observability + quality tier
 # list now lives in ``config/observability-services.json`` as a single
@@ -60,8 +63,7 @@ def _mint_observability_host() -> str:
 def _load_remote_services() -> tuple[dict, ...]:
     """Return remote observability services.
 
-    These run on helper hosts, so they are not in the local
-    ``docker compose ps`` output.
+    These run on helper hosts, so they are checked by HTTP or SSH.
     Each entry with a ``health_url`` is verified over the network. A
     ``${MINT_OBSERVABILITY_HOST}`` token in a health_url is expanded from the
     single Mint-address env var so the cluster's address lives in one place.
@@ -89,26 +91,27 @@ REMOTE_SERVICES: tuple[dict, ...] = _load_remote_services()
 # Healthcheck states the hook accepts.  An empty Health string is
 # accepted because not every observability container declares a
 # healthcheck (e.g. otel-collector typically does not).
-ACCEPTED_HEALTH = frozenset({"", "healthy", "starting"})
-
-# Container State value the hook accepts.  Anything else is a block.
-ACCEPTED_STATE = "running"
-
-
 def _fail(message: str) -> int:
     sys.stderr.write(message)
     return 2
 
 
 def _ps_for_service(service: str) -> dict | None:
-    """Return the docker compose ps JSON record for *service*, or None.
-
-    docker compose ps emits one JSON line per matching container; we
-    request a single service so the first valid line is the only one.
-    """
+    """Return the Kubernetes pod-list JSON for *service*, or None."""
+    kubectl = os.environ.get(KUBECTL_ENV, "kubectl")
     try:
         result = subprocess.run(
-            ["docker", "compose", "ps", "--format", "json", service],
+            [
+                *_kubectl_command(kubectl),
+                "-n",
+                K8S_NAMESPACE,
+                "get",
+                "pods",
+                "-l",
+                f"app={service}",
+                "-o",
+                "json",
+            ],
             cwd=str(REPO_ROOT),
             capture_output=True,
             text=True,
@@ -124,19 +127,17 @@ def _ps_for_service(service: str) -> dict | None:
     stdout = (result.stdout or "").strip()
     if not stdout:
         return None
-    # docker compose emits ND-JSON; the first non-empty line is the
-    # service's record.  Older Compose versions can emit a JSON array.
-    first_line = stdout.splitlines()[0].strip()
-    if not first_line:
-        return None
     try:
-        parsed = json.loads(first_line)
+        parsed = json.loads(stdout)
     except json.JSONDecodeError:
         return None
-    # The array form: parsed is a list of one or more records.
-    if isinstance(parsed, list):
-        return parsed[0] if parsed else None
     return parsed if isinstance(parsed, dict) else None
+
+
+def _kubectl_command(kubectl: str) -> list[str]:
+    if shutil.which(kubectl):
+        return [kubectl]
+    return ["ssh", os.environ.get(K8S_SSH_HOST_ENV, DEFAULT_K8S_SSH_HOST), kubectl]
 
 
 def _check_service(service: str) -> str | None:
@@ -145,21 +146,41 @@ def _check_service(service: str) -> str | None:
     """
     record = _ps_for_service(service)
     if record is None:
-        return (
-            f"  {service}: container is absent from `docker compose ps` "
-            "(no record found)"
-        )
-    state = (record.get("State") or "").strip()
-    health = (record.get("Health") or "").strip()
-    if state != ACCEPTED_STATE:
-        return (
-            f"  {service}: State={state!r} (expected {ACCEPTED_STATE!r})"
-        )
-    if health not in ACCEPTED_HEALTH:
-        return (
-            f"  {service}: Health={health!r} "
-            f"(expected one of {sorted(ACCEPTED_HEALTH)})"
-        )
+        return f"  {service}: Kubernetes query failed or returned invalid JSON"
+    items = record.get("items") or []
+    if not items:
+        return f"  {service}: no Kubernetes pod found with label app={service}"
+    for pod in items:
+        problem = _pod_not_ready_reason(service, pod)
+        if problem is not None:
+            return problem
+    return None
+
+
+def _pod_not_ready_reason(service: str, pod: dict) -> str | None:
+    name = str((pod.get("metadata") or {}).get("name") or service)
+    status = pod.get("status") or {}
+    phase_problem = _pod_phase_problem(service, name, status)
+    if phase_problem is not None:
+        return phase_problem
+    readiness_problem = _pod_readiness_problem(service, name, status)
+    return readiness_problem
+
+
+def _pod_phase_problem(service: str, name: str, status: dict) -> str | None:
+    phase = str(status.get("phase") or "")
+    if phase != "Running":
+        return f"  {service}: pod {name} phase is {phase!r}, expected 'Running'"
+    return None
+
+
+def _pod_readiness_problem(service: str, name: str, status: dict) -> str | None:
+    statuses = status.get("containerStatuses") or []
+    if not statuses:
+        return f"  {service}: pod {name} has no container readiness status"
+    not_ready = [str(item.get("name") or "container") for item in statuses if not item.get("ready")]
+    if not_ready:
+        return f"  {service}: pod {name} containers not Ready: {', '.join(not_ready)}"
     return None
 
 
@@ -182,29 +203,36 @@ def _check_remote_service(service: dict) -> str | None:
     # absent, any successful command or HTTP 200 is treated as healthy.
     expect = service.get("health_ok_contains")
     if health_command:
-        if not isinstance(health_command, list) or not all(
-            isinstance(part, str) for part in health_command
-        ):
-            return f"  {label} (on {host}): health_command must be a string list"
-        result = subprocess.run(
-            health_command,
-            capture_output=True,
-            text=True,
-            timeout=20,
-            check=False,
-        )
-        body = result.stdout
-        if result.returncode != 0:
-            return (
-                f"  {label} (on {host}): health_command failed "
-                f"(exit {result.returncode})"
-            )
-        if expect and expect.replace(" ", "") not in body.replace(" ", ""):
-            return (
-                f"  {label} (on {host}): health body did not contain "
-                f"{expect!r} ({body[:120]!r})"
-            )
-        return None
+        return _check_remote_command(label, host, health_command, expect)
+    return _check_remote_http(label, host, health_url, expect)
+
+
+def _check_remote_command(
+    label: str,
+    host: str,
+    health_command: object,
+    expect: object,
+) -> str | None:
+    if not _is_command_list(health_command):
+        return f"  {label} (on {host}): health_command must be a string list"
+    result = subprocess.run(
+        _ssh_docker_command(health_command),
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    if result.returncode != 0:
+        return f"  {label} (on {host}): health_command failed (exit {result.returncode})"
+    return _body_expectation_error(label, host, result.stdout, expect)
+
+
+def _check_remote_http(
+    label: str,
+    host: str,
+    health_url: object,
+    expect: object,
+) -> str | None:
     try:
         with urllib.request.urlopen(health_url, timeout=8) as response:  # nosec B310 - fixed config URL
             status_code = getattr(response, "status", 200)
@@ -216,12 +244,25 @@ def _check_remote_service(service: dict) -> str | None:
         )
     if status_code != 200:
         return f"  {label} (on {host}): HTTP {status_code} from {health_url}"
-    if expect and expect.replace(" ", "") not in body.replace(" ", ""):
-        return (
-            f"  {label} (on {host}): health body did not contain "
-            f"{expect!r} ({body[:120]!r})"
-        )
-    return None
+    return _body_expectation_error(label, host, body, expect)
+
+
+def _is_command_list(value: object) -> bool:
+    return isinstance(value, list) and all(isinstance(part, str) for part in value)
+
+
+def _body_expectation_error(
+    label: str,
+    host: str,
+    body: str,
+    expect: object,
+) -> str | None:
+    if not expect:
+        return None
+    clean_expect = str(expect).replace(" ", "")
+    if clean_expect in body.replace(" ", ""):
+        return None
+    return f"  {label} (on {host}): health body did not contain {expect!r} ({body[:120]!r})"
 
 
 def main() -> int:
@@ -246,14 +287,20 @@ def main() -> int:
         "`docs/specs/fr-observability-always-on-and-no-deferral.md`.\n"
         "DOWN:\n"
         + "\n".join(failures)
-        + "\nUNBLOCK: for local services, bring them back up with "
-        "`docker compose up -d <service>` (or restart Docker Desktop "
-        "if the whole engine is down).  For Mint-hosted "
-        "profiling services, use `scripts/start-mint-quality-tools.ps1` "
-        "and `scripts/check-mint-quality-tools.ps1`.  Re-run the commit once "
-        "every service is reachable.\n"
+        + "\nUNBLOCK: inspect the service with "
+        "`kubectl -n xf-obs get pods -l app=<service>` and fix the "
+        "Kubernetes rollout. For helper-host services, verify the SSH or HTTP "
+        "health check named above. Re-run the commit once every service is "
+        "reachable.\n"
     )
     return _fail(message)
+
+
+def _ssh_docker_command(command: list[str]) -> list[str]:
+    if len(command) >= 4 and command[:2] == ["docker", "--context"]:
+        host = command[2]
+        return ["ssh", host, "docker", *command[3:]]
+    return command
 
 
 if __name__ == "__main__":

@@ -21,9 +21,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 GATE_STATE = REPO_ROOT / "audit" / "session_gate_state.json"
 _VALID_SESSION_TYPES = ("docs", "infrastructure", "reconciliation", "feature")
 
-DOCKER_DOWN_MESSAGE = (
-    "FAIL quota: cannot verify (Docker down). "
-    "UNBLOCK: start Docker Desktop and re-run."
+BACKEND_UNREACHABLE_MESSAGE = (
+    "FAIL quota: cannot verify because the Kubernetes backend is unreachable. "
+    "UNBLOCK: run `kubectl -n xf-app get pods`, fix cluster access, and re-run."
 )
 
 
@@ -53,8 +53,8 @@ def main() -> int:
                               "--session-type", session_type)),
     ):
         code = _run_management_command(label, command_parts)
-        if code == 3:
-            print(DOCKER_DOWN_MESSAGE, file=sys.stderr)
+        if code in {124, 127}:
+            print(BACKEND_UNREACHABLE_MESSAGE, file=sys.stderr)
             return 2
         if code != 0:
             print(f"FAIL quota: {label} did not pass.", file=sys.stderr)
@@ -64,8 +64,8 @@ def main() -> int:
 
 def _run_management_command(label: str, command_parts: tuple[str, ...]) -> int:
     command = [
-        "docker", "compose", "exec", "-T", "backend",
-        "python", "manage.py", *command_parts,
+        sys.executable, str(REPO_ROOT / "scripts" / "backend_manage.py"),
+        *command_parts,
     ]
     try:
         result = subprocess.run(
@@ -78,7 +78,7 @@ def _run_management_command(label: str, command_parts: tuple[str, ...]) -> int:
             check=False,
         )
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
-        return 3
+        return 127
     _relay_output(result)
     return result.returncode
 

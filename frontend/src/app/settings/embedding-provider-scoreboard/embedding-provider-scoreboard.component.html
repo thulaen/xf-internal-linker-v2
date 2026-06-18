@@ -1,0 +1,88 @@
+<section class="provider-scoreboard" id="embedding-provider-scoreboard">
+  <div class="scoreboard-toolbar">
+    <div>
+      <h2>Provider Scores</h2>
+      <p>Compare embedding providers before changing the active provider.</p>
+    </div>
+
+    <div class="scoreboard-actions">
+      <mat-form-field appearance="outline">
+        <mat-label>Sample size</mat-label>
+        <input matInput type="number" min="1" max="200000" [(ngModel)]="sampleSize">
+      </mat-form-field>
+      <mat-checkbox [(ngModel)]="costConfirmed">
+        I confirm this may use paid provider calls.
+      </mat-checkbox>
+      <button
+        mat-flat-button
+        color="primary"
+        type="button"
+        [disabled]="!costConfirmed || starting"
+        (click)="startRun()">
+        <mat-icon>play_arrow</mat-icon>
+        Run Scores
+      </button>
+    </div>
+  </div>
+
+  @if (loading) {
+    <div class="scoreboard-state">
+      <mat-progress-spinner diameter="28" mode="indeterminate"></mat-progress-spinner>
+      <span>Loading provider scores...</span>
+    </div>
+  } @else if (error) {
+    <div class="scoreboard-error">{{ error }}</div>
+  } @else if (!runs.length) {
+    <div class="scoreboard-empty">No provider score runs have been recorded yet.</div>
+  } @else {
+    <div class="score-run-list">
+      @for (run of runs; track run.job_id) {
+        <article class="score-run">
+          <header>
+            <h3>{{ run.job_id }}</h3>
+            <span>{{ run.created_at || 'time not recorded' }}</span>
+          </header>
+
+          <div class="score-table" role="table">
+            <div class="score-row score-row--header" role="row">
+              <span role="columnheader">Provider</span>
+              <span role="columnheader" matTooltip="Mean reciprocal rank at ten. Higher is better.">MRR@10</span>
+              <span role="columnheader" matTooltip="Normalized discounted gain at ten. Higher is better.">nDCG@10</span>
+              <span role="columnheader" matTooltip="Recall at ten. Higher is better.">Recall@10</span>
+              <span role="columnheader">Latency</span>
+              <span role="columnheader">Verdict</span>
+              <span role="columnheader">Action</span>
+            </div>
+
+            @for (provider of run.providers; track provider.provider) {
+              <div class="score-row" role="row">
+                <span role="cell">
+                  <strong>{{ provider.provider }}</strong>
+                  <small>{{ provider.signature || 'signature not recorded' }}</small>
+                </span>
+                <span role="cell">{{ metric(provider.mrr_at_10) }}</span>
+                <span role="cell">{{ metric(provider.ndcg_at_10) }}</span>
+                <span role="cell">{{ metric(provider.recall_at_10) }}</span>
+                <span role="cell">{{ metric(provider.latency_ms_p95) }} ms</span>
+                <span role="cell">
+                  <mark [class.is-banned]="provider.is_banned">{{ provider.verdict }}</mark>
+                  @if (provider.explanation) {
+                    <small>{{ provider.explanation }}</small>
+                  }
+                </span>
+                <span role="cell">
+                  @if (provider.is_banned) {
+                    <button mat-stroked-button type="button" (click)="unban(provider)">
+                      <mat-icon>lock_open</mat-icon>
+                      Unban
+                    </button>
+                  }
+                </span>
+              </div>
+            }
+          </div>
+        </article>
+      }
+    </div>
+  }
+</section>

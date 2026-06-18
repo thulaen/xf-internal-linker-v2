@@ -344,7 +344,7 @@ function Get-DockerUnavailableMessage {
             return $Availability.Message
         }
         "daemon_inaccessible" {
-            return "Docker is installed, but the daemon is not reachable from this shell. Start Docker Desktop or rerun outside the sandbox. Details: $($Availability.Message)"
+            return "Docker is retired on MSI. Use Kubernetes, SSH to Dell, or the local Node/Python tools required by this repo. Details: $($Availability.Message)"
         }
         default {
             return "Docker is installed, but the availability check failed. Details: $($Availability.Message)"
@@ -361,40 +361,7 @@ function Invoke-FrontendNpmInDocker {
         [string]$Reason = "Host Node.js is unavailable."
     )
 
-    $repoRoot = Get-RepoRoot
-    $frontendDir = Join-Path $repoRoot "frontend"
-    if ((Resolve-Path $WorkingDirectory).Path -ne (Resolve-Path $frontendDir).Path) {
-        throw "Docker fallback only supports the repo frontend directory."
-    }
-
-    $dockerAvailability = Get-DockerAvailability
-    if ($dockerAvailability.Status -ne "ok") {
-        throw (Get-DockerUnavailableMessage -Availability $dockerAvailability)
-    }
-
-    $dockerSafe = Get-DockerSafeScript
-    $dockerArguments = @($Arguments)
-    if ($dockerArguments.Count -ge 2 -and $dockerArguments[0] -eq 'run' -and $dockerArguments[1] -eq 'test:ci') {
-        $dockerArguments = @('run', 'test:ci:docker')
-    }
-    $npmCommand = $dockerArguments -join " "
-    $frontendContainerId = ''
-
-    try {
-        $frontendContainerId = (& $dockerSafe compose ps -q frontend | Out-String).Trim()
-    } catch {
-        $frontendContainerId = ''
-    }
-
-    Write-Host "$Reason Using Docker for frontend command: npm $npmCommand"
-    if ($frontendContainerId) {
-        & $dockerSafe compose exec -T frontend sh -lc "cd /app && npm $npmCommand"
-    } else {
-        & $dockerSafe compose run --rm --no-deps frontend sh -lc "cd /app && npm $npmCommand"
-    }
-    if ($LASTEXITCODE -ne 0) {
-        throw "Docker frontend command failed with exit code $LASTEXITCODE."
-    }
+    throw "$Reason Docker fallback is retired on MSI. Install or repair local Node.js, or run frontend quality on Dell through the repo runner."
 }
 
 function Invoke-FrontendNpm {
@@ -411,12 +378,7 @@ function Invoke-FrontendNpm {
     }
     $preferDocker = @('1', 'true', 'yes', 'on') -contains $preferDockerValue
     if ($preferDocker) {
-        $dockerAvailability = Get-DockerAvailability
-        if ($dockerAvailability.Status -eq "ok") {
-            Invoke-FrontendNpmInDocker -Arguments $Arguments -WorkingDirectory $WorkingDirectory -Reason "XF_FRONTEND_USE_DOCKER is enabled."
-            return
-        }
-        throw "XF_FRONTEND_USE_DOCKER is enabled, but $(Get-DockerUnavailableMessage -Availability $dockerAvailability)"
+        throw "XF_FRONTEND_USE_DOCKER is retired on MSI. Use local Node.js or the Dell-backed frontend runner."
     }
 
     $nodeState = Get-NodeRuntimeState
@@ -429,13 +391,7 @@ function Invoke-FrontendNpm {
     }
 
     if ($nodeState.Status -eq "missing") {
-        $dockerAvailability = Get-DockerAvailability
-        if ($dockerAvailability.Status -eq "ok") {
-            Invoke-FrontendNpmInDocker -Arguments $Arguments -WorkingDirectory $WorkingDirectory -Reason "Host Node.js was not found."
-            return
-        }
-
-        throw "$($nodeState.Message) Docker fallback is unavailable. $(Get-DockerUnavailableMessage -Availability $dockerAvailability)"
+        throw "$($nodeState.Message) Docker fallback is retired on MSI. Install or repair local Node.js."
     }
 
     $nodePaths = [pscustomobject]@{

@@ -125,7 +125,7 @@ def _write_evidence(
         "check_type": "coverage",
         "status": status,
         "tool_name": "angular-ratchet",
-        "command": "npm run test:ci -- --code-coverage=true",
+        "command": "npm run test:ci -- --coverage=true",
         "summary": summary,
         "source_hash": _source_hash(file_path),
         "file_path": file_path,

@@ -25,8 +25,6 @@ def _profile(tier: str) -> HardwareProfile:
     return HardwareProfile(
         ram_gb=16.0,
         cpu_cores=8,
-        vram_gb=0.0,
-        has_cuda=False,
         tier=tier,  # type: ignore[arg-type]
     )
 
@@ -46,7 +44,7 @@ class MaxJobsFastTests(SimpleTestCase):
 
     def test_unknown_tier_falls_back_to_two(self) -> None:
         bogus = HardwareProfile(
-            ram_gb=4.0, cpu_cores=2, vram_gb=0.0, has_cuda=False,
+            ram_gb=4.0, cpu_cores=2,
             tier="bogus",  # type: ignore[arg-type]
         )
         self.assertEqual(max_jobs_fast(bogus), 2)
@@ -67,32 +65,10 @@ class MaxJobsHeavyTests(SimpleTestCase):
 
     def test_heavy_floor_is_one(self) -> None:
         bogus = HardwareProfile(
-            ram_gb=1.0, cpu_cores=1, vram_gb=0.0, has_cuda=False,
+            ram_gb=1.0, cpu_cores=1,
             tier="bogus",  # type: ignore[arg-type]
         )
         self.assertGreaterEqual(max_jobs_heavy(bogus), 1)
-
-
-class HardwareProfileGpuFieldsTests(SimpleTestCase):
-    """The profile carries optional GPU fields (vram_gb, has_cuda) that default
-    to a CPU-only machine so existing call sites keep working unchanged.
-    """
-
-    def test_gpu_fields_default_to_cpu_only(self) -> None:
-        profile = HardwareProfile(ram_gb=16.0, cpu_cores=8, tier="medium")  # type: ignore[arg-type]
-        self.assertEqual(profile.vram_gb, 0.0)
-        self.assertFalse(profile.has_cuda)
-
-    def test_gpu_fields_round_trip_when_set(self) -> None:
-        profile = HardwareProfile(
-            ram_gb=64.0,
-            cpu_cores=16,
-            tier="workstation",  # type: ignore[arg-type]
-            vram_gb=24.0,
-            has_cuda=True,
-        )
-        self.assertEqual(profile.vram_gb, 24.0)
-        self.assertTrue(profile.has_cuda)
 
 
 class ReadSettingOverrideTests(SimpleTestCase):

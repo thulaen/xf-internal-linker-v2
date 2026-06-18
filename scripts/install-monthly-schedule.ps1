@@ -3,14 +3,12 @@
 # Run this ONCE (as Administrator) to register a Windows Scheduled Task that
 # fires the monthly Top-50 link-suggestion job on the 1st of every month at
 # 09:00 local time. The task simply invokes `run-monthly-top-50.ps1`, which
-# in turn calls the Django management command inside the backend container.
+# in turn calls the Django management command through Kubernetes.
 #
 # Belt-and-braces with the in-app sentient-schedule tracker: the tracker
 # already catches up missed runs on Django boot + every 10 min, so the
 # Windows scheduled task is optional. Install it if you want the job to
-# fire even when Docker Desktop is not running (the task will start Docker
-# Desktop indirectly via `docker compose exec` failing harmlessly until
-# the user opens Docker Desktop the next morning).
+# fire whenever MSI can reach Kubernetes.
 
 #Requires -RunAsAdministrator
 
@@ -27,7 +25,7 @@ $action      = New-ScheduledTaskAction `
 # makes the second one a no-op.
 $trigger     = New-ScheduledTaskTrigger -Monthly -DaysOfMonth 1 -At "09:00"
 
-# Run as the current user (who has docker on PATH).
+# Run as the current user (who has kubectl and Python on PATH).
 $principal   = New-ScheduledTaskPrincipal `
     -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) `
     -LogonType S4U `

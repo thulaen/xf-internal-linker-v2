@@ -2656,3 +2656,4 @@ SSH_HOST=your-server.com
 SSH_USER=your-user
 SSH_AUTH_MODE=agent
 ```
+Historical note: this original master plan documents the old Docker-first local setup. The current MSI workflow uses Kubernetes, `python scripts/backend_manage.py`, and SSH to Dell/Mint helpers.

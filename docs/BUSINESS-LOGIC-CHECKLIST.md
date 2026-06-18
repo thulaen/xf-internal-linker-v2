@@ -221,7 +221,7 @@ Before merging any new feature, measure it against all of these:
 - [ ] Python Celery import / attribution worker: < 2 s per page batch.
 - [ ] Embedding batch (paid CPU provider — see [`docs/specs/fr-cpu-paid-embeddings-runtime.md`](specs/fr-cpu-paid-embeddings-runtime.md)): within the provider's documented latency budget per 32-document batch.
 - [ ] FAISS index rebuild: < 30 s for up to 50 k vectors on RTX 3050.
-- [ ] RAM headroom: Django + 2 Celery workers + PostgreSQL must stay under 10 GB combined during a pipeline run. Verify with `docker stats`.
+- [ ] RAM headroom: Django + 2 Celery workers + PostgreSQL must stay under 10 GB combined during a pipeline run. Verify with Kubernetes and Dell host metrics.
 - [ ] Every spec for a feature that adds a new persistent table must include the estimated row size and projected growth rate (rows/day) under `## Real-World Constraints`.
 
 ### 6.2 Disk-space guard for new features
@@ -246,7 +246,7 @@ The following jobs run automatically on their stated cadence. Every pruning job 
 | `RejectedPair` rows | 365 days since `last_rejected_at` (well past the 90-day suppression window) | `suggestions.prune_rejected_pairs` |
 | Celery task results (`django_celery_results`) | 14 days | Celery beat schedule |
 | Django log files (`logs/*.log`) | Rotate at 10 MB, keep 5 files | `logging.handlers.RotatingFileHandler` |
-| Docker dangling images | After every `docker-compose build` | `docker image prune -f` |
+| Remote dangling images | After remote image builds | Run approved cleanup on Dell, not MSI |
 | Docker build cache | Weekly | `docker builder prune -f` |
 
 ### 6.4 Minimum data thresholds — ranking engine floor

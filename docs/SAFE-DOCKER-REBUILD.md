@@ -85,3 +85,4 @@ If the backend boots and finds `auth_user` empty AND `backups/` already contains
 > auth_user is empty, but backups/ already contains snapshots — this almost always means a Docker rebuild lost the pgdata volume.
 
 It's a hint, not a hard error. The recovery path is the same as the "I lost my login anyway" section above.
+Retired note: local MSI Docker rebuilds are no longer supported. The live app now runs through Kubernetes and Dell-backed services.

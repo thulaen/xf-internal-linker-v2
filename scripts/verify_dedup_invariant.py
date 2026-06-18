@@ -7,7 +7,7 @@ NO-DUPLICATES.md invariant.
 
 Usage from CI::
 
-    docker compose exec -T backend python scripts/verify_dedup_invariant.py
+    python scripts/backend_manage.py shell -c "from apps.core.services.self_test_smoke import run_startup_smoke_tests; print(run_startup_smoke_tests())"
     # exit 0 = clean
     # exit 1 = at least one warning (with table list printed)
 

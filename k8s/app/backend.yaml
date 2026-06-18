@@ -45,7 +45,7 @@ spec:
         kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
       containers:
         - name: backend
-          image: 10.10.10.91:5000/xf-linker-backend:v6
+          image: 10.10.10.91:5000/xf-linker-backend:v7
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:

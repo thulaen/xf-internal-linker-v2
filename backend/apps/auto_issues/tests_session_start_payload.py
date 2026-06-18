@@ -157,7 +157,7 @@ class SessionStartPayloadServiceTests(SimpleTestCase):
 
         self.assertIn("cached startup payload is missing", str(caught.exception))
 
-    def test_payload_expires_after_default_window(self) -> None:
+    def test_payload_expires_after_hourly_refresh_window(self) -> None:
         now = datetime(2026, 5, 26, 12, 0, tzinfo=timezone.utc)
         payload = build_payload(
             command_runner=lambda _name, _args: "[REGISTRY READ: 0 open]",
@@ -165,7 +165,7 @@ class SessionStartPayloadServiceTests(SimpleTestCase):
             now=lambda: now,
         )
 
-        self.assertEqual(payload.expires_at, now + timedelta(minutes=5))
+        self.assertEqual(payload.expires_at, now + timedelta(minutes=65))
 
     @mock.patch("apps.auto_issues.services.session_start_payload.write_payload")
     @mock.patch("apps.auto_issues.services.session_start_payload.build_payload")
@@ -180,13 +180,13 @@ class SessionStartPayloadServiceTests(SimpleTestCase):
         self.assertEqual(result["markers"], 1)
         mocked_write.assert_called_once()
 
-    def test_auto_refresh_is_scheduled_before_payload_expires(self) -> None:
+    def test_auto_refresh_is_scheduled_hourly_before_payload_expires(self) -> None:
         from config.settings.celery_schedules import CELERY_BEAT_SCHEDULE
 
         entry = CELERY_BEAT_SCHEDULE["auto-issues-session-start-payload-refresh"]
 
         self.assertEqual(entry["task"], "auto_issues.refresh_session_start_payload")
-        self.assertEqual(entry["schedule"].run_every.total_seconds(), 120)
+        self.assertEqual(entry["schedule"].run_every.total_seconds(), 3600)
 
     @mock.patch("apps.auto_issues.management.commands.refresh_session_start_payload.write_payload")
     @mock.patch("apps.auto_issues.management.commands.refresh_session_start_payload.build_payload")

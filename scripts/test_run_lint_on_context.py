@@ -74,27 +74,45 @@ def test_remote_lint_cmd_uses_dell_context_volume_and_image():
     """Given a Dell slice, When building the remote command, Then it targets the dell context."""
     m = _mod()
     cmd = m._remote_lint_cmd("dell", "ruff", ["apps/a.py"])
-    assert cmd[:5] == ["docker", "--context", "dell", "run", "--rm"]
-    assert "xf_lint_repo:/repo" in cmd
-    assert "DJANGO_SETTINGS_MODULE=config.settings.test" in cmd
-    assert "DJANGO_SECRET_KEY=ci-fake-secret-key" in cmd
-    assert "POSTGRES_PASSWORD=ci-fake-postgres-password" in cmd
-    assert "xf-linker-backend-quality:latest" in cmd
-    assert cmd[-3:] == ["ruff", "check", "apps/a.py"]
+    assert cmd[:2] == ["ssh", "dell"]
+    remote = cmd[2]
+    assert "docker run --rm" in remote
+    assert "xf_lint_repo:/repo" in remote
+    assert "DJANGO_SETTINGS_MODULE=config.settings.test" in remote
+    assert "DJANGO_SECRET_KEY=ci-fake-secret-key" in remote
+    assert "POSTGRES_PASSWORD=ci-fake-postgres-password" in remote
+    assert "xf-linker-backend-quality:latest" in remote
+    assert remote.endswith("ruff check apps/a.py")
     # cwd is the synced source on the remote, never the local /app bind mount.
-    assert "/repo/backend" in cmd
+    assert "/repo/backend" in remote
 
 
 def test_remote_lint_cmd_mypy_execs_into_warm_dmypy_daemon():
     """Given a mypy slice, When building the remote command, Then it execs into the warm daemon container."""
     m = _mod()
     cmd = m._remote_lint_cmd("dell", "mypy", ["apps/a.py"])
-    assert cmd[:4] == ["docker", "--context", "dell", "exec"]
-    assert "xf-dmypy-daemon" in cmd
-    assert cmd[-8:] == ["dmypy", "run", "--timeout", "7200", "--",
-                        "--config-file", "/repo/backend/mypy.ini", "apps/a.py"]
+    assert cmd[:2] == ["ssh", "dell"]
+    remote = cmd[2]
+    assert "docker exec xf-dmypy-daemon" in remote
+    assert remote.endswith(
+        "dmypy run --timeout 7200 -- --config-file /repo/backend/mypy.ini apps/a.py"
+    )
     # the daemon must survive between runs — one-shot --rm is forbidden here.
-    assert "--rm" not in cmd
+    assert "--rm" not in remote
+
+
+def test_remote_docker_cmd_quotes_as_one_ssh_command():
+    """Given a shell-sensitive Docker command, When building it, Then SSH gets one command."""
+    m = _mod()
+    cmd = m._remote_docker_cmd("dell", "run", "alpine:latest", "sh", "-c", "echo ok")
+    assert cmd[:2] == ["ssh", "dell"]
+    assert cmd[2] == "docker run alpine:latest sh -c 'echo ok'"
+
+
+def test_remote_docker_cmd_can_use_direct_local_docker():
+    """Given Bazel is already running on Dell, When context is local, Then no SSH is used."""
+    m = _mod()
+    assert m._remote_docker_cmd("__local__", "info") == ["docker", "info"]
 
 
 class _FakeProc:
@@ -111,14 +129,14 @@ def test_dmypy_daemon_container_is_reused(monkeypatch):
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
-        if "inspect" in cmd:
+        if "inspect" in " ".join(cmd):
             return _FakeProc(0, "true\n")
         return _FakeProc(0, "")
 
     monkeypatch.setattr(m.subprocess, "run", fake_run)
     assert m._ensure_dmypy_container("dell") is None
-    assert len(calls) == 1 and "inspect" in calls[0]
-    assert not any("-d" in c for c in calls)
+    assert len(calls) == 1 and "inspect" in " ".join(calls[0])
+    assert not any(" run -d" in " ".join(c) for c in calls)
 
 
 def test_dmypy_daemon_container_is_started_when_absent(monkeypatch):
@@ -128,19 +146,20 @@ def test_dmypy_daemon_container_is_started_when_absent(monkeypatch):
 
     def fake_run(cmd, **kwargs):
         calls.append(list(cmd))
-        if "inspect" in cmd:
+        if "inspect" in " ".join(cmd):
             return _FakeProc(1, "Error: no such container\n")
         return _FakeProc(0, "")
 
     monkeypatch.setattr(m.subprocess, "run", fake_run)
     assert m._ensure_dmypy_container("dell") is None
-    removed = next(c for c in calls if "rm" in c)
-    assert "-f" in removed and "xf-dmypy-daemon" in removed
-    started = next(c for c in calls if "-d" in c)
-    assert "--name" in started and "xf-dmypy-daemon" in started
-    assert "--restart" in started and "unless-stopped" in started
-    assert "xf_lint_repo:/repo" in started
-    assert started[-2:] == ["sleep", "infinity"]
+    removed = next(c for c in calls if "docker rm -f xf-dmypy-daemon" in " ".join(c))
+    assert "xf-dmypy-daemon" in " ".join(removed)
+    started = next(c for c in calls if "docker run -d" in " ".join(c))
+    started_text = " ".join(started)
+    assert "--name xf-dmypy-daemon" in started_text
+    assert "--restart unless-stopped" in started_text
+    assert "xf_lint_repo:/repo" in started_text
+    assert started_text.endswith("sleep infinity")
 
 
 def test_lint_slice_fails_closed_when_dmypy_daemon_cannot_start(monkeypatch):
@@ -167,6 +186,14 @@ def test_lint_routing_config_puts_100_percent_on_dell():
     cfg = json.loads((ROOT / "config" / "mutation-routing.json").read_text(encoding="utf-8"))
     assert cfg["lint_machines"][0]["name"] == "dell"
     assert cfg["lint_machines"][0]["weight"] == 1.0
+
+
+def test_lint_routing_context_can_be_overridden_for_bazel_on_dell(monkeypatch):
+    """Given Bazel already runs on Dell, When context is overridden, Then lint uses local Docker."""
+    m = _mod()
+    monkeypatch.setenv("XF_LINT_DOCKER_CONTEXT", "__local__")
+    machines = m._load_lint_routing_config()["machines"]
+    assert machines[0]["context"] == "__local__"
 
 
 def test_run_tool_sharded_no_files_is_clean():
@@ -297,6 +324,19 @@ def test_run_lint_empty_bandit_files_records_no_targets_pass(monkeypatch, tmp_pa
     assert rows[0]["status"] == "passed"
 
 
+def test_pip_audit_all_ignored_exit_code_is_treated_as_clean():
+    """Given pip-audit found only ignored findings, When checking rc, Then it passes."""
+    m = _mod()
+    out = "Found 2 known vulnerabilities, ignored 2 in 1 package"
+
+    assert m._dependency_audit_effective_rc("pip-audit", 1, out) == 0
+    assert m._dependency_audit_effective_rc(
+        "pip-audit",
+        1,
+        "Found 2 known vulnerabilities",
+    ) == 1
+
+
 def test_dependency_audit_runs_tools_and_records_evidence(monkeypatch, tmp_path):
     """Given --dependency-audit, When run, Then it executes pip-audit and safety check on Dell and logs evidence."""
     m = _mod()
@@ -315,8 +355,8 @@ def test_dependency_audit_runs_tools_and_records_evidence(monkeypatch, tmp_path)
     m.run_lint([], [], evidence_out=ev)
     m._run_dependency_audit(ev)
 
-    assert any("pip-audit" in cmd for cmd in ran_cmds)
-    assert any("safety" in cmd for cmd in ran_cmds)
+    assert any("pip-audit" in " ".join(cmd) for cmd in ran_cmds)
+    assert any("safety" in " ".join(cmd) for cmd in ran_cmds)
     
     rows = [json.loads(line) for line in ev.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert {r["tool_name"] for r in rows} == {"pip-audit", "safety"}

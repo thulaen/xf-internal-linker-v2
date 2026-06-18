@@ -39,6 +39,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { interval } from 'rxjs';
 import { VisibilityGateService } from '../core/util/visibility-gate.service';
 
@@ -72,6 +73,12 @@ interface BakeoffRow {
   separation_score: number;
   cost_usd: number;
   latency_ms_p95: number;
+  verdict: string;
+  compared_to: string;
+  p_value: number;
+  loss_count: number;
+  is_banned: boolean;
+  explanation: string;
   created_at: string;
 }
 
@@ -105,6 +112,7 @@ interface GateDecision {
     MatSlideToggleModule,
     MatTableModule,
     MatTabsModule,
+    MatTooltipModule,
   ],
   templateUrl: './embeddings.component.html',
   styleUrls: ['./embeddings.component.scss'],
@@ -197,7 +205,9 @@ export class EmbeddingsComponent implements OnInit {
     'mrr_at_10',
     'ndcg_at_10',
     'recall_at_10',
+    'verdict',
     'separation_score',
+    'p_value',
     'cost_usd',
     'latency_ms_p95',
     'created_at',
@@ -378,6 +388,25 @@ export class EmbeddingsComponent implements OnInit {
         error: (err) => {
           this.busyAction.set(null);
           this.snack.open(`Audit failed to queue: ${err?.message}`, 'OK', {
+            duration: 4000,
+          });
+        },
+      });
+  }
+
+  unbanProvider(provider: string): void {
+    this.busyAction.set(`unban-${provider}`);
+    this.http.post('/api/embedding/provider/unban/', { provider })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.busyAction.set(null);
+          this.snack.open(`${provider} can be tested again`, 'OK', { duration: 3000 });
+          this.loadBakeoff();
+        },
+        error: (err) => {
+          this.busyAction.set(null);
+          this.snack.open(`Unban failed: ${err?.error?.detail || err?.message}`, 'OK', {
             duration: 4000,
           });
         },

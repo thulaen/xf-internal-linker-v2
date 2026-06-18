@@ -9,9 +9,9 @@ function Invoke-DellDocker {
         [Parameter(ValueFromRemainingArguments = $true)]
         [string[]]$DockerArgs
     )
-    & docker --context dell @DockerArgs
+    & ssh dell docker @DockerArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "Dell Docker command failed: docker --context dell $($DockerArgs -join ' ')"
+        throw "Dell Docker command failed: ssh dell docker $($DockerArgs -join ' ')"
     }
 }
 

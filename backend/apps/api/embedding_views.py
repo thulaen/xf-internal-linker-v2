@@ -41,6 +41,24 @@ _PROVIDER_CONFIG_KEYS = [
     "embedding.gate_stability_threshold",
 ]
 _SECRET_KEYS = {"embedding.api_key"}
+_PROVIDER_SCORE_FIELDS = (
+    "job_id",
+    "provider",
+    "signature",
+    "sample_size",
+    "mrr_at_10",
+    "ndcg_at_10",
+    "recall_at_10",
+    "latency_ms_p50",
+    "latency_ms_p95",
+    "compared_to",
+    "verdict",
+    "p_value",
+    "loss_count",
+    "is_banned",
+    "explanation",
+    "created_at",
+)
 
 
 def _get_setting(key: str) -> str:
@@ -58,6 +76,49 @@ def _mask_secret(value: str) -> str:
     if len(value) <= 8:
         return "*" * len(value)
     return "*" * (len(value) - 4) + value[-4:]
+
+
+def _as_float(value) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
+def _score_provider_row(row: dict) -> dict:
+    return {
+        "provider": row["provider"],
+        "signature": row.get("signature") or "",
+        "sample_size": int(row.get("sample_size") or 0),
+        "mrr_at_10": _as_float(row.get("mrr_at_10")),
+        "ndcg_at_10": _as_float(row.get("ndcg_at_10")),
+        "recall_at_10": _as_float(row.get("recall_at_10")),
+        "latency_ms_p50": _as_float(row.get("latency_ms_p50")),
+        "latency_ms_p95": _as_float(row.get("latency_ms_p95")),
+        "compared_to": row.get("compared_to") or "",
+        "verdict": row.get("verdict") or "unknown",
+        "p_value": _as_float(row.get("p_value")),
+        "loss_count": int(row.get("loss_count") or 0),
+        "is_banned": bool(row.get("is_banned")),
+        "explanation": row.get("explanation") or "",
+    }
+
+
+def _group_provider_score_rows(rows: list[dict]) -> list[dict]:
+    grouped: dict[str, dict] = {}
+    for row in rows:
+        job_id = str(row.get("job_id") or "")
+        if not job_id:
+            continue
+        group = grouped.setdefault(
+            job_id,
+            {
+                "job_id": job_id,
+                "created_at": row.get("created_at"),
+                "providers": [],
+            },
+        )
+        group["providers"].append(_score_provider_row(row))
+    return list(grouped.values())
 
 
 @api_view(["GET"])
@@ -277,6 +338,71 @@ def embedding_bakeoff_results(request: Request) -> Response:
 
     rows = EmbeddingBakeoffResult.objects.order_by("-created_at").values()[:50]
     return Response(list(rows))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def embedding_provider_eval_runs(request: Request) -> Response:
+    """List recent provider score runs grouped by run identifier."""
+    from apps.pipeline.models import EmbeddingBakeoffResult
+
+    rows = list(
+        EmbeddingBakeoffResult.objects.order_by("-created_at")
+        .values(*_PROVIDER_SCORE_FIELDS)[:100]
+    )
+    return Response({"runs": _group_provider_score_rows(rows)})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def embedding_provider_eval_run(request: Request) -> Response:
+    """Start provider scoring only when the user confirms possible cost."""
+    from apps.pipeline.tasks_embedding_bakeoff import embedding_provider_bakeoff
+
+    if request.data.get("cost_confirmed") is not True:
+        return Response(
+            {"detail": "cost confirmation required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    sample_size = coerce_int(
+        request.data.get("sample_size"),
+        default=1000,
+        min_value=1,
+        max_value=200_000,
+    )
+    async_result = embedding_provider_bakeoff.delay(sample_size=sample_size)
+    return Response({"task_id": async_result.id, "sample_size": sample_size})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def embedding_provider_unban(request: Request) -> Response:
+    """Remove one provider from the bake-off ban list."""
+    import json
+
+    from apps.core.models import AppSetting
+
+    provider = str(request.data.get("provider") or "").strip().lower()
+    if provider not in ("openai", "gemini"):
+        return Response(
+            {"detail": "invalid provider"}, status=status.HTTP_400_BAD_REQUEST
+        )
+    raw_value = AppSetting.get_str("embedding.provider_bans_json", "[]")
+    try:
+        decoded = json.loads(raw_value or "[]")
+    except json.JSONDecodeError:
+        decoded = []
+    if not isinstance(decoded, list):
+        decoded = []
+    remaining = sorted(
+        item for item in {str(value).strip().lower() for value in decoded} if item
+    )
+    remaining = [item for item in remaining if item != provider]
+    AppSetting.objects.update_or_create(
+        key="embedding.provider_bans_json",
+        defaults={"value": json.dumps(remaining)},
+    )
+    return Response({"provider": provider, "is_banned": False})
 
 
 @api_view(["POST"])

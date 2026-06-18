@@ -1,6 +1,5 @@
-import { Component, ChangeDetectionStrategy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Directive, Input, NO_ERRORS_SCHEMA } from '@angular/core';
 import { TestBed, discardPeriodicTasks, fakeAsync, flushMicrotasks, tick } from '@angular/core/testing';
-import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -12,6 +11,7 @@ import { NotificationService } from '../core/services/notification.service';
 import { WeightDiagnosticsCardComponent } from './weight-diagnostics-card/weight-diagnostics-card.component';
 import { PerformanceSettingsComponent } from './performance-settings/performance-settings.component';
 import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.component';
+import { EmbeddingProviderScoreboardComponent } from './embedding-provider-scoreboard/embedding-provider-scoreboard.component';
 import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithms-tab.component';
 import { ConnectSyncTabComponent } from './connect-sync-tab/connect-sync-tab.component';
 import { LibraryHistoryTabComponent } from './library-history-tab/library-history-tab.component';
@@ -22,12 +22,11 @@ import { SettingsOverviewComponent } from './settings-overview/settings-overview
 import { PassageRelevanceCardComponent } from './passage-relevance/passage-relevance-card.component';
 import { TabFragmentRouterDirective } from '../core/directives/tab-fragment-router.directive';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Directive, Input } from '@angular/core';
 
 @Component({
   selector: 'app-weight-diagnostics-card',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockWeightDiagnosticsCardComponent {}
@@ -35,7 +34,7 @@ class MockWeightDiagnosticsCardComponent {}
 @Component({
   selector: 'app-performance-settings',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockPerformanceSettingsComponent {}
@@ -43,15 +42,23 @@ class MockPerformanceSettingsComponent {}
 @Component({
   selector: 'app-helpers-settings',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockHelpersSettingsComponent {}
 
 @Component({
+  selector: 'app-embedding-provider-scoreboard',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: '',
+})
+class MockEmbeddingProviderScoreboardComponent {}
+
+@Component({
   selector: 'app-meta-algorithms-tab',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockMetaAlgorithmsTabComponent {}
@@ -59,7 +66,7 @@ class MockMetaAlgorithmsTabComponent {}
 @Component({
   selector: 'app-notifications-tab',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockNotificationsTabComponent {}
@@ -67,7 +74,7 @@ class MockNotificationsTabComponent {}
 @Component({
   selector: 'app-connect-sync-tab',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockConnectSyncTabComponent {}
@@ -75,7 +82,7 @@ class MockConnectSyncTabComponent {}
 @Component({
   selector: 'app-library-history-tab',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockLibraryHistoryTabComponent {}
@@ -83,7 +90,7 @@ class MockLibraryHistoryTabComponent {}
 @Component({
   selector: 'app-ranking-weights-tab',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockRankingWeightsTabComponent {}
@@ -91,7 +98,7 @@ class MockRankingWeightsTabComponent {}
 @Component({
   selector: 'app-silo-architecture-tab',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockSiloArchitectureTabComponent {}
@@ -99,7 +106,7 @@ class MockSiloArchitectureTabComponent {}
 @Component({
   selector: 'app-settings-overview',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockSettingsOverviewComponent {
@@ -113,7 +120,7 @@ class MockSettingsOverviewComponent {
 @Component({
   selector: 'app-passage-relevance-card',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockPassageRelevanceCardComponent {}
@@ -127,7 +134,7 @@ class MockTabFragmentRouterDirective {
 }
 
 class MockRouter {
-  events = new Subject<any>();
+  events = new Subject<unknown>();
   navigate = vi.fn().mockReturnValue(Promise.resolve(true));
   url = '/settings';
 }
@@ -142,6 +149,7 @@ describe('SettingsComponent', () => {
           WeightDiagnosticsCardComponent,
           PerformanceSettingsComponent,
           HelpersSettingsComponent,
+          EmbeddingProviderScoreboardComponent,
           MetaAlgorithmsTabComponent,
           NotificationsTabComponent,
           ConnectSyncTabComponent,
@@ -158,6 +166,7 @@ describe('SettingsComponent', () => {
           MockWeightDiagnosticsCardComponent,
           MockPerformanceSettingsComponent,
           MockHelpersSettingsComponent,
+          MockEmbeddingProviderScoreboardComponent,
           MockMetaAlgorithmsTabComponent,
           MockNotificationsTabComponent,
           MockConnectSyncTabComponent,

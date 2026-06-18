@@ -21,13 +21,17 @@ class SuggestTextTests(SimpleTestCase):
         result = suggest(error_message="Can't find model en_core_web_sm")
         self.assertEqual(
             result,
-            "spaCy model is missing. Run "
-            "`docker compose exec backend python -m spacy download en_core_web_sm`.",
+            "spaCy model is missing. Rebuild the backend image on Dell so the model "
+            "is baked into the runtime, then roll the Kubernetes backend deployment.",
         )
 
     def test_when_redis_refused_then_restart_redis_hint(self):
         result = suggest(error_message="Redis connection refused")
-        self.assertEqual(result, "Redis is down. Run `docker compose restart redis`.")
+        self.assertEqual(
+            result,
+            "Valkey is down. Check `kubectl -n xf-app get pods -l app=valkey` and "
+            "restart the Kubernetes deployment if needed.",
+        )
 
     def test_when_thermal_then_host_throttle_hint(self):
         result = suggest(error_message="ThermalThrottleError fired")
@@ -56,8 +60,8 @@ class SuggestTextTests(SimpleTestCase):
         result = suggest(error_message="", fingerprint="", step="en_core_web_sm load")
         self.assertEqual(
             result,
-            "spaCy model is missing. Run "
-            "`docker compose exec backend python -m spacy download en_core_web_sm`.",
+            "spaCy model is missing. Rebuild the backend image on Dell so the model "
+            "is baked into the runtime, then roll the Kubernetes backend deployment.",
         )
 
 

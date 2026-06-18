@@ -33,7 +33,8 @@ def _has_snapshots() -> bool:
             SNAPSHOT_FILENAME_PREFIX,
             SNAPSHOT_FILENAME_SUFFIX,
         )
-    except Exception:  # noqa: forbidden-pattern silent-except  # justification: startup-time check that must NEVER crash boot. The backups module imports Django settings; if settings aren't ready yet we silently treat snapshots as absent and let the next normal invocation re-check. Routing this to ingest_error would create a cyclic-import loop because audit imports from core.
+    except Exception:  # noqa: BLE001
+        # Startup checks must not crash boot before Django settings are ready.
         return False
 
     backup_dir: Path = DEFAULT_BACKUP_DIR
@@ -65,8 +66,9 @@ def _is_test_run() -> bool:
         db_name = connections["default"].settings_dict.get("NAME") or ""
         if isinstance(db_name, str) and db_name.startswith("test_"):
             return True
-    except Exception:  # noqa: forbidden-pattern silent-except  # justification: pre-app-ready safety; a missing DB connection just means we treat this as "not a test run" and let the main path decide.
-        pass
+    except Exception:  # noqa: BLE001
+        # Missing database wiring means this is not provably a test run.
+        return False
     return False
 
 
@@ -92,7 +94,8 @@ def warn_if_users_lost(app_configs, **kwargs):
 
         if get_user_model().objects.exists():
             return []
-    except Exception:  # noqa: forbidden-pattern silent-except  # justification: startup-time check that must NEVER crash boot. If apps aren't ready or DB is mid-migration we let the next normal `manage.py check` invocation re-evaluate. ingest_error() would import audit -> models -> core, creating a cyclic-import loop.
+    except Exception:  # noqa: BLE001
+        # Apps or the database may be mid-startup; the next check will retry.
         return []
 
     return [
@@ -101,7 +104,7 @@ def warn_if_users_lost(app_configs, **kwargs):
             "this almost always means a Docker rebuild lost the pgdata volume.",
             hint=(
                 "Recovery: see docs/SAFE-DOCKER-REBUILD.md. "
-                "Quick path: docker compose exec backend python manage.py "
+                "Quick path: python scripts/backend_manage.py "
                 "restore_db_snapshot --latest --confirm. "
                 "Future rebuilds: use scripts/safe-rebuild.ps1."
             ),

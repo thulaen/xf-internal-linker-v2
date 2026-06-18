@@ -4,6 +4,33 @@ export PATH="/usr/bin:/bin:${PATH:-}"
 export MSYS_NO_PATHCONV=1
 export MSYS2_ARG_CONV_EXCL="*"
 
+_resolve_python_bin() {
+  if command -v python >/dev/null 2>&1; then
+    command -v python
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    command -v python3
+    return 0
+  fi
+  local candidate
+  for candidate in \
+    "/c/Program Files/Python312/python.exe" \
+    "/mnt/c/Program Files/Python312/python.exe"
+  do
+    if [[ -x "$candidate" ]]; then
+      printf "%s\n" "$candidate"
+      return 0
+    fi
+  done
+  printf "python\n"
+}
+
+PYTHON_BIN="${PYTHON_BIN:-$(_resolve_python_bin)}"
+python() {
+  "$PYTHON_BIN" "$@"
+}
+
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
@@ -94,7 +121,7 @@ _commit_blocker_fingerprint() {
 
 _commit_blocker_occurrence() {
   local issue_id="$1"
-  docker compose exec -T backend python manage.py shell -c \
+  python scripts/backend_manage.py shell -c \
     "from apps.auto_issues.models import AutoIssue; print(AutoIssue.objects.get(pk=${issue_id}).occurrence_count)" \
     2>/dev/null | tail -n 1
 }
@@ -103,7 +130,7 @@ _run_commit_blocker_filing() {
   local message="$1"
   local external_id="$2"
   local lessons="$3"
-  docker compose exec -T backend python manage.py file_hook_finding \
+  python scripts/backend_manage.py file_hook_finding \
     --category commit_blocker \
     --severity high \
     --subject "scripts/precommit-docker.sh:1" \
@@ -228,12 +255,7 @@ run_soft_gate() {
 }
 
 _run_deep_link_check() {
-  quality_docker_compose_run precommit-deep-links backend \
-    -e COMMIT_SCOPE_PATHS="$staged" \
-    sh -lc '
-    cd /repo
-    python scripts/verify_deep_links.py --paths-env COMMIT_SCOPE_PATHS
-  '
+  COMMIT_SCOPE_PATHS="$staged" python scripts/verify_deep_links.py --paths-env COMMIT_SCOPE_PATHS
 }
 
 _reset_findings_transcript
@@ -244,10 +266,10 @@ run_hard_gate tool-readiness bash scripts/run-tool-readiness.sh
 # any observability or quality container to dodge a hook is forbidden.
 # Spec: docs/specs/fr-observability-always-on-and-no-deferral.md.
 run_hard_gate check-observability-stack python .githooks/check-observability-stack.py
-# After confirming the stack is running, safely prune Docker (no volumes) and
-# confirm the pipeline is actually feeding AutoIssues. Silent sources warn;
-# only an unreachable backend blocks.
+# After confirming the stack is running, confirm the pipeline is feeding
+# AutoIssues. Silent sources warn; only an unreachable backend blocks.
 run_hard_gate check-observability-pipeline python .githooks/check-observability-pipeline.py
+run_hard_gate check-msi-docker-free python .githooks/check-msi-docker-free.py
 
 staged="$(python scripts/commit_scope.py paths --mode staged || true)"
 if [[ -z "$staged" ]]; then
@@ -345,16 +367,16 @@ fi
 # pull requests and main-branch pushes.
 
 if grep -E '^frontend/.*\.(ts|html|scss)$' <<<"$staged" >/dev/null; then
-  run_soft_gate run-angular-quality bash scripts/run-angular-quality.sh
+  run_soft_gate bazel-frontend-quality python scripts/bazel_default.py run //tools/quality:frontend
 fi
 
 if grep -E '^backend/.*\.py$' <<<"$staged" >/dev/null; then
   # Python quality always stays HARD because pytest + ruff are part of
   # the strict-TDD discipline and are fast (<2 min for focused tests).
-  run_hard_gate run-python-quality bash scripts/run-python-quality.sh
+  run_hard_gate bazel-python-quality python scripts/bazel_default.py run //tools/quality:python
 fi
 
-run_hard_gate run-rust-quality bash scripts/run-rust-quality.sh
+run_hard_gate bazel-rust-quality python scripts/bazel_default.py run //tools/quality:rust
 
 # Property-based testing (Hypothesis + proptest), scoped to changed Python/Rust
 # files. HARD-BLOCK. Runs AFTER the unit-test gates above so it reuses the trees

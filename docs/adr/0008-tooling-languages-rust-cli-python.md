@@ -37,7 +37,7 @@ reasons.
    - **DuckDB** — in-process SQL over CSV/Parquet (CLI or Python).
    - **Polars** — fast dataframe batch processing in Python (already an approved tool).
 5. **PowerShell is retired from cross-platform logic.** It stays only for genuinely Windows-host
-   operations (Docker Desktop / WSL control, the Dell/Mint `.ps1` helpers). No new cross-platform
+   operations (Kubernetes control, SSH, and the Dell/Mint `.ps1` helpers). No new cross-platform
    logic is written in PowerShell.
 6. **Tooling is NOT app architecture.** The `xftool` crate lives under a tooling path
    (`rust/tools/`), the app **never imports it**, and it never owns production behaviour. It is for

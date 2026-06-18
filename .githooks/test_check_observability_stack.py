@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for ``.githooks/check-observability-stack.py``.
 
-These tests stub ``subprocess.run`` so no live Docker calls are needed.
+These tests stub ``subprocess.run`` so no live Kubernetes calls are needed.
 They cover the documented happy-path and failure cases from
 ``docs/specs/fr-observability-always-on-and-no-deferral.md``.
 """
@@ -42,8 +42,20 @@ def _make_run_result(stdout: str, returncode: int = 0) -> types.SimpleNamespace:
     return types.SimpleNamespace(stdout=stdout, stderr="", returncode=returncode)
 
 
-def _running_record(service: str, health: str = "healthy") -> str:
-    return json.dumps({"Service": service, "State": "running", "Health": health})
+def _pod_list(service: str, phase: str = "Running", ready: bool = True) -> str:
+    return json.dumps(
+        {
+            "items": [
+                {
+                    "metadata": {"name": f"{service}-abc"},
+                    "status": {
+                        "phase": phase,
+                        "containerStatuses": [{"name": service, "ready": ready}],
+                    },
+                }
+            ]
+        }
+    )
 
 
 class _FakeHTTPResponse:
@@ -75,28 +87,47 @@ class _NoRemoteMixin:
 class HappyPathTests(_NoRemoteMixin, unittest.TestCase):
     def test_all_services_running_and_healthy_returns_zero(self) -> None:
         def fake_run(cmd, *args, **kwargs):
-            service = cmd[-1]
-            return _make_run_result(_running_record(service, "healthy") + "\n")
+            service = cmd[-3].replace("app=", "")
+            return _make_run_result(_pod_list(service) + "\n")
 
         with patch.object(hook.subprocess, "run", side_effect=fake_run):
             self.assertEqual(hook.main(), 0)
 
-    def test_starting_health_is_accepted(self) -> None:
+    def test_running_ready_pod_is_accepted(self) -> None:
         def fake_run(cmd, *args, **kwargs):
-            service = cmd[-1]
-            return _make_run_result(_running_record(service, "starting") + "\n")
+            service = cmd[-3].replace("app=", "")
+            return _make_run_result(_pod_list(service) + "\n")
 
         with patch.object(hook.subprocess, "run", side_effect=fake_run):
             self.assertEqual(hook.main(), 0)
 
-    def test_empty_health_is_accepted(self) -> None:
-        # otel-collector has no declared healthcheck — Health is "".
+    def test_each_service_is_checked_through_kubernetes(self) -> None:
+        seen = []
+
         def fake_run(cmd, *args, **kwargs):
-            service = cmd[-1]
-            return _make_run_result(_running_record(service, "") + "\n")
+            seen.append(cmd)
+            service = cmd[-3].replace("app=", "")
+            return _make_run_result(_pod_list(service) + "\n")
 
-        with patch.object(hook.subprocess, "run", side_effect=fake_run):
+        with patch.object(hook.shutil, "which", return_value="kubectl.exe"), patch.object(
+            hook.subprocess, "run", side_effect=fake_run
+        ):
             self.assertEqual(hook.main(), 0)
+        self.assertTrue(all(cmd[:3] == ["kubectl", "-n", hook.K8S_NAMESPACE] for cmd in seen))
+
+    def test_missing_windows_kubectl_uses_mint_ssh(self) -> None:
+        seen = []
+
+        def fake_run(cmd, *args, **kwargs):
+            seen.append(cmd)
+            service = cmd[-3].replace("app=", "")
+            return _make_run_result(_pod_list(service) + "\n")
+
+        with patch.object(hook.shutil, "which", return_value=None), patch.object(
+            hook.subprocess, "run", side_effect=fake_run
+        ):
+            self.assertEqual(hook.main(), 0)
+        self.assertTrue(all(cmd[:3] == ["ssh", "mint-wifi", "kubectl"] for cmd in seen))
 
 
 class FailureTests(_NoRemoteMixin, unittest.TestCase):
@@ -105,10 +136,10 @@ class FailureTests(_NoRemoteMixin, unittest.TestCase):
         absent = "grafana"
 
         def fake_run(cmd, *args, **kwargs):
-            service = cmd[-1]
+            service = cmd[-3].replace("app=", "")
             if service == absent:
-                return _make_run_result("")
-            return _make_run_result(_running_record(service, "healthy") + "\n")
+                return _make_run_result('{"items": []}')
+            return _make_run_result(_pod_list(service) + "\n")
 
         captured: list[str] = []
         with patch.object(hook.subprocess, "run", side_effect=fake_run), patch.object(
@@ -118,20 +149,17 @@ class FailureTests(_NoRemoteMixin, unittest.TestCase):
         self.assertEqual(rc, 2)
         joined = "".join(captured)
         self.assertIn(absent, joined)
-        self.assertIn("absent", joined)
-        self.assertIn("docker compose up -d", joined)
+        self.assertIn("no Kubernetes pod found", joined)
+        self.assertIn("kubectl -n xf-obs get pods", joined)
 
-    def test_restarting_state_blocks(self) -> None:
+    def test_pending_phase_blocks(self) -> None:
         broken = "tempo"
 
         def fake_run(cmd, *args, **kwargs):
-            service = cmd[-1]
+            service = cmd[-3].replace("app=", "")
             if service == broken:
-                return _make_run_result(
-                    json.dumps({"Service": broken, "State": "restarting", "Health": ""})
-                    + "\n"
-                )
-            return _make_run_result(_running_record(service, "healthy") + "\n")
+                return _make_run_result(_pod_list(service, "Pending") + "\n")
+            return _make_run_result(_pod_list(service) + "\n")
 
         captured: list[str] = []
         with patch.object(hook.subprocess, "run", side_effect=fake_run), patch.object(
@@ -141,21 +169,16 @@ class FailureTests(_NoRemoteMixin, unittest.TestCase):
         self.assertEqual(rc, 2)
         joined = "".join(captured)
         self.assertIn(broken, joined)
-        self.assertIn("restarting", joined)
+        self.assertIn("Pending", joined)
 
-    def test_unhealthy_health_blocks(self) -> None:
+    def test_not_ready_container_blocks(self) -> None:
         sick = "loki"
 
         def fake_run(cmd, *args, **kwargs):
-            service = cmd[-1]
+            service = cmd[-3].replace("app=", "")
             if service == sick:
-                return _make_run_result(
-                    json.dumps(
-                        {"Service": sick, "State": "running", "Health": "unhealthy"}
-                    )
-                    + "\n"
-                )
-            return _make_run_result(_running_record(service, "healthy") + "\n")
+                return _make_run_result(_pod_list(service, "Running", ready=False) + "\n")
+            return _make_run_result(_pod_list(service) + "\n")
 
         captured: list[str] = []
         with patch.object(hook.subprocess, "run", side_effect=fake_run), patch.object(
@@ -165,16 +188,16 @@ class FailureTests(_NoRemoteMixin, unittest.TestCase):
         self.assertEqual(rc, 2)
         joined = "".join(captured)
         self.assertIn(sick, joined)
-        self.assertIn("unhealthy", joined)
+        self.assertIn("not Ready", joined)
 
     def test_multiple_services_down_lists_each(self) -> None:
         down = {"loki", "tempo", "grafana"}
 
         def fake_run(cmd, *args, **kwargs):
-            service = cmd[-1]
+            service = cmd[-3].replace("app=", "")
             if service in down:
-                return _make_run_result("")
-            return _make_run_result(_running_record(service, "healthy") + "\n")
+                return _make_run_result('{"items": []}')
+            return _make_run_result(_pod_list(service) + "\n")
 
         captured: list[str] = []
         with patch.object(hook.subprocess, "run", side_effect=fake_run), patch.object(
@@ -201,7 +224,8 @@ class RemoteServiceTests(unittest.TestCase):
 
     @staticmethod
     def _all_local_running(cmd, *args, **kwargs):
-        return _make_run_result(_running_record(cmd[-1], "healthy") + "\n")
+        service = cmd[-3].replace("app=", "")
+        return _make_run_result(_pod_list(service) + "\n")
 
     def test_remote_service_up_returns_zero(self) -> None:
         with patch.object(hook, "REMOTE_SERVICES", self._REMOTE), patch.object(
@@ -233,7 +257,7 @@ class RemoteServiceTests(unittest.TestCase):
         )
 
         def fake_run(cmd, *args, **kwargs):
-            if cmd[:3] == ["docker", "--context", "dell"]:
+            if cmd[:3] == ["ssh", "dell", "docker"]:
                 return _make_run_result("Apache Tika\n")
             return self._all_local_running(cmd, *args, **kwargs)
 
@@ -253,7 +277,7 @@ class RemoteServiceTests(unittest.TestCase):
         )
 
         def fake_run(cmd, *args, **kwargs):
-            if cmd[:3] == ["docker", "--context", "dell"]:
+            if cmd[:3] == ["ssh", "dell", "docker"]:
                 return _make_run_result("", returncode=1)
             return self._all_local_running(cmd, *args, **kwargs)
 

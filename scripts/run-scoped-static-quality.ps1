@@ -35,7 +35,7 @@ if (Test-Path $GitBash) { $BashExe = $GitBash }
 # Dell is REQUIRED — all quality runs on Dell, fail-CLOSED. Stop early with a
 # clear message if Dell is unreachable (each runner also enforces this).
 $dellOk = $false
-try { docker --context dell info *>$null; $dellOk = $true } catch {}
+try { ssh dell docker info *>$null; $dellOk = $true } catch {}
 if (-not $dellOk) {
     Write-Error "[orchestrator] Dell Docker context is required (all quality runs on Dell) and is not reachable. Wake/fix Dell and retry — it will NOT fall back to Windows."
     exit 2

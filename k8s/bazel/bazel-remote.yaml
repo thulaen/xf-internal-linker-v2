@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: xf-build
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bazel-remote-cache
+  namespace: xf-build
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: cold-nfs
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bazel-remote
+  namespace: xf-build
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bazel-remote
+  template:
+    metadata:
+      labels:
+        app: bazel-remote
+    spec:
+      nodeSelector:
+        xf.io/role: control-storage
+      containers:
+        - name: bazel-remote
+          image: buchgr/bazel-remote-cache@sha256:9b56f4ac894f8220981e2b846da599dee4aa8674059015848e4a141d80d24af2
+          args:
+            - --dir=/data
+            - --max_size=20
+            - --host=0.0.0.0
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - mountPath: /data
+              name: cache
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: bazel-remote-cache
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bazel-remote
+  namespace: xf-build
+spec:
+  selector:
+    app: bazel-remote
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

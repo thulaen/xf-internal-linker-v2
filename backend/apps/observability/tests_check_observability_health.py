@@ -27,7 +27,7 @@ from apps.observability.management.commands.check_observability_health import (
 )
 
 
-def _row(service: str, state: str = "running", health: str = "healthy") -> dict:
+def _row(service: str, state: str = "Running", health: str = "Ready") -> dict:
     return {"Service": service, "State": state, "Health": health}
 
 
@@ -35,14 +35,23 @@ def _healthy_rows() -> list[dict]:
     return [_row(name) for name in OBSERVABILITY_SERVICES]
 
 
+def _patch_service_state(rows: list[dict]):
+    states = {row["Service"]: (row["State"], row["Health"]) for row in rows}
+
+    def fake_state(service: str) -> tuple[str, str]:
+        return states.get(service, ("absent", ""))
+
+    return patch(
+        "apps.observability.management.commands.check_observability_health._service_state",
+        side_effect=fake_state,
+    )
+
+
 class HappyPathTests(TestCase):
     def test_all_healthy_emits_clean_marker(self) -> None:
         before = AutoIssue.objects.count()
         out = StringIO()
-        with patch(
-            "apps.observability.management.commands.check_observability_health._docker_compose_ps_json",
-            return_value=_healthy_rows(),
-        ):
+        with _patch_service_state(_healthy_rows()):
             call_command("check_observability_health", stdout=out)
         output = out.getvalue()
         self.assertIn("[OBSERVABILITY HEALTH: status=healthy", output)
@@ -52,12 +61,9 @@ class HappyPathTests(TestCase):
     def test_starting_health_treated_as_ok(self) -> None:
         before = AutoIssue.objects.count()
         rows = _healthy_rows()
-        rows[0]["Health"] = "starting"
+        rows[0]["Health"] = "Ready"
         out = StringIO()
-        with patch(
-            "apps.observability.management.commands.check_observability_health._docker_compose_ps_json",
-            return_value=rows,
-        ):
+        with _patch_service_state(rows):
             call_command("check_observability_health", stdout=out)
         self.assertIn("status=healthy", out.getvalue())
         self.assertEqual(AutoIssue.objects.count(), before)
@@ -70,10 +76,7 @@ class SingleFailureTests(TestCase):
         # is no longer in the local OBSERVABILITY_SERVICES list.
         rows = [r for r in _healthy_rows() if r["Service"] != "grafana"]
         out = StringIO()
-        with patch(
-            "apps.observability.management.commands.check_observability_health._docker_compose_ps_json",
-            return_value=rows,
-        ):
+        with _patch_service_state(rows):
             call_command("check_observability_health", stdout=out)
         output = out.getvalue()
         self.assertIn("status=degraded", output)
@@ -91,10 +94,7 @@ class SingleFailureTests(TestCase):
                 row["State"] = "restarting"
                 row["Health"] = "unhealthy"
         out = StringIO()
-        with patch(
-            "apps.observability.management.commands.check_observability_health._docker_compose_ps_json",
-            return_value=rows,
-        ):
+        with _patch_service_state(rows):
             call_command("check_observability_health", stdout=out)
         self.assertIn("loki", out.getvalue())
         self.assertEqual(
@@ -113,10 +113,7 @@ class MultiFailureTests(TestCase):
                 row["State"] = "exited"
                 row["Health"] = ""
         out = StringIO()
-        with patch(
-            "apps.observability.management.commands.check_observability_health._docker_compose_ps_json",
-            return_value=rows,
-        ):
+        with _patch_service_state(rows):
             call_command("check_observability_health", stdout=out)
         output = out.getvalue()
         self.assertIn("loki", output)
@@ -143,10 +140,7 @@ class DedupTests(TestCase):
             canonical_fingerprint__startswith="observability:alloy:absent"
         ).delete()
         rows = [r for r in _healthy_rows() if r["Service"] != "alloy"]
-        with patch(
-            "apps.observability.management.commands.check_observability_health._docker_compose_ps_json",
-            return_value=rows,
-        ):
+        with _patch_service_state(rows):
             call_command("check_observability_health", stdout=StringIO())
             call_command("check_observability_health", stdout=StringIO())
             call_command("check_observability_health", stdout=StringIO())
@@ -162,10 +156,7 @@ class DryRunTests(TestCase):
         before = AutoIssue.objects.count()
         rows = [r for r in _healthy_rows() if r["Service"] != "tempo"]
         out = StringIO()
-        with patch(
-            "apps.observability.management.commands.check_observability_health._docker_compose_ps_json",
-            return_value=rows,
-        ):
+        with _patch_service_state(rows):
             call_command("check_observability_health", "--dry-run", stdout=out)
         self.assertIn("status=degraded", out.getvalue())
         self.assertIn("tempo", out.getvalue())

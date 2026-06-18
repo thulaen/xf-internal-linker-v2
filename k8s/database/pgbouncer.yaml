@@ -79,11 +79,11 @@ spec:
             - name: MAX_CLIENT_CONN
               value: "1000"
             - name: DEFAULT_POOL_SIZE
-              value: "25"
+              value: "100"
             - name: MIN_POOL_SIZE
               value: "5"
             - name: RESERVE_POOL_SIZE
-              value: "5"
+              value: "20"
           resources:
             requests:
               cpu: "50m"

@@ -18,6 +18,12 @@ build --symlink_prefix=bazel-
 test --test_output=errors
 test --test_summary=terse
 
+# Remote cache smoke path for KUBE PLAN Slice 25. The endpoint is the in-cluster
+# Mint service; local checks may pass --config=remote-cache-smoke only when the
+# cluster DNS path is reachable.
+build:remote-cache-smoke --remote_cache=http://bazel-remote.xf-build.svc.cluster.local:8080
+test:remote-cache-smoke --remote_cache=http://bazel-remote.xf-build.svc.cluster.local:8080
+
 # Dell is the build node (ADR 0010) but it ALSO runs the database + tests + the
 # rehearsal cluster in 15 GB / 20 threads. Cap Bazel so a build never starves
 # them: small JVM heap + leave RAM and several cores for everything else.

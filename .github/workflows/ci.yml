@@ -19,11 +19,11 @@ jobs:
       - name: Run tool-readiness
         run: bash scripts/run-tool-readiness.sh
       - name: Run Python quality checks
-        run: bash scripts/run-python-quality.sh
+        run: python scripts/bazel_default.py run //tools/quality:python
       - name: Run Angular quality checks
-        run: bash scripts/run-angular-quality.sh
+        run: python scripts/bazel_default.py run //tools/quality:frontend
       - name: Run Rust quality checks
-        run: bash scripts/run-rust-quality.sh
+        run: python scripts/bazel_default.py run //tools/quality:rust
 
   quality-debt:
     name: Whole-repo quality debt report
@@ -470,29 +470,15 @@ jobs:
           retention-days: 30
 
   # ── 17g. Rust quality (fmt + clippy + tests, blocking) ───────────
-  # Covers BOTH Rust workspaces: the new /repo/rust kernel workspace
-  # (members xf_kernels + extensions/l2norm) AND services/speccheck.
-  # Runs inside the compiled-tools image, which bakes the rustup stable
-  # toolchain pinned by rust-toolchain.toml plus rustfmt + clippy. The
-  # gates agent owns scripts/run-rust-quality.sh; this job calls it so
-  # the workspace list, scope guard, and clippy strictness stay in one
-  # place. RUST_WORKSPACES makes the runner iterate both workspaces.
-  # XF_QUALITY_RUN_ALL=1 forces a full run in CI (no diff-scope short-
-  # circuit) so every push is fully checked.
+  # Bazel is the public quality entry point. The Rust target owns the
+  # workspace list, Dell placement, and strict checks.
   rust-quality:
     name: Rust Quality (fmt, clippy, tests)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Build compiled-tools image
-        run: docker compose build compiled-tools
-      - name: Run Docker-managed Rust quality chain (both workspaces)
-        run: |
-          docker compose run --rm \
-            -e XF_QUALITY_INNER=1 \
-            -e XF_QUALITY_RUN_ALL=1 \
-            -e RUST_WORKSPACES="/repo/rust /repo/services/speccheck" \
-            compiled-tools bash /repo/scripts/run-rust-quality.sh
+      - name: Run Bazel Rust quality chain
+        run: python scripts/bazel_default.py run //tools/quality:rust
 
   # ── 17h. Rust sanity build via maturin (blocking) ────────────────
   # The /repo/rust crates are PyO3 cdylib extension modules. `cargo test`

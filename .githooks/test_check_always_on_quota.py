@@ -1,4 +1,4 @@
-"""Unit tests for check-always-on-quota.py pure logic (no Docker, no git)."""
+"""Unit tests for check-always-on-quota.py pure logic."""
 
 from __future__ import annotations
 
@@ -16,10 +16,12 @@ _spec.loader.exec_module(mod)
 class VerifyCmdTests(unittest.TestCase):
     def test_cmd_includes_source_and_threshold(self):
         cmd = mod._verify_cmd("prometheus", 10, None)
+        self.assertIn("backend_manage.py", cmd[1])
         self.assertIn("verify_always_on_quota", cmd)
         self.assertIn("prometheus", cmd)
         self.assertIn("10", cmd)
         self.assertNotIn("--resolved-after", cmd)
+        self.assertNotIn("docker", cmd)
 
     def test_cmd_adds_cutoff_when_present(self):
         cmd = mod._verify_cmd("prometheus", 10, "2026-05-30 06:00")
@@ -55,11 +57,11 @@ class MainTests(unittest.TestCase):
         ):
             self.assertEqual(mod.main(), 1)
 
-    def test_docker_down_blocks(self):
+    def test_backend_helper_missing_blocks(self):
         with (
             patch.object(mod, "_staged_files", return_value=["a.py"]),
             patch.object(mod, "_cutoff_stamp", return_value=None),
-            patch.object(mod, "_run", return_value=(2, "Docker is not available.")),
+            patch.object(mod, "_run", return_value=(2, "Backend helper is not available.")),
         ):
             self.assertEqual(mod.main(), 1)
 

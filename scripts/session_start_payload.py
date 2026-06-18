@@ -11,7 +11,7 @@ daemon on port 8765, which itself only proxied Django's
 removed (ADR 0007 — Python + Rust only), so the script now calls Django
 directly through nginx on port 80. This script:
   1. Calls GET /api/session-gate/ with the session type and area params.
-     Exits with a plain-English fix message if the stack is down.
+     Exits with a plain-English fix message if the cluster is unreachable.
   2. Assembles the marker block from the returned markers.
   3. Writes audit/session_gate_state.json (gitignored) — the
      check-autoissue-quota hook reads session_type from it.
@@ -30,7 +30,7 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_BASE_URL = "http://localhost"
+DEFAULT_BASE_URL = "http://192.168.0.91:30080"
 GATE_PATH = "/api/session-gate/"
 _STATE_PATH = ROOT / "audit" / "session_gate_state.json"
 _VALID_SESSION_TYPES = ("docs", "infrastructure", "reconciliation", "feature")
@@ -49,8 +49,8 @@ _MARKER_ORDER = (
 _DOWN_MSG = (
     "FAIL: the backend is not responding at {url}.\n"
     "The session gate cannot run without it.\n\n"
-    "FIX:  docker compose up -d backend nginx\n"
-    "      Wait until: docker compose ps backend  shows  (healthy)\n"
+    "FIX:  kubectl -n xf-app get pods -l app=backend\n"
+    "      Wait until the backend pod shows Running and Ready.\n"
     "      Then re-run: python scripts/session_start_payload.py\n\n"
     "No session work may begin until the backend is healthy."
 )

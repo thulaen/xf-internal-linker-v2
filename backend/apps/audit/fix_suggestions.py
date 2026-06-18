@@ -19,21 +19,22 @@ import re
 _RULES: list[tuple[re.Pattern[str], str]] = [
     (
         re.compile(r"spacy.*not.*found|Can't find model|en_core_web_sm", re.I),
-        "spaCy model is missing. Run "
-        "`docker compose exec backend python -m spacy download en_core_web_sm`.",
+        "spaCy model is missing. Rebuild the backend image on Dell so the model "
+        "is baked into the runtime, then roll the Kubernetes backend deployment.",
     ),
     (
         re.compile(
             r"ConnectionError.*redis|Redis.*refused|redis.*ConnectionError", re.I
         ),
-        "Redis is down. Run `docker compose restart redis`.",
+        "Valkey is down. Check `kubectl -n xf-app get pods -l app=valkey` and "
+        "restart the Kubernetes deployment if needed.",
     ),
     (
         re.compile(
             r"psycopg|OperationalError.*database|could not connect to server", re.I
         ),
-        "Postgres is down or unreachable. Check `docker compose ps postgres` "
-        "and `docker compose logs postgres --tail=50`.",
+        "Postgres is down or unreachable. Check the Dell database service and "
+        "`kubectl -n xf-app get pods -l app=pgbouncer`.",
     ),
     (
         re.compile(r"faiss|index.*not.*loaded", re.I),
@@ -42,18 +43,18 @@ _RULES: list[tuple[re.Pattern[str], str]] = [
     ),
     (
         re.compile(r"EMBEDDING_MODEL|sentence-transformers|huggingface", re.I),
-        "Embedding model failed to load. Verify HF cache: "
-        "`docker compose exec backend ls /root/.cache/huggingface`.",
+        "Embedding model failed to load. Verify the backend pod can read the "
+        "Hugging Face cache with `python scripts/backend_manage.py shell`.",
     ),
     (
         re.compile(r"Celery.*worker|worker lost|WorkerLostError", re.I),
-        "Celery worker crashed. Restart: `docker compose restart celery`. "
-        "Check logs: `docker compose logs celery --tail=200`.",
+        "Celery worker crashed. Check `kubectl -n xf-app get pods -l app=worker` "
+        "and restart the Kubernetes worker deployment if needed.",
     ),
     (
         re.compile(r"disk.*full|No space left|ENOSPC", re.I),
         "Disk is full. Run `scripts/prune-verification-artifacts.ps1`, then "
-        "`scripts/reclaim-docker-windows-space.ps1`. Never prune Docker volumes.",
+        "review Dell and Kubernetes storage. Never delete rollback archives.",
     ),
     (
         re.compile(r"permission denied|EACCES", re.I),
@@ -65,7 +66,7 @@ _RULES: list[tuple[re.Pattern[str], str]] = [
 # Phase 4.4 — Beginner-Friendly Failure Recovery (extension to 30+ rules).
 # Each rule below covers a specific failure pattern observed in production
 # logs over the past 3 months. The plain-English fix is deliberately
-# concrete (named docker command, named settings panel) so the operator
+# concrete (named Kubernetes or helper command, named settings panel) so the operator
 # doesn't have to guess.
 _RULES.extend(
     [
@@ -74,8 +75,8 @@ _RULES.extend(
                 r"DiskPressureError|free disk.*<.*GB|projected_total.*exceed", re.I
             ),
             "Disk pressure circuit-breaker tripped. Run "
-            "`scripts/prune-verification-artifacts.ps1` to free Docker cache, "
-            "then `scripts/reclaim-docker-windows-space.ps1` to return space to Windows.",
+            "`scripts/prune-verification-artifacts.ps1`, then check Dell helper "
+            "disk and Kubernetes storage.",
         ),
         (
             re.compile(
@@ -89,7 +90,7 @@ _RULES.extend(
             re.compile(r"FAISS.*single.*worker|_assert_single_worker", re.I),
             "FAISS demands one worker per process. Set "
             "`CELERY_WORKER_CONCURRENCY=1` on the embeddings worker and "
-            "`docker compose restart celery-worker-pipeline`.",
+            "roll the Kubernetes worker deployment.",
         ),
         (
             re.compile(
@@ -116,7 +117,7 @@ _RULES.extend(
         (
             re.compile(r"makemigrations.*not.*detected|No changes detected", re.I),
             "A model field changed without a migration. Run "
-            "`docker compose exec backend python manage.py makemigrations` "
+            "`python scripts/backend_manage.py makemigrations` "
             "and commit the new file.",
         ),
         (
@@ -191,13 +192,12 @@ _RULES.extend(
         (
             re.compile(r"OOMKilled|memory cgroup", re.I),
             "Linux killed the container for using too much RAM. Lower "
-            "embedding batch size or bump the container's `mem_limit` "
-            "in docker-compose.yml.",
+            "embedding batch size or adjust the Kubernetes memory request and limit.",
         ),
         (
             re.compile(r"channels.*group_send|channel layer.*error", re.I),
-            "Realtime broadcast failed. Redis is the channel layer; check "
-            "`docker compose ps redis` and reconnect via the WebSocket.",
+            "Realtime broadcast failed. Valkey is the channel layer; check "
+            "`kubectl -n xf-app get pods -l app=valkey` and reconnect via the WebSocket.",
         ),
         (
             re.compile(r"slow query.*log|pg_stat_statements.*\d{4,} ms", re.I),

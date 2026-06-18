@@ -39,7 +39,7 @@ jobs:
       - name: Run Angular quality gate
         env:
           XF_QUALITY_ENV: ci
-        run: bash scripts/run-angular-quality.sh
+        run: python scripts/bazel_default.py run //tools/quality:frontend
 
   python:
     name: Python quality
@@ -50,7 +50,7 @@ jobs:
       - name: Run Python quality gate
         env:
           XF_QUALITY_ENV: ci
-        run: bash scripts/run-python-quality.sh
+        run: python scripts/bazel_default.py run //tools/quality:python
 
   rust:
     name: Rust quality
@@ -61,4 +61,4 @@ jobs:
       - name: Run Rust quality gate
         env:
           XF_QUALITY_ENV: ci
-        run: bash scripts/run-rust-quality.sh
+        run: python scripts/bazel_default.py run //tools/quality:rust

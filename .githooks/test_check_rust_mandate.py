@@ -234,10 +234,10 @@ def test_cargo_runs_on_dell_context_not_local_compiled_tools(tmp_path: Path):
     assert cargo_calls, "the gate must run cargo steps when a rust/ source file is staged"
     for call in cargo_calls:
         joined = " ".join(call)
-        assert "--context" in call and "dell" in call, (
+        assert "scripts/remote_docker.py" in call and "--host" in call and "dell" in call, (
             f"cargo step must target the Dell context, got: {joined}"
         )
-        assert "xf-linker-compiled-tools:latest" in joined, (
+        assert "xf-linker-compiled-mutation-tools:latest" in joined, (
             f"cargo step must run inside the Dell compiled-tools image, got: {joined}"
         )
     # The removed local container must never be invoked.
@@ -264,6 +264,25 @@ def test_syncs_rust_source_to_dell_before_cargo(tmp_path: Path):
     assert "xf_dell_compiled_repo" in flattened, (
         "the gate must sync source into the Dell xf_dell_compiled_repo volume"
     )
+    assert "rm -rf /repo/services /repo/rust /repo/scripts /repo/.githooks" in flattened
+    assert "tar -xf - -C /repo" in flattened
+
+
+def test_syncs_source_before_first_cargo_step(tmp_path: Path):
+    """Dell must receive the current source tree before cargo reads /repo/rust."""
+    _make_workspaces(tmp_path, "rust")
+    calls: list[list[str]] = []
+    with patch.object(
+        check_rust_mandate,
+        "staged_paths",
+        return_value=["rust/extensions/l2norm/src/lib.rs"],
+    ):
+        with patch.object(check_rust_mandate.subprocess, "run", side_effect=_passing_run_factory(calls)):
+            assert check_rust_mandate.main(tmp_path) == 0
+    joined_calls = [" ".join(call) for call in calls]
+    sync_index = next(i for i, call in enumerate(joined_calls) if "tar -xf - -C /repo" in call)
+    cargo_index = next(i for i, call in enumerate(joined_calls) if "cargo fmt" in call)
+    assert sync_index < cargo_index
 
 
 def test_fails_closed_when_dell_unreachable(tmp_path: Path, capsys):

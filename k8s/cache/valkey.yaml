@@ -30,6 +30,8 @@ spec:
         app: valkey
     spec:
       priorityClassName: xf-infra
+      nodeSelector:
+        kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
       containers:
         - name: valkey
           image: valkey/valkey:8

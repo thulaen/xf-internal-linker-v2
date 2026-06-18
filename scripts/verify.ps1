@@ -18,11 +18,8 @@ try {
     docker compose config | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Docker Compose config check failed." }
 
-    & $gitBash scripts/run-python-quality.sh
-    if ($LASTEXITCODE -ne 0) { throw "Python quality checks failed." }
-
-    & $gitBash scripts/run-angular-quality.sh
-    if ($LASTEXITCODE -ne 0) { throw "Angular quality checks failed." }
+    python scripts/bazel_default.py test //tools/quality:all
+    if ($LASTEXITCODE -ne 0) { throw "Bazel quality checks failed." }
 
     git diff --check
     if ($LASTEXITCODE -ne 0) { throw "Whitespace check failed." }

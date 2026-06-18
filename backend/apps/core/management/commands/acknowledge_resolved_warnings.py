@@ -1,7 +1,7 @@
 """One-time backfill: acknowledge ErrorLog rows whose underlying audit now passes.
 
 Usage:
-    docker compose exec -T backend python manage.py acknowledge_resolved_warnings
+    python scripts/backend_manage.py acknowledge_resolved_warnings
 
 What this fixes:
     Before 2026-05-10 the boot-time NO-DUPLICATES audit fired six
@@ -32,7 +32,25 @@ from apps.core.services.self_test_smoke import (
 class Command(BaseCommand):
     help = "Acknowledge stale ErrorLog rows whose underlying audit now passes."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Show the current stale warning count without acknowledging rows.",
+        )
+
     def handle(self, *args, **options):
+        if options["dry_run"]:
+            from apps.audit.models import ErrorLog
+
+            open_count = ErrorLog.objects.filter(
+                job_type="startup_smoke_test", acknowledged=False
+            ).count()
+            self.stdout.write(
+                f"Dry run only. Would check and acknowledge up to {open_count} stale row(s)."
+            )
+            return
+
         # 1. Run the audit once to compute the set of CURRENTLY flagged
         #    steps. The smoke-test side-effect already calls the
         #    auto-acknowledge function, but we re-compute the count

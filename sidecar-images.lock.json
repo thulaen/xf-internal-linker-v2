@@ -1,0 +1,5 @@
+{
+  "streamd": "10.10.10.91:5000/xf-linker-streamd@sha256:f270bc26b72e03b696ad2a69c7f639e1e85e3cc1499b84b1588025c609ce8bab",
+  "startupd": "10.10.10.91:5000/xf-linker-startupd@sha256:b8f7432f0ce97792804d991b5f094f7debb3318ebf9f9e6baa84f0163e264628",
+  "sidecars": "10.10.10.91:5000/xf-linker-sidecars@sha256:92cd55f1df3861f8122c1e2ac36659b05e141999c6677edd244af38cfaaf4409"
+}

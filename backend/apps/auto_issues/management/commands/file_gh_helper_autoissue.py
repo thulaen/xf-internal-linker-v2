@@ -13,11 +13,11 @@ Each kind gets a distinct `external_id` so the picker surfaces them
 independently if both happen.
 
 Usage (called by scripts/_gh_helper.sh):
-    docker compose exec -T backend python manage.py file_gh_helper_autoissue \\
+    python scripts/backend_manage.py file_gh_helper_autoissue \\
       --kind missing \\
       --context "scripts/run-angular-quality.sh tried to read latest pushed commit"
 
-    docker compose exec -T backend python manage.py file_gh_helper_autoissue \\
+    python scripts/backend_manage.py file_gh_helper_autoissue \\
       --kind auth_expired \\
       --context "gh auth status returned 1"
 """

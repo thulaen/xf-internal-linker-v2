@@ -29,10 +29,10 @@ DOCKER_HEALTH_SCRIPT = REPO_ROOT / "scripts" / "check-docker-health.ps1"
 
 
 class DockerHealthTests(TestCase):
-    def test_files_autoissue_for_windows_docker_http_500(self):
+    def test_files_autoissue_for_dell_docker_http_500(self):
         def fake_run(command, **_kwargs):
-            context = command[command.index("--context") + 1]
-            if context == "desktop-linux":
+            host = command[1] if command[:1] == ["ssh"] else ""
+            if host == "dell":
                 return subprocess.CompletedProcess(
                     command,
                     1,
@@ -50,14 +50,14 @@ class DockerHealthTests(TestCase):
         self.assertEqual(result["results"][0]["error_kind"], "http_500")
         self.assertEqual(second["autoissues"][0]["id"], result["autoissues"][0]["id"])
         self.assertEqual(
-            AutoIssue.objects.filter(title__contains="Windows laptop Docker Desktop").count(),
+            AutoIssue.objects.filter(title__contains="Dell helper over SSH").count(),
             1,
         )
 
     def test_files_autoissue_for_mint_docker_errors(self):
         def fake_run(command, **_kwargs):
-            context = command[command.index("--context") + 1]
-            if context == "mint":
+            host = command[1] if command[:1] == ["ssh"] else ""
+            if host == "mint":
                 return subprocess.CompletedProcess(
                     command,
                     1,
@@ -73,7 +73,7 @@ class DockerHealthTests(TestCase):
         self.assertEqual(result["failures"], 1)
         self.assertEqual(result["results"][1]["error_kind"], "daemon_unreachable")
         self.assertTrue(
-            AutoIssue.objects.filter(title__contains="Mint helper Docker daemon").exists()
+            AutoIssue.objects.filter(title__contains="Mint helper over SSH").exists()
         )
 
     def test_management_command_prints_marker_without_filing_when_requested(self):

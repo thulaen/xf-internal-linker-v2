@@ -17,7 +17,7 @@ paranoid:
 
 Target implementations are stubs today — they return realistic estimate
 figures based on existing auto-prune behaviour but do not actually call
-``docker system prune`` from inside the backend.  That's by design: the
+host-level prune commands from inside the backend.  That's by design: the
 endpoint's job is to validate, gate, and *authorise*; the real filesystem
 work is delegated to the existing ``scripts/prune-verification-artifacts.ps1``
 running outside the container.  Full Docker-client integration can land
@@ -47,12 +47,12 @@ RECLAIM_OLD_SCRATCH_MB = 50
 # GET /api/prune/safe/ so the user sees what they're authorising.
 ALLOWED_TARGETS: dict[str, dict] = {
     "build_cache": {
-        "label": "Docker build cache",
-        "detail": "Layers left behind by past `docker compose build` runs. Safe; rebuilds are slower on first run after prune.",
+        "label": "Remote build cache",
+        "detail": "Layers left behind by past remote image builds. Safe; rebuilds are slower on first run after prune.",
         "approx_reclaim_mb": RECLAIM_BUILD_CACHE_MB,
     },
     "dangling_images": {
-        "label": "Dangling Docker images",
+        "label": "Dangling remote images",
         "detail": "Images no tag points at any more. Safe; these are the old copies from previous builds.",
         "approx_reclaim_mb": RECLAIM_DANGLING_IMAGES_MB,
     },

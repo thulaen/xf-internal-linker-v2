@@ -23,7 +23,7 @@ PICKS = {
         "ruff E701 multiple-statements-on-one-line was bulk-filed by the auto-picker "
         "but no agent has swept the codebase to apply ruff --fix systematically",
         "Commit A maintenance resolution acknowledges the gap; future session should "
-        "run docker compose exec backend ruff check --select E701 --fix backend/ and "
+        "run the Dell-backed Python quality runner and "
         "review each touched file",
     ),
     211: (

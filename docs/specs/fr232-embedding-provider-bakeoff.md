@@ -33,7 +33,8 @@ gate consumes to block regressions.
 | **Semantic search prior art** | US Patent 9,552,356 — "Embedding for semantic similarity" (Facebook, 2017). |
 | **Relevant sections** | MTEB §3.1 retrieval-task metric set; NDCG eq. 4–5; BEIR §4.2 zero-shot protocol. |
 | **What we reproduce** | MRR@10, NDCG@10, Recall@10 computed against qrels with binary relevance. |
-| **What we diverge on** | We compute cost and latency alongside quality because our selection criterion is `0.5 × ndcg + 0.5 × separation_score` (penalises providers that produce high scores but indiscriminately). |
+| **Significance check** | Smucker, Allan, and Carterette 2007 — *A Comparison of Statistical Significance Tests for Information Retrieval Evaluation*. CIKM 2007. DOI: 10.1145/1321440.1321528. |
+| **What we diverge on** | We compute cost and latency alongside quality. A provider is only promoted when the paired randomisation test shows the lead is significant, so one noisy run does not switch the live provider. |
 
 ## 4 · Input contract
 
@@ -48,11 +49,12 @@ Empty positives → returns a `BakeoffRun` with zero metrics. No error.
 
 ## 5 · Output contract
 
-`BakeoffRun(provider_name, signature, sample_size, mrr_at_10, ndcg_at_10, recall_at_10, mean_positive_cosine, mean_negative_cosine, separation_score, cost_usd, latency_ms_p50, latency_ms_p95)`.
+`BakeoffRun(provider_name, signature, sample_size, mrr_at_10, ndcg_at_10, recall_at_10, mean_positive_cosine, mean_negative_cosine, separation_score, cost_usd, latency_ms_p50, latency_ms_p95, verdict, p_value, loss_count, is_banned, explanation)`.
 
 - Invariants: `0 ≤ mrr_at_10 ≤ 1`, `0 ≤ ndcg_at_10 ≤ 1`, `0 ≤ recall_at_10 ≤ 1`, `cost_usd ≥ 0`.
 - Persisted via `EmbeddingBakeoffResult` with `unique_together=[job_id, provider]` — resume never duplicates.
-- `update_provider_ranking()` normalises NDCG to [0, 1] and writes the map to `AppSetting("embedding.provider_ranking_json")`. The winner by `0.5 × ndcg + 0.5 × separation_score` is written to `embedding.recommended_provider`.
+- `update_provider_ranking()` normalises NDCG to [0, 1] and writes the map to `AppSetting("embedding.provider_ranking_json")`.
+- `embedding.provider_bans_json` stores providers with two significant losses so the next automated run skips them until an operator unbans them.
 
 ## 6 · Hyperparameters
 
@@ -63,6 +65,7 @@ Empty positives → returns a `BakeoffRun` with zero metrics. No error.
 | `embedding.bakeoff_cost_cap_usd` | float | 5.0 | Internal budget envelope |
 | `embedding.provider_ranking_json` | json | `{}` | Written by `update_provider_ranking()` |
 | `embedding.recommended_provider` | str | `""` | Written by the task |
+| `embedding.provider_bans_json` | json list | `[]` | Smucker et al. 2007 supports paired significance testing before evaluation decisions; two losses is the conservative project safety rule. |
 
 ## 7 · Schedule + catch-up
 
@@ -82,3 +85,4 @@ Empty positives → returns a `BakeoffRun` with zero metrics. No error.
 2. **Integration** — configure OpenAI + Gemini keys; trigger `embedding_provider_bakeoff.delay()`; verify 3 rows in `EmbeddingBakeoffResult`, unique on `(job_id, provider)`.
 3. **Ranking** — after a run, check `AppSetting("embedding.provider_ranking_json")` contains NDCG map and `embedding.recommended_provider` is populated.
 4. **Budget** — set `embedding.monthly_budget_usd` to a low value; confirm bake-off aborts with `BudgetExceededError` before making API calls.
+5. **Decision** — run `apps/pipeline/tests_embedding_provider_eval.py`; a significant challenger win promotes, and two significant losses ban a provider until the operator unbans it.

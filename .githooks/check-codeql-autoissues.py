@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 
 
 def main() -> int:
     proc = subprocess.run([
-        "docker",
-        "compose",
-        "exec",
-        "-T",
-        "backend",
-        "python",
-        "manage.py",
+        sys.executable,
+        "scripts/backend_manage.py",
         "verify_codeql_autoissues",
         "--max-open",
         "10",

@@ -8,7 +8,7 @@
 # Fallback when the Python module isn't reachable (e.g. fresh checkout
 # before pip install): a conservative laptop tier (FAST=2, HEAVY=2).
 # That keeps pre-commit / pre-push functional on day-0 without forcing a
-# slow Docker-exec round-trip into every commit.
+# slow backend round-trip into every commit.
 #
 # Why a shell helper and not a Python script: pre-commit must stay fast
 # on every commit. Sourcing a shell file is ~1 ms; spawning a Python
@@ -26,11 +26,6 @@ _repo_root="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
 # Try local Python first (fastest path — works when backend deps are pip-installed locally).
 if command -v python > /dev/null 2>&1; then
   _hwprofile_json=$(cd "$_repo_root/backend" 2>/dev/null && python -m apps.pipeline.services.hardware_profile --json 2>/dev/null || echo "")
-fi
-
-# Fall back to docker compose exec (slower; only fires if local Python failed).
-if [ -z "$_hwprofile_json" ] && command -v docker > /dev/null 2>&1; then
-  _hwprofile_json=$(docker compose exec -T backend python -m apps.pipeline.services.hardware_profile --json 2>/dev/null || echo "")
 fi
 
 if [ -n "$_hwprofile_json" ] && command -v python > /dev/null 2>&1; then

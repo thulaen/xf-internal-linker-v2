@@ -1,7 +1,8 @@
 # Frontend npm deps for the node-browser runner (ADR 0010, SLICE-23).
 # npm_translate_lock (MODULE.bazel) resolves frontend/pnpm-lock.yaml into the
 # @npm hub; npm_link_all_packages materialises them as //frontend:node_modules.
-# No Angular build targets here — the app still builds via its own pipeline.
+# Angular quality now enters through //tools/quality:frontend. The lower-level
+# npm pipeline remains an internal implementation detail, not the public default.
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@aspect_rules_js//js:defs.bzl", "js_binary")
 

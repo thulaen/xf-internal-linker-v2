@@ -276,13 +276,13 @@ CELERY_BEAT_SCHEDULE = {
     },
     "auto-issues-registry-read-refresh": {
         "task": "auto_issues.refresh_registry_read",
-        "schedule": 1800.0,
-        "options": {"queue": "default", "expires": 1700},
+        "schedule": 3600.0,
+        "options": {"queue": "default", "expires": 3500},
     },
     "auto-issues-session-start-payload-refresh": {
         "task": "auto_issues.refresh_session_start_payload",
-        "schedule": schedule(run_every=timedelta(seconds=120)),
-        "options": {"queue": "default", "expires": 90},
+        "schedule": schedule(run_every=timedelta(hours=1)),
+        "options": {"queue": "default", "expires": 3500},
     },
     "auto-issues-internal-pick": {
         "task": "auto_issues.pick_daily_internal_issues",

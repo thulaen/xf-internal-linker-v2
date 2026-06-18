@@ -14,8 +14,7 @@ Schedule: ``backend/config/settings/celery_schedules.py`` —
 nothing to delete, it returns 0 and exits.
 
 Manual trigger:
-    docker compose exec backend \\
-        celery -A config.celery call core.passkey_cleanup_expired_challenges
+    python scripts/backend_manage.py shell -c "from config.celery import app; app.send_task('core.passkey_cleanup_expired_challenges')"
 """
 
 from __future__ import annotations

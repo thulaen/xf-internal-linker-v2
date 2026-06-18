@@ -34,7 +34,6 @@ QUALITY_ONLY_PACKAGES = [
     "bandit",
     "pip-audit",
     "safety",
-    "pylint",
     "coverage",
     "pytest",
     "hypothesis",
@@ -201,18 +200,22 @@ class TestComposeServicesUseRuntimeImage(TestCase):
         )
 
 
-class TestQualityScriptUsesQualityService(TestCase):
-    """run-python-quality.sh must invoke the backend-quality service, not backend."""
+class TestQualityScriptUsesBazel(TestCase):
+    """run-python-quality.sh must route to Bazel, not a direct service."""
 
     def setUp(self) -> None:
         self.script = QUALITY_SCRIPT.read_text(encoding="utf-8")
 
-    def test_quality_script_references_backend_quality(self) -> None:
+    def test_quality_script_routes_to_bazel(self) -> None:
         self.assertIn(
-            "backend-quality",
+            "scripts/bazel_default.py",
             self.script,
-            "run-python-quality.sh must invoke the 'backend-quality' service "
-            "(which has quality tools) not the 'backend' runtime service.",
+            "run-python-quality.sh must route to Bazel as the required quality path.",
+        )
+        self.assertIn(
+            "//tools/quality:python",
+            self.script,
+            "run-python-quality.sh must route to the Bazel Python quality target.",
         )
 
     def test_quality_script_does_not_run_bare_backend_service(self) -> None:

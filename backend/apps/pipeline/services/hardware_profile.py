@@ -54,12 +54,6 @@ class HardwareProfile:
     ram_gb: float
     cpu_cores: int
     tier: Tier
-    # Optional GPU fields. They default to a CPU-only machine so every existing
-    # call site that builds a profile without them keeps working unchanged; a
-    # GPU-aware detector (or a test) sets them explicitly. vram_gb already
-    # existed; has_cuda completes the pair the GPU-field tests expect.
-    vram_gb: float = 0.0
-    has_cuda: bool = False
 
     def describe(self) -> str:
         return f"tier={self.tier} ram={self.ram_gb:.1f}GB cores={self.cpu_cores}"

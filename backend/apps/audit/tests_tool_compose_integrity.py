@@ -30,7 +30,7 @@ class DockerToolComposeIntegrityTests(SimpleTestCase):
         frontend = self.services.get("frontend-mutation-tools")
         self.assertIsNotNone(compiled, msg="`compiled-tools` is missing.")
         self.assertIsNotNone(frontend, msg="`frontend-mutation-tools` is missing.")
-        
+
         self.assertEqual(
             compiled.get("profiles") or [],
             ["mint-quality"],
@@ -90,10 +90,16 @@ class DockerToolComposeIntegrityTests(SimpleTestCase):
         self.assertTrue(pgdata["external"])
         self.assertEqual(pgdata["name"], "xf-internal-linker-v2_pgdata")
 
-    def test_start_and_rebuild_guard_fixed_pgdata_volume(self):
+    def test_start_checks_live_kubernetes_app_not_local_docker(self):
         start_script = START_SCRIPT_PATH.read_text(encoding="utf-8")
         safe_rebuild_script = SAFE_REBUILD_SCRIPT_PATH.read_text(encoding="utf-8")
 
-        self.assertIn('$pgdataVolume = "xf-internal-linker-v2_pgdata"', start_script)
-        self.assertIn('$pgdataVolume = "xf-internal-linker-v2_pgdata"', safe_rebuild_script)
-        self.assertIn("Refusing to start a blank database", start_script)
+        self.assertIn("safe-rebuild.ps1 is retired", safe_rebuild_script)
+        self.assertIn("Kubernetes rollout", safe_rebuild_script)
+        self.assertIn("kubectl -n xf-app rollout status deploy/backend", start_script)
+        self.assertIn("kubectl -n xf-app rollout status deploy/frontend", start_script)
+        self.assertIn("python scripts/backend_manage.py check", start_script)
+        self.assertIn("Invoke-WebRequest", start_script)
+        self.assertNotIn("docker compose up", start_script)
+        self.assertNotIn('$pgdataVolume = "xf-internal-linker-v2_pgdata"', start_script)
+        self.assertNotIn('$pgdataVolume = "xf-internal-linker-v2_pgdata"', safe_rebuild_script)

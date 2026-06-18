@@ -14,8 +14,8 @@ recording the agent name, the timestamp, the sticky id, and the
 SHA-256 prefix the agent received.
 
 Run:
-    docker compose exec -T backend python manage.py read_sticky --id 1
-    docker compose exec -T backend python manage.py read_sticky --id 1 --print-sha-only
+    python scripts/backend_manage.py read_sticky --id 1
+    python scripts/backend_manage.py read_sticky --id 1 --print-sha-only
 """
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
 {
-  "comment": "Single source of truth for the observability + quality tier. 'services' are checked on the active (Windows) Docker context by .githooks/check-observability-stack.py. Dell hosts Tika (text extraction), MinIO (object storage), and the docs site. Pyroscope remains on Mint. SonarQube removed 2026-06-09 in favor of GitHub Dependabot + pip-audit in CI. glitchtip-init is intentionally excluded because it is an init job that exits after running.",
+  "comment": "Single source of truth for the observability + quality tier. 'services' are checked in Kubernetes by .githooks/check-observability-stack.py and backend check_observability_health. Dell hosts Tika (text extraction), MinIO (object storage), and the docs site. Pyroscope remains on Mint. SonarQube removed 2026-06-09 in favor of GitHub Dependabot + pip-audit in CI. glitchtip-init is intentionally excluded because it is an init job that exits after running.",
   "services": [
     "alloy",
     "glitchtip",

@@ -70,7 +70,7 @@ def test_pbt_is_hard_gate_after_unit_tests() -> None:
     so their Dell volumes are already warm."""
     text = PRECOMMIT.read_text(encoding="utf-8")
     assert "run_hard_gate run-pbt bash scripts/run-pbt.sh" in text
-    assert text.index("run-rust-quality") < text.index("run_hard_gate run-pbt")
+    assert text.index("bazel-rust-quality") < text.index("run_hard_gate run-pbt")
 
 
 def test_hypothesis_profiles_and_marker_registered() -> None:

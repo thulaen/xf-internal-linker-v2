@@ -32,7 +32,7 @@ This document defines the resource constraints, scheduling rules, and performanc
 | GPU | NVIDIA GeForce RTX 3050 6 GB Laptop GPU | 2026-04-13 |
 | GPU Driver | 595.79 | 2026-04-13 |
 | OS | Windows 11 Home, Build 26200 | 2026-04-13 |
-| Docker Runtime | Docker Desktop (WSL 2 backend) | 2026-04-13 |
+| Runtime | Kubernetes on Dell/Mint-backed helpers | 2026-06-17 |
 
 **How to re-verify:**
 ```bash
@@ -296,13 +296,9 @@ Three steps:
 
 ### What "production mode" means in this repo
 
-The canonical boot command is:
+The old local Compose boot command is retired on MSI. The live runtime now uses Kubernetes and Dell-backed services.
 
-```bash
-docker compose --env-file .env up --build
-```
-
-That is the **only** boot command. The compose stack is prod-only — no dev/prod split, no `-f` overrides. Every `docker compose up` launches the stack with:
+The Kubernetes runtime launches the app with:
 
 - `DJANGO_SETTINGS_MODULE=config.settings.production` and `DJANGO_DEBUG=False` on backend + all Celery services.
 - Uvicorn **without** `--reload` and with 4 workers.
@@ -320,8 +316,8 @@ That is the **only** boot command. The compose stack is prod-only — no dev/pro
 
 ### Test / unit-runner runs
 
-- Unit/integration test runs (`ng test`, `pytest`) bypass the stack entirely — they use their own SQLite test settings (`config.settings.test`) and don't need docker.
-- UI layout work should still run through the prod stack; rebuild the `frontend-build` image (`docker compose build frontend-build`) and bounce `nginx` to see your change.
+- Unit/integration test runs (`ng test`, `pytest`) bypass the runtime entirely — they use their own test settings and do not need MSI Docker.
+- UI layout work should still run through the live-like path; build images on Dell or the cluster runner and roll the Kubernetes frontend to see your change.
 
 ### Reporting requirements
 

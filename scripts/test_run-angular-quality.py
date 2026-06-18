@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).resolve().parent / "run-angular-quality.sh"
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "tools" / "quality" / "internal" / "run-angular-quality.sh"
 FRONTEND_DOCKERFILE = ROOT / "frontend" / "Dockerfile.prod"
 
 
@@ -50,7 +50,8 @@ def test_angular_quality_is_dell_only_lint_and_tests() -> None:
     No mutation here — Stryker lives in run-angular-mutation.sh (pre-push)."""
     text = SCRIPT.read_text(encoding="utf-8")
 
-    assert 'docker --context "$ANGULAR_DOCKER_CONTEXT"' in text
+    assert 'scripts/remote_docker.py --host "$ANGULAR_DOCKER_CONTEXT"' in text
+    assert 'ANGULAR_DOCKER_CONTEXT="__local__"' in text
     assert "eslint" in text
     assert "stylelint" in text
     assert "test:ci" in text

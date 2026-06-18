@@ -125,3 +125,18 @@ class TestCheckFailedShards(TestCase):
         errors = mso.check_failed_shards(entries)
         self.assertEqual(len(errors), 1)
         self.assertIn("shard-2", errors[0])
+
+
+class TestFinalReport(TestCase):
+    def test_render_final_report_counts_errors(self) -> None:
+        entries = [_GOOD_ENTRY, _FAILED_NO_ISSUE]
+        errors = mso.check_failed_shards(entries)
+        report = mso.render_final_report("run-001", entries, errors)
+        self.assertIn("Status: failed", report)
+        self.assertIn("Manifest entries checked: 2", report)
+        self.assertIn("Merge errors: 1", report)
+
+    def test_summarize_entries_passed_when_no_errors(self) -> None:
+        summary = mso.summarize_entries([_GOOD_ENTRY], [])
+        self.assertEqual(summary["status"], "passed")
+        self.assertEqual(summary["required_entries"], 1)

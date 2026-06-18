@@ -78,7 +78,7 @@ For every new paper-trail entry from 2026-05-17 onward:
 
 1. File the test case AutoIssue FIRST with all 10 fields filled:
    ```
-   docker compose exec -T backend python manage.py log_test_case \
+   python scripts/backend_manage.py log_test_case \
      --file <p> --title "..." \
      --given "..." --when "..." --then "..." \
      --edge-cases "..." --failure-cases "..." \
@@ -90,7 +90,7 @@ For every new paper-trail entry from 2026-05-17 onward:
 2. Collect at least one citation matching the inclusive table above.
 3. File the paper-trail entry:
    ```
-   docker compose exec -T backend python manage.py defer_work \
+   python scripts/backend_manage.py defer_work \
      --title "..." --category <one of 17> \
      --abstract "Given ... When ... Then ..." \
      --severity ... --deferred-by claude \
@@ -147,7 +147,7 @@ Entries 1 through ~581 (filed before 2026-05-17 09:30 UTC) are grandfathered. Th
 
 ```text
 # Step 1 — full test case row
-$ docker compose exec -T backend python manage.py log_test_case \
+$ python scripts/backend_manage.py log_test_case \
     --file backend/apps/snapshotd/server.go \
     --title "snapshotd schema-version compatibility check" \
     --given "..." --when "..." --then "..." \
@@ -158,7 +158,7 @@ $ docker compose exec -T backend python manage.py log_test_case \
 [TEST CASE WRITTEN: AutoIssue=#604 id=tc::abc123 file=... agent=claude]
 
 # Step 2 — paper-trail filing
-$ docker compose exec -T backend python manage.py defer_work \
+$ python scripts/backend_manage.py defer_work \
     --title "snapshotd Parquet schema compatibility checker" \
     --category refactor --severity medium \
     --abstract "Given ... When ... Then ..." \

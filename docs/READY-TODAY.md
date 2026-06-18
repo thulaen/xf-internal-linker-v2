@@ -1,5 +1,7 @@
 # Ready Today — what's running right now (no jargon edition)
 
+Historical note: this readiness note includes retired Docker-era commands. Current MSI commands must use Kubernetes, `python scripts/backend_manage.py`, or SSH to Dell/Mint helpers.
+
 > Last updated: 2026-04-25 (Wire + Polish + scheduler 11–23 + retention in window + Phase 6 dispatcher with **all six ranker-time picks wired** + parse-time picks (FastText LangID filter, PySBD splitter, YAKE keyword boost, Trafilatura HTML extractor) plumbed). If you're a new operator coming back to this, this is the first thing to read.
 
 ## TL;DR
@@ -149,3 +151,4 @@ So "ready today" means: **as soon as you start running the pipeline (which happe
 **Nothing for you to do today.** The system runs itself. Open the dashboard and start reviewing suggestions — that's the only operator-side action that matters. Every other feature is either active right now or training itself in the background.
 
 If you want to disable anything: Settings → Optional Pick Toggles → flip → Save. That's it.
+Historical note: this readiness note includes retired Docker-era commands. Current MSI commands must use Kubernetes, `python scripts/backend_manage.py`, or SSH to Dell/Mint helpers.

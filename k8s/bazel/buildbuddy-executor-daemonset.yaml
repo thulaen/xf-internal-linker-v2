@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: buildbuddy-executor
+  namespace: xf-build
+spec:
+  selector:
+    matchLabels:
+      app: buildbuddy-executor
+  template:
+    metadata:
+      labels:
+        app: buildbuddy-executor
+    spec:
+      nodeSelector:
+        xf.io/can-test: "true"
+      containers:
+        - name: executor
+          image: gcr.io/flame-public/buildbuddy-executor-enterprise@sha256:a467f104fe47714c8b23590be5623d3a9cbd81bd61b37794206c14025cd0adeb
+          args:
+            - --executor.app_target=buildbuddy.xf-build.svc.cluster.local:1985

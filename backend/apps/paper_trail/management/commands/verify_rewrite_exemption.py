@@ -6,7 +6,7 @@ JSON evidence file, recomputes the projected-gain percentage, checks
 the four conditions, and exits 0 only when all four hold.
 
 Run:
-    docker compose exec -T backend python manage.py verify_rewrite_exemption \\
+    python scripts/backend_manage.py verify_rewrite_exemption \\
         --area backend/apps/example \\
         --evidence-file docs/rewrite-evidence/session-2026-05-23.json
 """

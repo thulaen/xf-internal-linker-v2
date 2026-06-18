@@ -266,7 +266,9 @@ class CreateNewTests(TestCase):
             fix_suggestions.suggest("ConnectionError: redis refused", "", ""),
         )
         self.assertEqual(
-            row.how_to_fix, "Redis is down. Run `docker compose restart redis`."
+            row.how_to_fix,
+            "Valkey is down. Check `kubectl -n xf-app get pods -l app=valkey` and "
+            "restart the Kubernetes deployment if needed.",
         )
 
 

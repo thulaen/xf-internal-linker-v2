@@ -1,0 +1,5 @@
+{
+  "bazel-remote": "sha256:9b56f4ac894f8220981e2b846da599dee4aa8674059015848e4a141d80d24af2",
+  "buildbuddy-app": "sha256:b3e22976d1c8fb9087c6b0d7d91d84c452af329a0ad0688b0eca0a4c2c187549",
+  "buildbuddy-executor": "sha256:a467f104fe47714c8b23590be5623d3a9cbd81bd61b37794206c14025cd0adeb"
+}

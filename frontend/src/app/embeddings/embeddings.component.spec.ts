@@ -16,7 +16,7 @@ const STATUS = {
   dimension: 1024,
   max_tokens: 512,
   hardware: { tier: 'mid', ram_gb: 16, cpu_cores: 8, recommended_batch_size: 16 },
-  coverage: { total: 100, embedded: 50, pct: 0.5 },
+  coverage: { total: 100, embedded: 50, pct: 50 },
   spend_this_month: [],
   recommended_provider: 'openai',
 };
@@ -98,5 +98,19 @@ describe('EmbeddingsComponent', () => {
     expect(component.showApiKey()).toBe(false);
     component.toggleApiKey();
     expect(component.showApiKey()).toBe(true);
+  });
+
+  it('unbanProvider POSTs to the unban endpoint and reloads bakeoff rows', () => {
+    fixture.detectChanges();
+    flushInitial();
+    component.unbanProvider('gemini');
+
+    const post = httpMock.expectOne('/api/embedding/provider/unban/');
+    expect(post.request.method).toBe('POST');
+    expect(post.request.body).toEqual({ provider: 'gemini' });
+    post.flush({ provider: 'gemini', is_banned: false });
+
+    httpMock.expectOne('/api/embedding/bakeoff/').flush([]);
+    expect(component.busyAction()).toBeNull();
   });
 });

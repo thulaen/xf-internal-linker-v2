@@ -92,7 +92,7 @@ def main() -> int:
         "for true child rows, `SET_NULL` (with null=True) for soft "
         "relationships. If you genuinely believe Django's default is "
         "correct here (very rare), file:\n"
-        "  docker compose exec -T backend python manage.py "
+        "  python scripts/backend_manage.py "
         "report_hook_false_positive --hook check-fk-on-delete "
         "--context \"<explanation>\"\n"
     )

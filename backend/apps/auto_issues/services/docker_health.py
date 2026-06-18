@@ -10,8 +10,8 @@ from apps.auto_issues.services.fingerprinting import canonical_fingerprint
 
 
 DEFAULT_TIMEOUT_SECONDS = 20
-WINDOWS_DOCKER_CONTEXT = "desktop-linux"
-MINT_DOCKER_CONTEXT = "mint"
+DELL_HELPER = "dell"
+MINT_HELPER = "mint"
 
 
 @dataclass(frozen=True)
@@ -31,14 +31,14 @@ class DockerTarget:
 def default_targets() -> tuple[DockerTarget, ...]:
     return (
         DockerTarget(
-            name="windows-docker-desktop",
-            host="Windows laptop Docker Desktop",
-            probes=_docker_context_probes(WINDOWS_DOCKER_CONTEXT),
+            name="dell-helper",
+            host="Dell helper over SSH",
+            probes=_remote_docker_probes(DELL_HELPER),
         ),
         DockerTarget(
-            name="mint-docker",
-            host="Mint helper Docker daemon",
-            probes=_docker_context_probes(MINT_DOCKER_CONTEXT),
+            name="mint-helper",
+            host="Mint helper over SSH",
+            probes=_ssh_helper_probes(MINT_HELPER),
         ),
     )
 
@@ -77,22 +77,27 @@ def file_docker_health_results(
     }
 
 
-def _docker_context_probes(context: str) -> tuple[DockerProbe, ...]:
+def _remote_docker_probes(host: str) -> tuple[DockerProbe, ...]:
     return (
         DockerProbe(
             name="version",
-            command=("docker", "--context", context, "version"),
-            expected_hint="Docker client and server version",
+            command=("ssh", host, "docker", "version"),
+            expected_hint="remote helper Docker answers",
         ),
         DockerProbe(
             name="ps",
-            command=("docker", "--context", context, "ps"),
-            expected_hint="running containers can be listed",
+            command=("ssh", host, "docker", "ps"),
+            expected_hint="remote helper containers can be listed",
         ),
+    )
+
+
+def _ssh_helper_probes(host: str) -> tuple[DockerProbe, ...]:
+    return (
         DockerProbe(
-            name="info",
-            command=("docker", "--context", context, "info"),
-            expected_hint="Docker daemon info can be read",
+            name="ssh",
+            command=("ssh", host, "true"),
+            expected_hint="helper host answers SSH",
         ),
     )
 

@@ -18,6 +18,8 @@ Skipping step 1 or 2 is a protocol violation. The acknowledgement line in your f
 
 **ABSOLUTE — Tests are on Dell whenever the repo has a Dell-backed runner.** Do not run or summarize Windows-only tests as complete when a Dell path exists. Python quality and test work must use the repo-owned turbo/Dell runners when available; Rust tests, lint, formatting, builds, mutation, fuzzing, and benchmarks run through `scripts/dell-rust.sh` on the `dell` Docker context. A local or single-container run is only a diagnostic after the Dell/turbo path fails or when the agent records a plain-English blocker proving Dell is unavailable.
 
+**ABSOLUTE — Bazel is the default quality entry point (added 2026-06-18).** Agents must start quality work through Bazel, using `python scripts/bazel_default.py test //tools/quality:all` for the default suite or `python scripts/bazel_default.py run //tools/quality:<target>` for a scoped target. Old public language quality paths are not real runners anymore; they only print a routing message and enter Bazel. Do not bypass Bazel by calling lower-level test or lint helpers directly unless you are debugging a failed Bazel target and you say that plainly in chat.
+
 ---
 
 ## Trigger discipline and chat-notification protocol

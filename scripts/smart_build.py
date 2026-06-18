@@ -1,4 +1,4 @@
-"""Route Docker builds to the right builder before running them."""
+"""Route image builds to remote builders without using MSI Docker."""
 
 from __future__ import annotations
 
@@ -15,9 +15,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = ROOT / "config" / "docker-build-routing.json"
 
 CommandRunner = Callable[[list[str]], tuple[int, str, str]]
-# Streams a built image from one Docker context to another (save | load).
-# Injectable so tests can assert transfers without moving real image bytes.
+# Retired transfer hook kept injectable so older tests can assert refusal.
 TransferFn = Callable[[str, str, str], tuple[int, str]]
+REMOTE_ONLY_TARGETS = frozenset({"docs-site"})
 
 
 def _default_runner(command: list[str]) -> tuple[int, str, str]:
@@ -37,7 +37,7 @@ def _load_config(path: Path) -> dict:
 
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Select the safest Docker builder, then run docker compose build.",
+        description="Select the safest remote builder, then run compose build over SSH.",
     )
     parser.add_argument("--target", action="append", default=[], help="Compose service to build.")
     parser.add_argument(
@@ -48,12 +48,12 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--select-only",
         action="store_true",
-        help="Select and verify the builder without starting a Docker build.",
+        help="Select and verify the builder without starting an image build.",
     )
     parser.add_argument(
         "build_args",
         nargs=argparse.REMAINDER,
-        help="Extra arguments passed to docker compose build after --.",
+        help="Extra arguments passed to the remote compose build after --.",
     )
     return parser.parse_args(argv)
 
@@ -80,23 +80,34 @@ def _split_machines(config: dict) -> tuple[list[tuple[str, int]], str]:
     salt = str(split.get("salt", "smart-build-v1"))
     machines = split.get("machines")
     if machines:
-        weighted = [
-            (str(entry.get("builder") or entry.get("key")), int(entry.get("percent", 0)))
-            for entry in machines
-        ]
-        if sum(percent for _builder, percent in weighted) != 100:
-            raise ValueError("Build split machines must add up to 100 percent.")
-        return weighted, salt
+        return _current_machine_split(machines), salt
+    return _legacy_machine_split(config, split), salt
+
+
+def _current_machine_split(machines: Sequence[dict]) -> list[tuple[str, int]]:
+    weighted = [
+        (str(entry.get("builder") or entry.get("key")), int(entry.get("percent", 0)))
+        for entry in machines
+    ]
+    _raise_unless_percent_total(weighted)
+    return weighted
+
+
+def _legacy_machine_split(config: dict, split: dict) -> list[tuple[str, int]]:
     builders = config.get("builders") or {}
     mint_percent = int(split.get("mint_percent", 65))
     windows_percent = int(split.get("windows_percent", 35))
-    if mint_percent + windows_percent != 100:
-        raise ValueError("Build split must add up to 100 percent.")
     weighted = [
         (builders.get("mint") or builders.get("general") or "mint", mint_percent),
-        (builders.get("windows") or "desktop-linux", windows_percent),
+        (builders.get("windows") or builders.get("dell") or "dell", windows_percent),
     ]
-    return weighted, salt
+    _raise_unless_percent_total(weighted)
+    return weighted
+
+
+def _raise_unless_percent_total(weighted: Sequence[tuple[str, int]]) -> None:
+    if sum(percent for _builder, percent in weighted) != 100:
+        raise ValueError("Build split machines must add up to 100 percent.")
 
 
 def _builder_name(config: dict, key: str) -> str:
@@ -104,7 +115,7 @@ def _builder_name(config: dict, key: str) -> str:
     if key == "mint":
         return builders.get("mint") or builders.get("general") or "mint"
     if key == "windows":
-        return builders.get("windows") or "desktop-linux"
+        return builders.get("windows") or builders.get("dell") or "dell"
     return str(builders[key])
 
 
@@ -136,8 +147,12 @@ def _build_groups(targets: Sequence[str], config: dict) -> dict[str, list[str]]:
     return groups
 
 
+def _remote_docker_cmd(builder: str, *args: str) -> list[str]:
+    return ["ssh", builder, "docker", *args]
+
+
 def _ensure_builder(builder: str, runner: CommandRunner) -> bool:
-    code, _out, _err = runner(["docker", "buildx", "inspect", builder])
+    code, _out, _err = runner(_remote_docker_cmd(builder, "version"))
     return code == 0
 
 
@@ -175,8 +190,10 @@ def _report_build_failure(
         "stderr": _trim(err, limit),
     }
     report_command = [
-        "docker", "compose", "exec", "-T", "backend", "python", "manage.py",
-        "ingest_build_failure_autoissue", "--payload-json",
+        sys.executable,
+        "scripts/backend_manage.py",
+        "ingest_build_failure_autoissue",
+        "--payload-json",
         json.dumps(payload, sort_keys=True, separators=(",", ":")),
     ]
     code, _report_out, report_err = runner(report_command)
@@ -188,60 +205,27 @@ def _report_build_failure(
 
 
 def _transfer_image(image: str, src_builder: str, dst_builder: str) -> tuple[int, str]:
-    """Stream a built image from one Docker context to another: save | load.
-
-    `docker --context mint compose build` builds on Mint's daemon, so the image
-    only exists on Mint. This streams it into the local (Windows) daemon so the
-    65/35 mint-first split never leaves an image stranded. Streaming (a pipe,
-    not a temp tar) keeps big images off disk.
-    """
-    import time
-    max_retries = 3
-    for attempt in range(1, max_retries + 1):
-        try:
-            saver = subprocess.Popen(
-                ["docker", "--context", src_builder, "save", image],
-                stdout=subprocess.PIPE,
-            )
-            loader = subprocess.Popen(
-                ["docker", "--context", dst_builder, "load"],
-                stdin=saver.stdout, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            )
-            if saver.stdout is not None:
-                saver.stdout.close()
-            out_bytes, _ = loader.communicate(timeout=600)
-            saver.wait()
-            rc = loader.returncode if loader.returncode else saver.returncode
-            if rc == 0:
-                return rc, (out_bytes.decode("utf-8", "replace") if out_bytes else "")
-            else:
-                err_msg = out_bytes.decode("utf-8", "replace") if out_bytes else ""
-                if attempt < max_retries:
-                    _plain_error(f"[smart-build] transfer failed (attempt {attempt}/{max_retries}), retrying in 5s... Error: {err_msg}")
-                    time.sleep(5)
-                else:
-                    return rc, err_msg
-        except OSError as exc:
-            if attempt < max_retries:
-                _plain_error(f"[smart-build] transfer failed with OSError (attempt {attempt}/{max_retries}), retrying in 5s... Error: {exc}")
-                time.sleep(5)
-            else:
-                return 1, f"transfer failed: {exc}"
-    return 1, "transfer failed: max retries exceeded"
+    """Refuse the retired image load path into MSI Docker."""
+    return (
+        2,
+        f"MSI Docker image loading is retired. Push {image} from {src_builder} "
+        f"to the cluster registry instead of loading it into {dst_builder}.\n",
+    )
 
 
 def _service_image_map(runner: CommandRunner) -> dict[str, str]:
-    """Return {compose-service: image-tag} from `docker compose config`.
+    """Return {compose-service: image-tag} from the compose file.
 
     Returns {} on any failure or non-JSON output, so callers (and tests with a
     stub runner) degrade gracefully to "no transfer".
     """
-    code, out, _err = runner(["docker", "compose", "config", "--format", "json"])
-    if code != 0 or not (out or "").strip():
+    try:
+        import yaml  # type: ignore[import-untyped]
+    except ImportError:
         return {}
     try:
-        data = json.loads(out)
-    except json.JSONDecodeError:
+        data = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8")) or {}
+    except (OSError, ValueError):
         return {}
     services = data.get("services") or {}
     return {
@@ -259,22 +243,21 @@ def _load_images_locally(
     runner: CommandRunner,
     transfer: TransferFn,
 ) -> int:
-    """Pull images built on a remote builder back into the local Docker.
-
-    No-op when the build ran on the local (Windows) builder, or when
-    `load_remote_images` is disabled in the routing config.
-    """
+    """Refuse the retired image load path into MSI Docker."""
     local = _builder_name(config, "windows")
-    if builder == local or not config.get("load_remote_images", True):
+    if not config.get("load_remote_images", False):
         return 0
-    if targets and any("mutation-tools" in t for t in targets):
-        print(f"[smart-build] Skipping local load for {targets} because they are remote-only mutation tools.", file=sys.stderr)
+    if targets and (
+        any("mutation-tools" in t for t in targets)
+        or any(t in REMOTE_ONLY_TARGETS for t in targets)
+    ):
+        print(f"[smart-build] Skipping local load for {targets} because they are remote-only targets.", file=sys.stderr)
         return 0
     image_map = _service_image_map(runner)
     tags = [image_map[t] for t in targets if t in image_map] if targets else list(image_map.values())
     rc = 0
     for tag in tags:
-        _plain_error(f"[smart-build] loading {tag} from {builder} into {local} (mint-first --load)...")
+        _plain_error(f"[smart-build] refusing to load {tag} into MSI Docker.")
         code, out = transfer(tag, builder, local)
         if out:
             print(out, end="", file=sys.stderr)
@@ -296,7 +279,7 @@ def _run_build_for_group(
     runner: CommandRunner,
     transfer: TransferFn,
 ) -> int:
-    command = ["docker", "--context", builder, "compose", "build", *build_args, *targets]
+    command = _remote_docker_cmd(builder, "compose", "build", *build_args, *targets)
     result, out, err = runner(command)
     if out:
         print(out, end="")

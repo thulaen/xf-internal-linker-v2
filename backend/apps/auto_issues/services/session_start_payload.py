@@ -17,7 +17,7 @@ from django.conf import settings
 from django.core.management import call_command
 
 DEFAULT_TIMEOUT_SECONDS = 5.0
-DEFAULT_TTL = timedelta(minutes=5)
+DEFAULT_TTL = timedelta(minutes=65)
 PAYLOAD_VERSION = 1
 
 

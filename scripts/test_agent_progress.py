@@ -252,6 +252,10 @@ class IoHelperTests(unittest.TestCase):
         with patch.object(agent_progress.subprocess, "run", return_value=result):
             self.assertEqual(agent_progress._docker_quality_containers(), [])
 
+    def test_docker_quality_containers_returns_empty_when_docker_missing(self) -> None:
+        with patch.object(agent_progress.subprocess, "run", side_effect=FileNotFoundError):
+            self.assertEqual(agent_progress._docker_quality_containers(), [])
+
     def test_docker_quality_containers_parses_targets_and_cpu(self) -> None:
         outputs = [
             SimpleNamespace(

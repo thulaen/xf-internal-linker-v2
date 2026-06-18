@@ -48,6 +48,13 @@ class BakeoffRun:
     cost_usd: float = 0.0
     latency_ms_p50: int = 0
     latency_ms_p95: int = 0
+    query_ndcg_at_10: tuple[float, ...] = ()
+    compared_to: str = ""
+    verdict: str = "pending"
+    p_value: float = 1.0
+    loss_count: int = 0
+    is_banned: bool = False
+    explanation: str = ""
 
 
 def sample_ground_truth(
@@ -77,7 +84,8 @@ def sample_ground_truth(
             "host_id", "destination_id"
         )
     )
-    rng = random.Random(42)
+    # Deterministic evaluation sample; this is not used for security.
+    rng = random.Random(42)  # nosec B311
     pos = (
         positives_qs
         if len(positives_qs) <= sample_size
@@ -104,7 +112,8 @@ def load_stored_vectors(pks: set[int]) -> dict[int, np.ndarray]:
             continue
         try:
             out[pk] = np.asarray(emb, dtype=np.float32)
-        except Exception:  # noqa: BLE001  # Best-effort fallback in service/helper code; downstream code logs / returns a safe default — must not raise to the pipeline orchestrator.
+        except Exception:  # noqa: BLE001
+            logger.warning("bakeoff: stored vector could not be read", exc_info=True)
             continue
     return out
 
@@ -191,6 +200,7 @@ def score_provider(
     recall_hits = 0
     pos_cosines: list[float] = []
     neg_cosines: list[float] = []
+    query_ndcg_values: list[float] = []
 
     # Embed host queries in batches, score against the full pool.
     host_batches = [positives[i : i + _BATCH] for i in range(0, len(positives), _BATCH)]
@@ -217,6 +227,7 @@ def score_provider(
         for row_idx, dest_id in enumerate(dest_ids):
             target_col = pool_index.get(dest_id)
             if target_col is None:
+                query_ndcg_values.append(0.0)
                 continue
             scores_row = scores[row_idx]
             target_score = float(scores_row[target_col])
@@ -225,12 +236,15 @@ def score_provider(
             # Rank of target (descending). Larger = worse.
             order = np.argsort(-scores_row)
             rank = int(np.where(order == target_col)[0][0]) + 1
+            ndcg_value = 0.0
             if rank <= _TOP_K:
                 mrr_sum += 1.0 / rank
                 # NDCG@10 with binary relevance: DCG = 1/log2(rank+1); iDCG = 1.
-                ndcg_sum += 1.0 / np.log2(rank + 1)
+                ndcg_value = 1.0 / np.log2(rank + 1)
+                ndcg_sum += ndcg_value
                 recall_hits += 1
             # Else contributes 0 to each.
+            query_ndcg_values.append(float(ndcg_value))
 
     # Negative-pair cosines: for each negative, compute host vs destination
     # cosine. We reuse the already-embedded destinations; host embeddings come
@@ -284,6 +298,7 @@ def score_provider(
         cost_usd=total_cost,
         latency_ms_p50=p50,
         latency_ms_p95=p95,
+        query_ndcg_at_10=tuple(query_ndcg_values),
     )
 
 
@@ -307,10 +322,49 @@ def persist_run(*, job_id: str, run: BakeoffRun) -> None:
                 "cost_usd": Decimal(f"{run.cost_usd:.6f}"),
                 "latency_ms_p50": run.latency_ms_p50,
                 "latency_ms_p95": run.latency_ms_p95,
+                "compared_to": run.compared_to,
+                "verdict": run.verdict,
+                "p_value": Decimal(f"{run.p_value:.6f}"),
+                "loss_count": run.loss_count,
+                "is_banned": run.is_banned,
+                "explanation": run.explanation,
             },
         )
     except Exception:
         logger.exception("persist_run failed for %s", run.provider_name)
+
+
+def apply_provider_verdicts(
+    runs: list[BakeoffRun],
+    *,
+    champion_provider: str,
+    existing_loss_counts: dict[str, int] | None = None,
+) -> None:
+    """Attach champion-versus-challenger verdict fields to bake-off runs."""
+    from apps.pipeline.services.embedding_provider_eval import (
+        ProviderScore,
+        decide_provider_verdicts,
+    )
+
+    scores = [
+        ProviderScore(run.provider_name, run.ndcg_at_10, run.query_ndcg_at_10)
+        for run in runs
+    ]
+    verdicts = decide_provider_verdicts(
+        scores,
+        champion_provider=champion_provider,
+        existing_loss_counts=existing_loss_counts,
+    )
+    for run in runs:
+        verdict = verdicts.get(run.provider_name)
+        if verdict is None:
+            continue
+        run.compared_to = verdict.compared_to
+        run.verdict = verdict.verdict
+        run.p_value = verdict.p_value
+        run.loss_count = verdict.loss_count
+        run.is_banned = verdict.is_banned
+        run.explanation = verdict.explanation
 
 
 def update_provider_ranking(runs: list[BakeoffRun]) -> None:
@@ -351,6 +405,7 @@ __all__ = [
     "BakeoffRun",
     "load_stored_vectors",
     "load_texts",
+    "apply_provider_verdicts",
     "persist_run",
     "sample_ground_truth",
     "score_provider",

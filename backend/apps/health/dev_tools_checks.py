@@ -462,7 +462,7 @@ def check_glitchtip() -> ServiceHealthResult:
             status=ServiceHealthRecord.STATUS_WARNING,
             status_label=f"GlitchTip returned HTTP {resp.status_code}.",
             issue_description="GlitchTip is configured but returned an unexpected response. Error tracking may not be working correctly.",
-            suggested_fix="Check that the GlitchTip Docker container is running and healthy: docker-compose ps glitchtip.",
+            suggested_fix="Check that the GlitchTip Kubernetes pod is running and healthy: kubectl -n xf-obs get pods -l app=glitchtip.",
             last_error_at=timezone.now(),
         )
     except Exception as exc:  # noqa: BLE001  # Health probe: any failure (timeout, conn refused, DNS) IS the result we report — surface as STATUS_DOWN with a plain-English fix hint.

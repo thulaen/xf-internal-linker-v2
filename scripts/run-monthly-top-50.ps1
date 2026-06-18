@@ -5,10 +5,8 @@
 # Task installed via `install-monthly-schedule.ps1`, AND can be invoked
 # manually whenever the operator wants an off-cycle run.
 #
-# Strategy auto-detection happens INSIDE the management command (see
-# `apps.pipeline.services.strategy_router.pick_strategy`), so this wrapper
-# stays trivial: it just shells `docker compose exec` so the run lands
-# inside the container that already has Django + the picker + DB access.
+# Strategy auto-detection happens inside the management command. This wrapper
+# runs it through the Kubernetes backend pod.
 #
 # Usage:
 #   powershell -File scripts\run-monthly-top-50.ps1                # current month, auto strategy
@@ -33,15 +31,7 @@ if (-not $Month) {
 
 Write-Host "[monthly-top-50] month=$Month strategy=$Strategy" -ForegroundColor Cyan
 
-# `docker compose exec -T` disables TTY allocation so the script runs unattended.
-$cmd = @(
-    "compose", "exec", "-T", "backend",
-    "python", "manage.py", "run_monthly_top_50",
-    "--month=$Month",
-    "--strategy=$Strategy"
-)
-
-& docker @cmd
+python scripts/backend_manage.py run_monthly_top_50 "--month=$Month" "--strategy=$Strategy"
 $code = $LASTEXITCODE
 
 if ($code -eq 0) {

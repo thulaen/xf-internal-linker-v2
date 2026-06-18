@@ -1,0 +1,12 @@
+global:
+  storageClass: cold-nfs
+mysql:
+  enabled: true
+executor:
+  enabled: false
+app:
+  nodeSelector:
+    xf.io/role: control-storage
+  image:
+    repository: gcr.io/flame-public/buildbuddy-app-onprem
+    digest: sha256:b3e22976d1c8fb9087c6b0d7d91d84c452af329a0ad0688b0eca0a4c2c187549

@@ -69,12 +69,28 @@ def test_docker_down_fails_closed(monkeypatch, capsys) -> None:
     hook = _load_hook()
 
     def fake_run(command, **kwargs):
-        raise FileNotFoundError("docker")
+        raise FileNotFoundError("backend_manage.py")
 
     monkeypatch.setattr(hook.subprocess, "run", fake_run)
 
     assert hook.main() == 2
-    assert "FAIL quota: cannot verify (Docker down)" in capsys.readouterr().err
+    assert "Kubernetes backend is unreachable" in capsys.readouterr().err
+
+
+def test_hook_uses_shared_backend_runner(monkeypatch) -> None:
+    hook = _load_hook()
+    seen = []
+
+    def fake_run(command, **kwargs):
+        seen.append(command)
+        return subprocess.CompletedProcess(command, 0, "ok\n", "")
+
+    monkeypatch.setattr(hook.subprocess, "run", fake_run)
+
+    assert hook.main() == 0
+    assert all("scripts\\backend_manage.py" in command[1] or "scripts/backend_manage.py" in command[1]
+               for command in seen)
+    assert all("docker" not in command for command in seen)
 
 
 def test_fresh_repo_grandfathers(monkeypatch, capsys) -> None:
@@ -106,13 +122,13 @@ def test_ci_mode_does_not_bypass(monkeypatch) -> None:
     assert hook.main() == 2
 
 
-def test_pre_push_enforces_both_quotas() -> None:
-    prepush = (REPO_ROOT / "scripts" / "prepush-docker.sh").read_text(encoding="utf-8")
+def test_pre_commit_enforces_both_quotas() -> None:
+    precommit = (REPO_ROOT / "scripts" / "precommit-docker.sh").read_text(encoding="utf-8")
 
-    quota_index = prepush.index("python .githooks/check-autoissue-quota.py")
-    quality_index = prepush.index("bash scripts/run-tool-readiness.sh")
+    quota_index = precommit.index("python .githooks/check-autoissue-quota.py")
+    quality_index = precommit.index("bash scripts/run-tool-readiness.sh")
 
-    assert quota_index < quality_index
+    assert quality_index < quota_index
 
 
 # --- 2026-05-29 regression tests: the verifiers expose --session-type, not the
@@ -156,4 +172,3 @@ def test_session_type_rejects_unknown_value(tmp_path, monkeypatch) -> None:
     state.write_text(json.dumps({"session_type": "banana"}), encoding="utf-8")
     monkeypatch.setattr(hook, "GATE_STATE", state)
     assert hook._session_type() == "feature"
-

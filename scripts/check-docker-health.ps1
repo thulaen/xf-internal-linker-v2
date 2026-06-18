@@ -6,39 +6,38 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$outDir = Join-Path $repoRoot ".tmp\docker-health"
+$outDir = Join-Path $repoRoot ".tmp\cluster-helper-health"
 $outFile = Join-Path $outDir "latest.json"
+$mintSshHost = if ($env:XF_MINT_SSH_HOST) { $env:XF_MINT_SSH_HOST } else { "mint-wifi" }
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-function Invoke-DockerProbe {
+function Invoke-CommandProbe {
     param(
-        [string]$Target,
-        [string]$HostLabel,
-        [string]$Context,
-        [string]$Probe
+        [string]$Name,
+        [string]$Expected,
+        [string[]]$Command
     )
 
-    $commandText = "docker --context $Context $Probe"
     $job = Start-Job -ScriptBlock {
-        param([string]$JobContext, [string]$JobProbe)
-        $probeOutput = & docker --context $JobContext $JobProbe 2>&1 | Out-String
+        param([string[]]$JobCommand)
+        $probeOutput = & $JobCommand[0] $JobCommand[1..($JobCommand.Length - 1)] 2>&1 | Out-String
         [ordered]@{
             output = $probeOutput
             exitCode = $LASTEXITCODE
         }
-    } -ArgumentList $Context, $Probe
+    } -ArgumentList (,$Command)
 
     $completed = Wait-Job -Timeout $TimeoutSeconds -Job $job
     if (-not $completed) {
         Stop-Job -Job $job -ErrorAction SilentlyContinue
         Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
         return [ordered]@{
-            name = $Probe
+            name = $Name
             status = "timeout"
-            command = $commandText
-            expected = "Docker $Probe succeeds"
+            command = ($Command -join " ")
+            expected = $Expected
             output = ""
-            error = "Docker $Probe on $HostLabel timed out after $TimeoutSeconds seconds."
+            error = "$Name timed out after $TimeoutSeconds seconds."
             returncode = $null
         }
     }
@@ -49,59 +48,64 @@ function Invoke-DockerProbe {
     $exitCode = [int]$result.exitCode
     if ($exitCode -eq 0) {
         return [ordered]@{
-            name = $Probe
+            name = $Name
             status = "ok"
-            command = $commandText
-            expected = "Docker $Probe succeeds"
+            command = ($Command -join " ")
+            expected = $Expected
             output = ($output.Trim())
             error = ""
             returncode = 0
         }
     }
     return [ordered]@{
-        name = $Probe
+        name = $Name
         status = "error"
-        command = $commandText
-        expected = "Docker $Probe succeeds"
+        command = ($Command -join " ")
+        expected = $Expected
         output = ""
         error = ($output.Trim())
         returncode = $exitCode
     }
 }
 
-function Invoke-DockerTarget {
-    param(
-        [string]$Target,
-        [string]$HostLabel,
-        [string]$Context
-    )
-
-    $probes = @(
-        Invoke-DockerProbe -Target $Target -HostLabel $HostLabel -Context $Context -Probe "version"
-        Invoke-DockerProbe -Target $Target -HostLabel $HostLabel -Context $Context -Probe "ps"
-        Invoke-DockerProbe -Target $Target -HostLabel $HostLabel -Context $Context -Probe "info"
-    )
-    return [ordered]@{
-        target = $Target
-        host = $HostLabel
-        probes = $probes
-    }
-}
-
 $payload = [ordered]@{
     generated_at = (Get-Date).ToUniversalTime().ToString("o")
     results = @(
-        Invoke-DockerTarget -Target "windows-docker-desktop" -HostLabel "Windows laptop Docker Desktop" -Context "desktop-linux"
-        Invoke-DockerTarget -Target "mint-docker" -HostLabel "Mint helper Docker daemon" -Context "mint"
+        [ordered]@{
+            target = "kubernetes-cluster"
+            host = "MSI kubectl to live cluster"
+            probes = @(
+                Invoke-CommandProbe -Name "kubectl-nodes" -Expected "Kubernetes nodes are reachable" -Command @("kubectl", "get", "nodes")
+                Invoke-CommandProbe -Name "backend-health" -Expected "Backend responds through Kubernetes" -Command @("python", "scripts/backend_manage.py", "check")
+            )
+        }
+        [ordered]@{
+            target = "dell-helper"
+            host = "Dell helper over SSH"
+            probes = @(
+                Invoke-CommandProbe -Name "dell-docker-version" -Expected "Dell Docker answers over SSH" -Command @("ssh", "dell", "docker", "version")
+                Invoke-CommandProbe -Name "dell-docker-ps" -Expected "Dell can list helper containers" -Command @("ssh", "dell", "docker", "ps")
+            )
+        }
+        [ordered]@{
+            target = "mint-helper"
+            host = "Mint helper over SSH"
+            probes = @(
+                Invoke-CommandProbe -Name "mint-kubelet" -Expected "Mint cluster helper answers SSH" -Command @("ssh", $mintSshHost, "systemctl", "is-active", "k3s")
+            )
+        }
     )
 }
 
 $payload | ConvertTo-Json -Depth 8 | Set-Content -Path $outFile -Encoding UTF8
 
-$backendPath = "/repo/.tmp/docker-health/latest.json"
-$argsForManage = @("python", "manage.py", "check_docker_health", "--from-json", $backendPath, "--timeout-seconds", "$TimeoutSeconds")
-if ($NoFile) {
-    $argsForManage += "--no-file"
+if (-not $NoFile) {
+    $namespace = if ($env:XF_BACKEND_MANAGE_NAMESPACE) { $env:XF_BACKEND_MANAGE_NAMESPACE } else { "xf-app" }
+    $selector = if ($env:XF_BACKEND_MANAGE_SELECTOR) { $env:XF_BACKEND_MANAGE_SELECTOR } else { "app=backend" }
+    $pod = kubectl -n $namespace get pod -l $selector -o jsonpath='{.items[0].metadata.name}'
+    if (-not $pod) {
+        throw "Could not find a Kubernetes backend pod for health report import."
+    }
+    kubectl -n $namespace cp $outFile "$pod`:/tmp/cluster-helper-health-latest.json"
+    python scripts/backend_manage.py check_docker_health --from-json /tmp/cluster-helper-health-latest.json --timeout-seconds "$TimeoutSeconds"
 }
-
-docker --context desktop-linux compose exec -T backend @argsForManage

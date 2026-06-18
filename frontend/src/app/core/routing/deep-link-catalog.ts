@@ -282,6 +282,15 @@ export const DEEP_LINK_CATALOG: readonly DeepLinkEntry[] = [
     searchTerms: ['settings', 'config', 'theme', 'silo'],
   },
   {
+    key: 'settings.embedding-provider-scoreboard',
+    label: 'Provider Scores',
+    subtitle: 'Embedding provider score runs, cost-confirmed tests, and unban actions.',
+    route: '/settings',
+    tab: 'embedding-provider-scoreboard',
+    scrollTarget: 'embedding-provider-scoreboard',
+    searchTerms: ['embedding provider scores', 'provider bakeoff', 'unban provider'],
+  },
+  {
     key: 'settings.pagerank',
     label: 'PageRank settings',
     subtitle: 'PageRank weight, damping, and refresh schedule.',

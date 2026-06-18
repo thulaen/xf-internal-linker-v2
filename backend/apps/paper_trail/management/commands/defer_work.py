@@ -24,6 +24,23 @@ _VALID_CATEGORIES = {c[0] for c in PaperTrailEntry.CATEGORY_CHOICES}
 _VALID_SEVERITIES = {c[0] for c in PaperTrailEntry.SEVERITY_CHOICES}
 
 
+def _affected_file_overlap_lines(affected_files: list[str]) -> list[str]:
+    active_rows = PaperTrailEntry.objects.exclude(
+        status__in=PaperTrailEntry._TERMINAL_STATUSES
+    ).values("pk", "affected_files")
+    hits_by_file = {path: [] for path in affected_files}
+    for row in active_rows:
+        row_files = set(row.get("affected_files") or [])
+        for path in affected_files:
+            if path in row_files and len(hits_by_file[path]) < 3:
+                hits_by_file[path].append(row["pk"])
+    return [
+        f"affected_file `{path}` overlap with #{hits}"
+        for path, hits in hits_by_file.items()
+        if hits
+    ]
+
+
 class Command(BaseCommand):
     help = "File a new paper-trail deferral entry (or bump an existing one on dupe)."
 
@@ -187,7 +204,7 @@ class Command(BaseCommand):
                 "regression_risks). Without that link the next agent has "
                 "no spec for this deferred work.\n"
                 "UNBLOCK: file the test case first via "
-                "`docker compose exec -T backend python manage.py "
+                "`python scripts/backend_manage.py "
                 "log_test_case --file <p> --title \"...\" "
                 "--given \"...\" --when \"...\" --then \"...\" "
                 "--edge-cases \"...\" --failure-cases \"...\" "
@@ -318,14 +335,7 @@ class Command(BaseCommand):
                     f"linked_autoissue overlap with #{list(link_hits)}"
                 )
         if opts["affected_file"]:
-            for f in opts["affected_file"]:
-                file_hits = PaperTrailEntry.objects.filter(
-                    affected_files__contains=[f],
-                ).exclude(status__in=PaperTrailEntry._TERMINAL_STATUSES).values_list("pk", flat=True)[:3]
-                if file_hits:
-                    integrity_lines.append(
-                        f"affected_file `{f}` overlap with #{list(file_hits)}"
-                    )
+            integrity_lines.extend(_affected_file_overlap_lines(opts["affected_file"]))
         integrity_check_result = (
             " | ".join(integrity_lines)
             if integrity_lines

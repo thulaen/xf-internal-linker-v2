@@ -1,29 +1,23 @@
-import importlib.util
-import unittest
-from pathlib import Path
+"""Tests for the Mint shard storage reader."""
 
-_MOD_PATH = Path(__file__).resolve().parent / "mint_blob_store.py"
-_spec = importlib.util.spec_from_file_location("mint_blob_store", _MOD_PATH)
-mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(mod)
+from __future__ import annotations
 
-class MintBlobStoreTests(unittest.TestCase):
-    def setUp(self):
-        self.store = mod.MintBlobStore("host", "user", "/srv/xf")
+from unittest import TestCase
+from unittest.mock import patch
 
-    def test_blob_path(self):
-        sha256 = "a1b2c3d4e5"
-        path = self.store.blob_path(sha256)
-        self.assertEqual(path, "/srv/xf/artifacts/blob-store/sha256/a1/a1b2c3d4e5")
+from mint_blob_store import MintBlobStore
 
-    def test_temp_path(self):
-        sha256 = "a1b2c3d4e5"
-        path = self.store.temp_path(sha256)
-        self.assertEqual(path, "/srv/xf/temp-upload/a1b2c3d4e5.tmp")
 
-    def test_manifest_path(self):
-        path = self.store.manifest_path("run-123")
-        self.assertEqual(path, "/srv/xf/artifacts/runs/run-123/manifest.json")
+class TestMintBlobStore(TestCase):
+    def test_read_manifest_returns_json_lines(self) -> None:
+        store = MintBlobStore("mint", "xf", "/srv/xf")
+        completed = type("Completed", (), {"returncode": 0, "stdout": '{"a": 1}\n'})
+        with patch.object(store, "_ssh", return_value=completed):
+            self.assertEqual(store.read_manifest("run-1"), [{"a": 1}])
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_blob_exists_uses_sha_prefix(self) -> None:
+        store = MintBlobStore("mint", "xf", "/srv/xf")
+        completed = type("Completed", (), {"returncode": 0, "stdout": ""})
+        with patch.object(store, "_ssh", return_value=completed) as ssh:
+            self.assertTrue(store.blob_exists("abcdef"))
+        self.assertIn("/ab/abcdef", ssh.call_args.args[0])

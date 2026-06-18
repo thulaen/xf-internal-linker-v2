@@ -57,7 +57,7 @@ spec:
         # Idle holder of the backend image — does no work, just keeps the image
         # pinned warm on the node.
         - name: warm-backend-idle
-          image: 10.10.10.91:5000/xf-linker-backend:v6
+          image: 10.10.10.91:5000/xf-linker-backend:v7
           command: ["sleep", "infinity"]
           resources:
             requests:

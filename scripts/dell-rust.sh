@@ -45,13 +45,13 @@ roots=(rust rust-toolchain.toml)
 existing=()
 for r in "${roots[@]}"; do [[ -e "$r" ]] && existing+=("$r"); done
 if ! tar -cf - --exclude=target --exclude=.git "${existing[@]}" \
-    | docker --context "$CTX" run --rm -i -v "$VOL":/repo \
+    | python scripts/remote_docker.py --host "$CTX" -- run --rm -i -v "$VOL":/repo \
         alpine:latest sh -c "rm -rf /repo/rust /repo/rust-toolchain.toml && tar -xf - -C /repo"; then
   echo "FAIL dell-rust: could not sync the Rust workspace to Dell." >&2
   exit 1
 fi
 
-exec docker --context "$CTX" run --rm \
+exec python scripts/remote_docker.py --host "$CTX" -- run --rm \
   -v "$VOL":/repo \
   -v xf_sccache:/sccache \
   -e RUSTC_WRAPPER=sccache \

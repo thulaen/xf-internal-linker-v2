@@ -64,17 +64,23 @@ def _has_dry_run(path: Path) -> bool:
         tree = ast.parse(text, filename=str(path))
     except SyntaxError:
         return True
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            # parser.add_argument("--dry-run", ...)
-            if (
-                isinstance(node.func, ast.Attribute)
-                and node.func.attr == "add_argument"
-            ):
-                for arg in node.args:
-                    if isinstance(arg, ast.Constant) and arg.value == "--dry-run":
-                        return True
-    return False
+    return any(_is_dry_run_argument(node) for node in ast.walk(tree))
+
+
+def _is_dry_run_argument(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    if not _is_add_argument_call(node):
+        return False
+    return any(_is_literal_dry_run(arg) for arg in node.args)
+
+
+def _is_add_argument_call(node: ast.Call) -> bool:
+    return isinstance(node.func, ast.Attribute) and node.func.attr == "add_argument"
+
+
+def _is_literal_dry_run(node: ast.AST) -> bool:
+    return isinstance(node, ast.Constant) and node.value == "--dry-run"
 
 
 def main() -> int:
@@ -98,7 +104,7 @@ def main() -> int:
         "command is genuinely read-only or dry-run makes no sense, add the "
         "marker comment `# xf: no_dry_run -- <one-line reason>` at the top "
         "of the file. If you believe this hook fired in error, file:\n"
-        "  docker compose exec -T backend python manage.py "
+        "  python scripts/backend_manage.py "
         "report_hook_false_positive --hook check-mgmt-command-dry-run "
         "--context \"<explanation>\"\n"
     )

@@ -27,7 +27,7 @@ if [[ "${XF_QUALITY_INNER:-0}" != "1" && ! -f /.dockerenv ]]; then
       git diff --no-index /dev/null "$rust_path" >> "$repo_root/.tmp/rust-mutation.diff" || true
     fi
   done <<< "$host_rust_paths"
-  if ! docker --context "$RUST_MUTATION_DOCKER_CONTEXT" info >/dev/null 2>&1; then
+  if ! xf_remote_context_reachable "$RUST_MUTATION_DOCKER_CONTEXT"; then
     echo "[run-rust-mutation] Dell Rust mutation context '$RUST_MUTATION_DOCKER_CONTEXT' is required and is not reachable." >&2
     exit 1
   fi
@@ -54,14 +54,14 @@ if [[ "${XF_QUALITY_INNER:-0}" != "1" && ! -f /.dockerenv ]]; then
       --exclude=reports \
       --exclude=audit/inter_model \
       "${existing_roots[@]}" \
-      | docker --context "$RUST_MUTATION_DOCKER_CONTEXT" run --rm -i \
+      | python scripts/remote_docker.py --host "$RUST_MUTATION_DOCKER_CONTEXT" -- run --rm -i \
           -v xf_rust_mutation_repo:/repo \
           alpine:latest sh -c "rm -rf /repo/scripts /repo/services /repo/rust /repo/config /repo/rust-toolchain.toml /repo/docker-compose.yml && tar -xf - -C /repo"; then
     echo "[run-rust-mutation] Failed to sync source to Dell for Rust mutation." >&2
     exit 1
   fi
 
-  exec docker --context "$RUST_MUTATION_DOCKER_CONTEXT" run --rm \
+  exec python scripts/remote_docker.py --host "$RUST_MUTATION_DOCKER_CONTEXT" -- run --rm \
     -v xf_rust_mutation_repo:/repo \
     -v xf_dell_quality_cache:/tmp/xf-test-cache \
     -v xf_sccache:/sccache \

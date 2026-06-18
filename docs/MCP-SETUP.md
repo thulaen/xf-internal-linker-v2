@@ -22,7 +22,7 @@ available — no `claude mcp add`, no manual config edits.
 
 The MCP server itself runs inside the existing backend Docker container.
 There's no separate process to start; Claude Code launches the server
-on demand via `docker compose exec`.
+on demand via `python scripts/backend_manage.py`.
 
 ## What the AI agent can call
 

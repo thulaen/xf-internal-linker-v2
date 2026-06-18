@@ -37,7 +37,7 @@ spec:
         kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
       containers:
         - name: celery-default
-          image: 10.10.10.91:5000/xf-linker-backend:v6
+          image: 10.10.10.91:5000/xf-linker-backend:v7
           imagePullPolicy: IfNotPresent
           # Pool = SOLO (no child fork), matching celery-pipeline. The default
           # PREFORK pool forks a child worker per boot, and on this stack that
@@ -132,7 +132,7 @@ spec:
         kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
       containers:
         - name: celery-pipeline
-          image: 10.10.10.91:5000/xf-linker-backend:v6
+          image: 10.10.10.91:5000/xf-linker-backend:v7
           imagePullPolicy: IfNotPresent
           # Single-process (solo) on purpose — the ML libraries' threads make
           # prefork recycling unsafe. Memory is bounded by the hard pod limit.
@@ -219,7 +219,7 @@ spec:
         kubernetes.io/hostname: dell-ubuntu-01-optiplex-micro-7010
       containers:
         - name: celery-beat
-          image: 10.10.10.91:5000/xf-linker-backend:v6
+          image: 10.10.10.91:5000/xf-linker-backend:v7
           imagePullPolicy: IfNotPresent
           command:
             - celery

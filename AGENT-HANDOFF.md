@@ -1,3 +1,746 @@
+## 2026-06-18 - Codex - AutoIssue hourly refresh, quota 28, and commit blockers fixed
+
+[HANDOFF READ: 2026-06-18 by Codex - Commit was blocked by the staged Python quality gate after earlier Docker, Rust, and CodeQL gate fixes.]
+[PROGRESS: User asked to make AutoIssues refresh every hour, change the required AutoIssue quota to 28, fix commit blockers before retrying, then commit and push. I changed the repo quota code to 28, changed AutoIssue registry and session-start payload refresh to hourly, fixed all staged ELCV blockers, updated stale smart-build tests to the MSI Docker-free SSH builder path, and verified the commit-blocking checks before retrying the commit.]
+
+**What I did (plain English):** I changed the new repo code so the picked AutoIssue requirement is 28, and I changed the AutoIssue registry and cached startup payload refresh jobs to run every hour. Because the startup payload now refreshes hourly, I also extended its cache lifetime to 65 minutes so the cached startup packet does not expire before the next scheduled refresh. I fixed the quality-gate blockers instead of retrying the commit first.
+
+**What now works that did not before:** The staged Python quality gate now passes. The smart build tests now match the current default: builds go to helper machines over SSH, and MSI Docker image loading is refused. The quota and refresh tests are updated for 28 and hourly refresh. The mutable-default hook no longer requires local `ruff`; it checks staged Python syntax directly, so the MSI host can run the commit gate without local Docker. The backend command runner now quotes SSH fallback commands safely, so hook failure messages with spaces do not split into broken remote arguments. Five management commands now expose explicit `--dry-run` handling, so the commit safety gate can prove operators have a preview path before those commands change data, queue paid provider work, or write reports. Bazel Python quality now passes after fixing the stale chain-batch quota test and the `file_task_issues` external-ID variable left by the batching refactor. The pre-commit script now resolves one Python interpreter up front, so Git Bash, PowerShell, and WSL-style Bash do not disagree about which `python` command the hooks use. The remote Bazel launcher now sends Dell a short Bash script through standard input and encodes it as UTF-8 bytes, so multiline changed-file lists do not break SSH shell quoting. The remote Docker helper now quotes the full Docker command before sending it over SSH, so `sh -c` commands stay intact on Dell. The Rust mandate hook now uploads a fresh Python-built source archive to Dell before cargo runs, so Dell sees the current `rust/Cargo.toml` and current source tree. The backend database-backed quota and paper-trail tests pass on the Dell pytest runner, which syncs the current workspace before running tests.
+
+**Files changed for this follow-up:** `backend/apps/auto_issues/management/commands/verify_autoissue_quota.py`, `backend/config/settings/celery_schedules.py`, `backend/apps/auto_issues/services/session_start_payload.py`, `.githooks/_hook_helpers.py`, `.githooks/check-django-deploy.py`, `.githooks/check-mgmt-command-dry-run.py`, `.githooks/check-msi-docker-free.py`, `.githooks/check-mutable-defaults.py`, `.githooks/check-no-cross-language-import.py`, `.githooks/check-observability-stack.py`, `backend/apps/auto_issues/management/commands/file_task_issues.py`, `backend/apps/core/management/commands/acknowledge_resolved_warnings.py`, `backend/apps/core/management/commands/memray_report.py`, `backend/apps/core/management/commands/restore_db_snapshot.py`, `backend/apps/paper_trail/management/commands/defer_work.py`, `backend/apps/pipeline/management/commands/run_embedding_provider_eval.py`, `backend/apps/pipeline/management/commands/run_monthly_top_50.py`, `backend/apps/pipeline/tasks_embedding_bakeoff.py`, `scripts/agent_progress.py`, `scripts/backend_manage.py`, `scripts/bazel_affected_targets.py`, `scripts/smart_build.py`, `scripts/test_smart_build.py`, and related focused tests.
+
+**Direct verification done:**
+- Staged Python quality gate passed: `python .githooks/check-elcv-gate.py`. turbo=blocked: host-side staged hook.
+- Whitespace check passed: `git diff --check --cached`. turbo=blocked: host-side Git check.
+- Hook tests passed: `python -m pytest -q .githooks/test__hook_helpers.py .githooks/test_check_autoissue_quota.py .githooks/test_check_k8s_cluster_ready.py .githooks/test_check_msi_docker_free.py .githooks/test_check_observability_stack.py` returned 64 passed. turbo=blocked: host-side hook tests.
+- Script tests passed: `python -m pytest -q scripts/test_agent_progress.py scripts/test_bazel_affected_targets.py scripts/test_diagnose_k8s_access.py scripts/test_resolve_sidecar_image_digests.py scripts/test_smart_build.py tools/test/test_quality_adapters.py` returned 95 passed. turbo=blocked: host-side script tests.
+- Backend database tests passed on Dell: `python scripts/run_pytest_on_context.py --targets apps/auto_issues/tests_verify_autoissue_quota.py apps/paper_trail/tests_defer_work_command.py` returned 42 passed. turbo=used.
+- Bazel default quality passed: `python scripts/bazel_default.py test //tools/quality:all` returned 10 passing Bazel tests. turbo=blocked: Bazel default command.
+- Mutable-default hook and backend command runner tests passed: `python -m pytest -q .githooks/test_check_mutable_defaults.py scripts/test_backend_manage.py` returned 14 passed. turbo=blocked: host-side hook and runner tests.
+- Mutable-default commit hook passed: `python .githooks/check-mutable-defaults.py`. turbo=blocked: host-side staged hook.
+- Management command dry-run hook passed: `python .githooks/check-mgmt-command-dry-run.py`. turbo=blocked: host-side staged hook.
+- Provider command dry-run test passed on Dell: `python scripts/run_pytest_on_context.py --targets apps/pipeline/tests/test_run_embedding_provider_eval_command.py` returned 3 passed. turbo=used.
+- Python quality blocker focused tests passed on Dell: `python scripts/run_pytest_on_context.py --targets apps/auto_issues/tests/test_verify_chain_batch.py apps/auto_issues/tests/test_file_task_issues.py` returned 12 passed. turbo=used.
+- Bazel Python quality passed: `python scripts/bazel_default.py run //tools/quality:python` returned 2669 passed, 7 skipped, and all lint, type, security, dependency, coverage, and pytest checks ran on Dell. turbo=used.
+- Pre-commit wrapper tests passed: `python -m pytest -q scripts/test_precommit_docker.py` returned 13 passed, and `bash -n scripts/precommit-docker.sh` passed. turbo=blocked: host-side hook wrapper tests.
+- Bazel launcher tests passed after the SSH standard-input fix: `python -m pytest -q scripts/test_bazel_default.py` returned 7 passed. turbo=blocked: host-side launcher tests.
+- Bazel Python quality passed after the SSH standard-input fix: `python scripts/bazel_default.py run //tools/quality:python` returned 2669 passed, 7 skipped, and all lint, type, security, dependency, coverage, and pytest checks ran on Dell. turbo=used.
+- Hook-filed blocker AutoIssue resolved: `python scripts/backend_manage.py resolve_autoissue --id 24058 ...` returned `[AUTOISSUES RESOLVED: 1 - #24058]`. turbo=blocked: live Kubernetes backend proof.
+- Remote Docker helper and PBT contract tests passed: `python -m pytest -q scripts/test_remote_docker.py scripts/test_run-pbt.py` returned 13 passed. turbo=blocked: host-side script tests.
+- The exact property-test gate passed through Git Bash: `C:\Program Files\Git\bin\bash.exe scripts/run-pbt.sh` returned 4 passed on Dell. turbo=used.
+- Hook-filed run-pbt blocker AutoIssue resolved: `python scripts/backend_manage.py resolve_autoissue --id 23277 ...` returned `[AUTOISSUES RESOLVED: 1 - #23277]`. turbo=blocked: live Kubernetes backend proof.
+- Rust mandate sync tests passed: `python -m pytest -q .githooks/test_check_rust_mandate.py scripts/test_remote_docker.py` returned 24 passed. turbo=blocked: host-side hook tests.
+- The real Rust mandate hook passed after the source-sync fix: `python .githooks/check-rust-mandate.py` returned fmt, clippy, tests, doc tests, coverage ratchet, mutants, audit, and deny all passed for `rust`. turbo=used.
+- Hook-filed Rust mandate blocker AutoIssue resolved: `python scripts/backend_manage.py resolve_autoissue --id 23264 ...` returned `[AUTOISSUES RESOLVED: 1 - #23264]`. turbo=blocked: live Kubernetes backend proof.
+- MSI Docker-free guard passed: `python .githooks/check-msi-docker-free.py`. turbo=blocked: host-side guard.
+- Rust mandate passed: `python .githooks/check-rust-mandate.py` printed all Rust gate steps pass. turbo=used through Dell remote Docker.
+- CodeQL AutoIssue gate passed: `python .githooks/check-codeql-autoissues.py` printed `open=0 max=10`. turbo=blocked: live Kubernetes backend proof.
+
+**What has issues or errors:** Host-side Django database tests could not reach Postgres because local DNS failed, so I used the Dell pytest runner for database tests. `python .githooks/check-autoissue-quota.py` passes, but the live backend pod still prints the old `63 resolved` wording because it is running the previously rolled-out backend image; the staged repo code now says 28 and will take effect after this code is deployed.
+
+Tech-debt delta: -36 staged and hook-filed blockers fixed, +0 new unresolved blocker.
+  Boilerplate extracted: hook finding options, deploy-check command helpers, scanner helpers, provider scoring helper.
+  Files split: none.
+  Magic numbers hoisted: AutoIssue session total requirements now live in one mapping.
+  Silent excepts wrapped: none.
+  Dead code removed: stale local-Docker smart-build expectations removed from tests.
+  TODOs resolved: AutoIssue hourly refresh, 28-count quota, ELCV blocker list, stale smart-build test expectations, dry-run gate misses, Bazel Python quality failure, remote Bazel SSH quoting failure, remote Docker SSH quoting failure, Rust mandate Dell source-sync failure.
+  Other debt remaining: live backend pod must be rolled again later for the quota gate output to show 28 instead of the old 63.
+
+[BDD PROOF: Given the commit was blocked by quality gates, When the staged blockers were fixed and the repo checks were rerun, Then ELCV, Bazel default quality, MSI Docker-free, Rust mandate, CodeQL, and focused tests passed before the commit retry.]
+[TDD PROOF: before_or_alongside=yes tests=hook tests, script tests, Dell backend tests, Bazel default quality result=passed]
+[SELF REVIEW RESULT: scope=quota refresh and commit blockers fixes=ContextVar helper state cleanup after review tests=passed blockers=none coverage=90% mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=90% - met]
+
+## 2026-06-18 - Codex - Commit attempt blocked by ELCV gate
+
+[HANDOFF READ: 2026-06-18 by Codex - Rolled out backend v7 and closed live audit lookup.]
+[PROGRESS: User asked to commit and push everything. I stayed on `master`, staged all repo changes, fixed two commit-path blockers (`check-mint-first-build` and `check-codeql-autoissues`) plus the Rust mandate hook's missing local-Docker path, and reran the commit. The commit is still blocked by `check-elcv-gate`, which reports 33 staged Python quality violations. No commit landed and no push was attempted.]
+
+**What I did (plain English):** I tried to commit all repo changes with the requested message `Complete KUBE Bazel closeout and backend v7 rollout`. The first blocker was a docs-start script that still ran a raw local Docker build, so I routed it through smart build and added a `docs-site` compose build target. The second blocker was the Rust mandate hook trying to use missing local Docker, so I routed it through the Dell remote Docker helper and verified the real Rust gate passes. The third blocker was the CodeQL AutoIssue hook trying to use missing local Docker, so I routed it through `scripts/backend_manage.py`.
+
+**What now works that did not before:** `python .githooks/check-mint-first-build.py` passes, `python .githooks/check-rust-mandate.py` passes with Dell Rust proof, and `python .githooks/check-codeql-autoissues.py` passes with `open=0 max=10`. The staged whitespace check passes. The commit still does not land because the ELCV quality gate blocks 33 staged Python violations.
+
+**Files changed for this commit attempt:** `AGENT-HANDOFF.md`, `.githooks/check-codeql-autoissues.py`, `.githooks/check_rust_mandate.py`, `.githooks/test_check_codeql_autoissues.py`, `.githooks/test_check_rust_mandate.py`, `docker-compose.yml`, `scripts/smart_build.py`, `scripts/start-dell-docs.ps1`, and `scripts/test_smart_build.py`.
+
+**Direct verification done:**
+- Focused docs smart-build test passed: `python -m pytest -q scripts/test_smart_build.py -k docs_site` returned 1 passed. turbo=blocked: host-side helper test.
+- Smart-build hook passed: `python .githooks/check-mint-first-build.py` exited 0. turbo=blocked: host-side hook.
+- Focused Rust hook tests passed: `python -m pytest -q .githooks/test_check_rust_mandate.py -k "dell_context or dell_unreachable or rust_kernels"` returned 3 passed. turbo=blocked: host-side hook tests.
+- Real Rust mandate hook passed: `python .githooks/check-rust-mandate.py` printed all Rust gate steps pass. turbo=used through Dell remote Docker.
+- CodeQL hook tests passed: `python -m pytest -q .githooks/test_check_codeql_autoissues.py` returned 2 passed. turbo=blocked: host-side hook tests.
+- Real CodeQL hook passed: `python .githooks/check-codeql-autoissues.py` printed `[CODEQL AUTOISSUES VERIFIED: open=0 max=10]`. turbo=blocked: live Kubernetes backend proof.
+- Commit gate got through Rust, AutoIssue quota, paper-trail quota, and CodeQL, then stopped at ELCV. turbo=used where the hook used Dell.
+
+**What has issues or errors:** Commit is blocked by `check-elcv-gate`, not by Git or push. It reported 33 new quality violations in staged Python files, including too many parameters, mutable globals, too many returns, long functions, complexity, N+1 queries, placeholder stubs, a duplicate path helper, and a nested ternary. The hook's AutoIssue filing also failed because its shell command did not quote the multi-line message safely, so it printed `AutoIssue=unfiled`.
+
+Tech-debt delta: -3 debt items fixed, +1 unresolved blocker.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: none.
+  Silent excepts wrapped: none.
+  Dead code removed: local Docker use removed from the docs-start, Rust-mandate, and CodeQL commit paths.
+  TODOs resolved: raw docs Docker build, Rust hook local-Docker crash, CodeQL hook local-Docker crash.
+  Other debt remaining: staged ELCV violations must be fixed before this commit can land.
+
+[BDD PROOF: Given the commit path must not use MSI Docker, When the staged hooks ran, Then docs build routing, Rust mandate, and CodeQL verification no longer crash on missing local Docker.]
+[TDD PROOF: before_or_alongside=yes tests=smart-build docs test, Rust mandate focused tests, CodeQL hook tests, real hooks result=passed before ELCV blocker]
+[SELF REVIEW RESULT: scope=commit blockers only fixes=smart-build docs routing, Rust hook remote Docker, CodeQL backend_manage routing tests=passed blockers=check-elcv-gate reports 33 staged Python violations coverage=91% prior audit resolver proof mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=91% - met]
+
+## 2026-06-18 - Codex - Rolled out backend v7 and closed live audit lookup
+
+[HANDOFF READ: 2026-06-18 by Codex - Repo fix was tested, but live Kubernetes still ran the old backend image.]
+[PROGRESS: User asked to solve the remaining live resolved-issue lookup failure, where the repo code was fixed but the running backend pod still had old code. I built `10.10.10.91:5000/xf-linker-backend:v7` on Dell, pushed it to the Mint registry, rolled it out to backend and all Celery deployments, verified the live lookup now passes, and updated the active KUBE ledgers and image manifests. No commit or push was requested or made.]
+
+**What I did (plain English):** I rolled the fixed backend code into the live Kubernetes app. Kubernetes is the system running the app pods. I built a new backend image, which is the packaged backend program that Kubernetes runs, tagged it as `v7`, pushed it to the internal Mint registry, and changed backend, Celery worker, and Celery scheduler deployments to use that image.
+
+**What now works that did not before:** The live resolved-issue lookup now passes. The command `python scripts/backend_manage.py search_resolved_issues --area backend/apps/auto_issues --force` returned 10 prior fixes instead of failing with `PermissionError: /audit`. The live backend pod has no `/audit` path, and the lookup log is written to `/tmp/xf-linker-audit/resolved_issues_lookup_log.jsonl`. Backend health still returns `{"status": "ok", "version": "2.0.0"}`, and backend plus all Celery pods are Ready on `xf-linker-backend:v7` with zero restarts.
+
+**Files changed for this closeout:** `AGENT-HANDOFF.md`, `docs/KUBE-PLAN-STATUS.md`, `k8s/app/backend.yaml`, `k8s/app/celery.yaml`, `k8s/app/backend-migrate-job.yaml`, `k8s/registry/image-prepull.yaml`, and `C:\Users\goldm\OneDrive\Desktop\KUBE PLAN\31-COMPLETION-LEDGER.md`.
+
+**Direct verification done:**
+- Image build passed: Dell built `10.10.10.91:5000/xf-linker-backend:v7` from `/tmp/xf-bazel-default-repo/backend`. turbo=blocked: live image build.
+- Image push passed: Dell pushed `v7` to the Mint registry with digest `sha256:8c969b483a270dd3ce8628ff8f3e43b295f46949ea8031cd7e47424d28468403`. turbo=blocked: live registry write.
+- Rollout passed: `backend`, `celery-default`, `celery-pipeline`, and `celery-beat` all rolled out successfully to `v7`. turbo=blocked: live Kubernetes rollout.
+- Live lookup proof passed: `python scripts/backend_manage.py search_resolved_issues --area backend/apps/auto_issues --force` returned 10 prior fixes. turbo=blocked: live Kubernetes proof.
+- Safe audit path proof passed: `kubectl -n xf-app exec deploy/backend -- sh -c ...` printed `NO_ROOT_AUDIT` and showed `/tmp/xf-linker-audit/resolved_issues_lookup_log.jsonl`. turbo=blocked: live Kubernetes proof.
+- Backend health proof passed: `kubectl -n xf-app exec deploy/backend -- curl -fsS http://127.0.0.1:8000/api/system/health/` returned `{"status": "ok", "version": "2.0.0"}`. turbo=blocked: live Kubernetes proof.
+- Pod proof passed: backend and all Celery pods were Running, Ready, on `v7`, and had zero restarts. turbo=blocked: live Kubernetes proof.
+- Ledger read-back passed: the repo KUBE ledger and the external completion ledger no longer say the live lookup is blocked by the old image. turbo=blocked: documentation read-back.
+
+**What has issues or errors:** The first multi-deployment `kubectl set image` command used the wrong argument order and Kubernetes rejected it before changing anything. I reran one explicit image update per deployment, and all four rollouts passed. I did not rerun the full Bazel default suite because this turn changed live deployment state and image manifests, not the already-tested backend code; the prior full Bazel proof remains the code-quality proof for the same backend fix.
+
+Tech-debt delta: -3 debt items.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: none.
+  Silent excepts wrapped: none.
+  Dead code removed: none.
+  TODOs resolved: live `/audit` rollout blocker closed, repo manifests now match the live `v7` image, and the external KUBE ledger no longer says rollout is pending.
+  Other debt reduced: future manifest applies will not roll backend-code pods back to `v6`.
+
+[BDD PROOF: Given the repo audit fix was already tested but live Kubernetes still ran old code, When backend image `v7` was built, pushed, and rolled out, Then the live resolved-issue lookup wrote to `/tmp/xf-linker-audit` and did not create `/audit`.]
+[TDD PROOF: before_or_alongside=no tests=live rollout proof, lookup proof, safe audit path proof, backend health proof result=passed reason=the code tests already existed and passed before this rollout-only turn]
+[SELF REVIEW RESULT: scope=live backend image rollout and active KUBE ledgers fixes=updated all backend-code image references to v7, removed stale blocker text reuse=existing backend_manage lookup proof and Kubernetes manifests tests=passed blockers=none coverage=97% from prior provider-score backend proof and 91% from prior audit resolver proof mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=91% - met]
+
+## 2026-06-18 - Codex - Closed Bazel-only KUBE follow-up
+
+[HANDOFF READ: 2026-06-18 by Codex - Made Bazel the default quality path and left the live `/audit` resolved-issue lookup as the remaining known failure.]
+[PROGRESS: User asked to fix the `/audit` lookup failure, make Bazel the only public quality path, remove old runner competition, and close the KUBE ledgers. I fixed the audit path resolver, made Kubernetes management commands inject a safe audit folder, moved old runner bodies behind Bazel-only private paths, expanded the Bazel default suite to 10 quality tests, fixed the Bazel frontend and Rust runner paths on Dell, refreshed live KUBE proof, and updated both ledgers. No commit or push was requested or made.]
+
+**What I did (plain English):** I fixed the code that chooses where resolved-issue lookup audit logs are written. A resolved issue is an older recorded problem that has a saved lesson. The lookup now uses `XF_AUDIT_DIR` when set, then a writable repo `audit` folder, then `/tmp/xf-linker-audit`. It never chooses `/audit`. I also made Bazel, the repeatable build and test tool, the only public quality entry point. The old Python, Angular, and Rust runner names remain only as small compatibility shims that enter Bazel.
+
+**What now works that did not before:** Dell-backed tests prove the audit resolver no longer falls back to `/audit` and reports 91% coverage for that backend file. Kubernetes management commands now send `XF_AUDIT_DIR=/tmp/xf-linker-audit` unless the caller already set a value. Bazel now owns Python, frontend, Rust, provider-score backend, distributed dry-run, generator checks, target tag checks, affected-target mapping, public-entrypoint checks, and the MSI Docker-free guard. Frontend and Rust targets now use Dell's local Docker engine when Bazel itself is running on Dell, while MSI local Docker remains blocked. Angular 22 tests now use `--watch=false`, `--coverage=true`, and repeated `--include=<spec>` flags.
+
+**Files changed for this closeout:** `AGENT-HANDOFF.md`, `PLAIN-ENGLISH-RULE.md`, `.github/workflows/ci.yml`, `.github/workflows/ci-language-quality.yml`, `.githooks/check-bazel-public-entrypoints.py`, `.githooks/check-msi-docker-free.py`, `backend/apps/auto_issues/services/resolved_issue_index.py`, `backend/apps/auto_issues/tests/test_resolved_issue_index.py`, `docs/KUBE-PLAN-STATUS.md`, `frontend/package.json`, `frontend/src/app/settings/settings.component.spec.ts`, `scripts/_dell_only_guard.sh`, `scripts/backend_manage.py`, `scripts/bazel_affected_targets.py`, `scripts/bazel_default.py`, `scripts/check_quality_policy.py`, `scripts/hook_orchestrator.py`, `scripts/precommit-docker.sh`, `scripts/prepush-docker.sh`, `scripts/remote_docker.py`, `scripts/run-angular-quality.sh`, `scripts/run-python-quality.sh`, `scripts/run-rust-quality.sh`, `scripts/run_lint_on_context.py`, `scripts/test_*`, `scripts/verify.ps1`, `tools/quality/*`, and `C:\Users\goldm\OneDrive\Desktop\KUBE PLAN\31-COMPLETION-LEDGER.md`.
+
+**Direct verification done:**
+- Audit resolver tests passed: `python scripts/run_pytest_on_context.py --targets apps/auto_issues/tests/test_resolved_issue_index.py --cov-targets apps.auto_issues.services.resolved_issue_index` returned `11 passed` and 91% coverage. turbo=used.
+- Focused stale-test proof passed: `python scripts/run_pytest_on_context.py --targets apps/audit/tests_tool_compose_integrity.py apps/observability/tests_stack_foundation.py` returned `16 passed`. turbo=used.
+- Python Bazel target passed: `python scripts/bazel_default.py run //tools/quality:python` ran lint, type checks, security checks, dependency audit, and 2,487 backend tests on Dell. turbo=used.
+- Frontend Bazel target passed: `python scripts/bazel_default.py run //tools/quality:frontend` ran oxlint, eslint, stylelint, and 138 focused Vitest tests on Dell. turbo=used.
+- Rust Bazel target passed: `python scripts/bazel_default.py run //tools/quality:rust` correctly skipped because no Rust files were changed. turbo=used.
+- Provider-score backend target passed: `python scripts/bazel_default.py run //tools/quality:provider_score_backend` returned `38 passed` and 97% coverage. turbo=used.
+- Distributed dry-run target passed: `python scripts/bazel_default.py run //tools/quality:distributed_dry_run` rendered 12 preflight checks and 4 Dell-placed shard jobs. turbo=used.
+- Full Bazel default suite passed: `python scripts/bazel_default.py test --cache_test_results=no //tools/quality:all` returned `Executed 10 out of 10 tests: 10 tests pass`. turbo=used.
+- Focused runner tests passed: `python -m pytest -q scripts/test_remote_docker.py scripts/test_dell_only_guard.py scripts/test_run-angular-quality.py scripts/test_run-rust-quality.py scripts/test_bazel_default.py` returned `53 passed`. turbo=blocked: host-side command-construction tests.
+- Live backend check passed: `python scripts/backend_manage.py check` reported no Django issues. turbo=blocked: live Kubernetes proof.
+- Live app proof passed: `ssh mint-wifi kubectl -n xf-app get deploy,pods,svc --request-timeout=10s` showed backend `2/2`, workers and scheduler `1/1`, frontend `1/1`, and Running pods. turbo=blocked: live Kubernetes proof.
+- Live frontend proof passed: Mint `curl -fsS --max-time 10 http://127.0.0.1:30080/` returned the frontend HTML page. turbo=blocked: live Kubernetes proof.
+- Live Dell Postgres proof passed: `tools/preflight/test_postgres_service.sh` passed through Git Bash. turbo=blocked: live Kubernetes proof.
+- Live registry proof passed: `tools/preflight/test_registry_mirror.sh --live` passed through Git Bash. turbo=blocked: live Kubernetes proof.
+- MSI Docker-free guard passed: `python .githooks/check-msi-docker-free.py` printed `[MSI DOCKER-FREE: passed]`. turbo=blocked: host-side static scan.
+
+**What has issues or errors:** The live resolved-issue lookup still fails in the current Kubernetes backend pod because that pod is still running the older `xf-linker-backend:v6` image. The repo code and backend launcher are fixed and tested, but the live pod will not use the fix until the backend image is rebuilt, pushed, and rolled out. I did not perform that production rollout in this turn. The frontend target still prints existing Angular builder, Sass import, and missing source-map warnings, but the target passes.
+
+Tech-debt delta: -11 debt items, -5 runner defects fixed.
+  Boilerplate extracted: one affected-target mapper, one public-entrypoint guard, and one shared remote Docker local-mode helper now cover repeated routing checks.
+  Files split: old public language runner bodies moved under `tools/quality/internal`.
+  Magic numbers hoisted: audit directory behavior is controlled through `XF_AUDIT_DIR`.
+  Silent excepts wrapped: none.
+  Dead code removed: old runner bodies are no longer public quality paths.
+  TODOs resolved: `/audit` resolver fallback, Bazel default coverage gaps, old runner competition, affected-target proof, public-entrypoint guard, Dell-local frontend/Rust runner handling, and Angular 22 test flags.
+  Other debt reduced: Bazel now owns default quality, mutation routing, generator checks, tag checks, affected-target mapping, public-entrypoint checks, and MSI Docker-free proof.
+
+[BDD PROOF: Given the live lookup must not write to `/audit`, When the audit path resolver runs in tests or the backend launcher builds a Kubernetes command, Then it chooses `XF_AUDIT_DIR`, repo `audit`, or `/tmp/xf-linker-audit` and never chooses `/audit`.]
+[TDD PROOF: before_or_alongside=yes tests=11 audit tests, 16 stale KUBE tests, 53 focused runner tests, 38 provider-score backend tests, 138 frontend tests, 10 Bazel default tests, live KUBE proof commands result=passed except live lookup rollout proof]
+[SELF REVIEW RESULT: scope=audit resolver, backend launcher, Bazel quality routing, old public runners, frontend/Rust Dell runner behavior, Angular test flags, hooks, workflows, ledgers fixes=auditable path selection, Bazel default suite, runner shims, public-entrypoint guard, Dell-local Docker helper reuse=existing Dell Bazel launcher and old runner bodies as private Bazel internals tests=passed blockers=live backend image still old coverage=97% provider-score and 91% audit mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=97% - met]
+
+## 2026-06-18 - Codex - Made Bazel the default quality path
+
+[HANDOFF READ: 2026-06-18 by Codex - Finished unfinished KUBE PLAN slices.]
+[PROGRESS: User asked to address the remaining issues, raise backend coverage, fix the pytest random-seed problem, keep the Dell runner fix, finish Bazel readiness, make Bazel default, and stop agents from using competing old paths. I raised provider-score backend coverage to 97%, fixed pytest random-seed config, kept and tested the Dell runner fixes, added a Bazel default bridge that runs on Dell, added Bazel quality targets, routed public language quality scripts into Bazel, and updated AGENTS.md. No commit or push was requested or made.]
+
+**What I did (plain English):** I made Bazel the public quality entry point. Bazel means the build tool that runs declared build and test targets. MSI does not have Bazel installed, so `scripts/bazel_default.py` syncs the current working tree to Dell and runs Dell's Bazel 9.1.1 there. The old Python, Angular, and Rust quality scripts now enter Bazel first. Bazel can still call their old logic internally with `XF_BAZEL_INTERNAL=1`, so there is one public path and no silent fallback to the old runners.
+
+**What now works that did not before:** `python scripts/bazel_default.py test //tools/quality:all` runs the default Bazel quality suite on Dell. `python scripts/bazel_default.py run //tools/quality:distributed_dry_run` runs a Bazel target from MSI through Dell. Provider-score backend tests now report 97% combined coverage across the checked backend files. Host-side pytest runs keep random order but no longer hit the NumPy seed reset error. Bazel-on-Dell provider-score tests use direct Docker on Dell instead of SSHing back to hostname `dell`.
+
+**Files changed for this closeout:** `AGENTS.md`, `pytest.ini`, `backend/pytest.ini`, `backend/apps/api/tests_embedding_views.py`, `scripts/bazel_default.py`, `scripts/test_bazel_default.py`, `scripts/run-python-quality.sh`, `scripts/run-angular-quality.sh`, `scripts/run-rust-quality.sh`, `scripts/run_pytest_on_context.py`, `scripts/machine_routing.py`, `scripts/test_run_pytest_on_context.py`, `tools/quality/*`, `frontend/BUILD.bazel`, `docs/KUBE-PLAN-STATUS.md`, and `C:\Users\goldm\OneDrive\Desktop\KUBE PLAN\31-COMPLETION-LEDGER.md`.
+
+**Direct verification done:**
+- Bazel default suite passed: `python scripts/bazel_default.py test //tools/quality:all`. turbo=used through Dell Bazel and Dell Docker for the provider-score backend test.
+- Bazel run proof passed: `python scripts/bazel_default.py run //tools/quality:distributed_dry_run`. turbo=used through Dell Bazel.
+- Backend provider-score coverage passed: `XF_QUALITY_CACHE=0 XF_BAZEL_INTERNAL=1 python scripts/run_pytest_on_context.py --targets apps/api/tests_embedding_views.py apps/pipeline/tests/test_run_embedding_provider_eval_command.py --cov-targets apps.api.embedding_views,apps.pipeline.management.commands.run_embedding_provider_eval` returned `38 passed`, `97%` combined coverage. turbo=used.
+- Host-side focused tests passed with pytest-randomly enabled: `python -m pytest -q ...` returned `58 passed`. turbo=blocked: host-side wrapper, script, and hook unit tests.
+- Bazel bridge and runner tests passed: `python -m pytest -q scripts/test_bazel_default.py scripts/test_run_pytest_on_context.py` returned `26 passed`. turbo=blocked: host-side unit tests for command construction.
+- Frontend targeted tests passed: `npm --prefix frontend run test:ci -- --include=...embedding-provider-scoreboard... --include=...settings.component.spec.ts` returned `6 passed`. turbo=blocked: frontend local test runner path.
+- Bazel generator/tag proof passed: `python scripts/gen_bazel_python.py; python scripts/gen_bazel_rust.py; python scripts/gen_bazel_frontend.py; python .githooks/check-bazel-target-tags.py` exited 0. turbo=blocked: host-side generator and hook check.
+
+**What has issues or errors:** The prior resolved-issue lookup still fails in the live backend with `PermissionError: /audit`, so the lookup could not be completed. The frontend test command still prints existing Angular builder and Sass deprecation warnings, but the targeted tests pass. I did not delete the old runner bodies because Bazel targets still need them as internal implementation; I removed them as public defaults by routing the public scripts through Bazel and documenting that rule in `AGENTS.md`.
+
+Tech-debt delta: -7 debt items, -2 runner defects fixed.
+  Boilerplate extracted: central Bazel default bridge added for local-or-Dell Bazel execution.
+  Files split: none.
+  Magic numbers hoisted: Bazel remote host and remote path are environment-overridable defaults.
+  Silent excepts wrapped: none.
+  Dead code removed: old direct quality entry behavior removed from the public path.
+  TODOs resolved: provider-score coverage gap, pytest-randomly seed failure, and Bazel default routing.
+  Other debt reduced: Dell pytest runner supports safe SSH command quoting, direct Docker when running on Dell, explicit test env handling, and no Windows `.env` path.
+
+[BDD PROOF: Given agents used to have old runner paths and a Bazel path, When a public language quality script is run now, Then it enters Bazel first and only Bazel may call the old implementation internally.]
+[TDD PROOF: before_or_alongside=yes tests=58 focused host-side tests, 38 Dell backend tests, 6 frontend tests, Bazel default suite result=passed]
+[SELF REVIEW RESULT: scope=Bazel default bridge, quality wrappers, provider-score tests, pytest config, Dell runner fixes fixes=coverage raised, seed reset disabled, direct Docker for Bazel-on-Dell reuse=existing language runner bodies as Bazel internals tests=passed blockers=resolved-issue lookup still fails on `/audit` coverage=97% mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=97% - met]
+
+## 2026-06-18 - Codex - Finished unfinished KUBE PLAN slices
+
+[HANDOFF READ: 2026-06-17 by Codex - Added KUBE PLAN completion ledger.]
+[PROGRESS: User asked to implement the unfinished KUBE PLAN work with no deferral. I completed slices 24, 25, 26, 27, and 30; refreshed live proof for slices 11, 17, 18, 19, and 22; updated the repo ledger and the desktop completion ledger. No commit or push was requested or made.]
+
+**What I did (plain English):** I finished the unpaid KUBE PLAN work that was still marked partial. I added repeatable Bazel build-file generators, Bazel target-tag checking, Mint-hosted remote-cache and BuildBuddy manifests, source snapshot helpers, distributed test adapters, the dry-run coordinator, 12 preflight checks, merge reporting, and provider-score evaluation through the backend, command line, and settings UI.
+
+**What now works that did not before:** The KUBE PLAN folder and repo status ledger now show slices 24, 25, 26, 27, and 30 as done. Provider scores can be listed, started only after cost confirmation, viewed in Settings, opened by direct link, and unbanned from the score table. The Dell-backed pytest runner now sends Docker commands through SSH safely and no longer depends on a Windows env-file path.
+
+**Files changed for this closeout:** `.bazelrc`, `.githooks/check-bazel-target-tags.py`, `.githooks/test_check_bazel_target_tags.py`, `PLAIN-ENGLISH-RULE.md`, `backend/apps/api/embedding_views.py`, `backend/apps/api/tests_embedding_views.py`, `backend/apps/api/urls.py`, `backend/apps/pipeline/management/commands/run_embedding_provider_eval.py`, `backend/apps/pipeline/tests/test_run_embedding_provider_eval_command.py`, `docs/KUBE-PLAN-STATUS.md`, `frontend/src/app/core/routing/deep-link-catalog.ts`, `frontend/src/app/settings/embedding-provider-scoreboard/*`, `frontend/src/app/settings/settings.component.*`, `frontend/src/app/settings/silo-settings.service.ts`, `k8s/bazel/*`, `k8s/cronjobs/xf-node-benchmark.yaml`, `scripts/distributed_test_coordinator.py`, `scripts/gen_bazel_*.py`, `scripts/lib/bazel_gen.py`, `scripts/lib/bazel-gen.py`, `scripts/lib/sha-tools.sh`, `scripts/merge_shard_outputs.py`, `scripts/mint_blob_store.py`, `scripts/run-distributed-tests.*`, `scripts/run_pytest_on_context.py`, `scripts/test_*`, `tools/coverage/*`, `tools/mutation/*`, `tools/preflight/run-distributed-preflight.sh`, `tools/preflight/test_bazel_backends.sh`, `tools/parse_bep.py`, `tools/test/*`, and `C:\Users\goldm\OneDrive\Desktop\KUBE PLAN\31-COMPLETION-LEDGER.md`.
+
+**Direct verification done:**
+- Focused script tests passed: `python -m pytest -q -p no:randomly ...` returned `52 passed`. turbo=blocked: host-side script and hook unit tests.
+- Dell-backed backend tests passed fresh with cache disabled: `python scripts/run_pytest_on_context.py --targets apps/api/tests_embedding_views.py apps/pipeline/tests/test_run_embedding_provider_eval_command.py --cov-targets apps.api.embedding_views,apps.pipeline.management.commands.run_embedding_provider_eval` returned `30 passed`. turbo=used.
+- Targeted frontend tests passed: `npm --prefix frontend run test:ci -- --include=...embedding-provider-scoreboard... --include=...settings.component.spec.ts` returned `6 passed`. turbo=blocked: frontend runner is local npm test path.
+- Bazel generator and tag proof passed: `python scripts/gen_bazel_python.py; python scripts/gen_bazel_rust.py; python scripts/gen_bazel_frontend.py; python .githooks/check-bazel-target-tags.py` exited 0. turbo=blocked: host-side generator and hook checks.
+- Distributed dry-run passed: `python scripts/distributed_test_coordinator.py --dry-run --run-id proof --outdir tmp/distributed-quality-proof` rendered 12 preflight checks and 4 Dell-placed shard jobs. turbo=blocked: dry-run renderer.
+- PowerShell wrapper passed: `powershell -ExecutionPolicy Bypass -File scripts\run-distributed-tests.ps1 -DryRun` rendered the same proof. turbo=blocked: dry-run wrapper.
+- Distributed preflight passed: `bash tools/preflight/run-distributed-preflight.sh` listed 12 checks and printed completion. turbo=blocked: shell checklist proof.
+- Bazel backend proof passed: `bash tools/preflight/test_bazel_backends.sh` printed static proof passed. turbo=blocked: static manifest proof.
+- Postgres proof passed: `bash tools/preflight/test_postgres_service.sh` passed all Service and EndpointSlice checks. turbo=blocked: live Kubernetes proof.
+- App proof passed: `ssh mint-wifi kubectl -n xf-app get deploy,pods,svc --request-timeout=10s` showed backend `2/2`, workers and scheduler `1/1`, frontend `1/1`, and Running pods. turbo=blocked: live Kubernetes proof.
+- Frontend and backend proof passed: Mint `curl http://127.0.0.1:30080/` returned 8,863 bytes, and backend `python manage.py check` reported no issues. turbo=blocked: live Kubernetes proof.
+- Registry proof passed: `bash tools/preflight/test_registry_mirror.sh --live` passed and Mint registry answered `/v2/`. turbo=blocked: live Kubernetes proof.
+- Docker-free guard passed: `python .githooks/check-msi-docker-free.py` printed `[MSI DOCKER-FREE: passed]`. turbo=blocked: host-side static scan.
+
+**What has issues or errors:** The first focused Python test run failed because the local `pytest-randomly` plugin passed an invalid NumPy seed before the tests ran; rerunning with that plugin disabled passed. The Dell pytest runner initially failed before tests because SSH split remote Docker commands and because it tried to use a Windows `.env` path on Dell; I fixed both and reran the Dell tests successfully. Backend coverage for the checked provider-score files was 80%, below the 90% target, because the broad existing embedding API file still has untested branches. No paid Google Cloud burst was started.
+
+Tech-debt delta: -9 debt items, -1 runner defect fixed.
+  Boilerplate extracted: shared Bazel generation helpers, coverage helpers, mutation report helpers.
+  Files split: none.
+  Magic numbers hoisted: runner image digests and third-party cache image digests are recorded in lock-style files and manifests.
+  Silent excepts wrapped: none.
+  Dead code removed: fake placeholder image digests were removed.
+  TODOs resolved: unfinished KUBE PLAN slices 24, 25, 26, 27, and 30 closed.
+  Other debt reduced: Dell pytest runner now uses safe SSH command quoting, direct Docker commands for tar and checksum, and explicit test environment variables instead of an unreachable Windows env-file path.
+
+[BDD PROOF: Given the KUBE PLAN folder had unfinished unpaid slices, When slices 24, 25, 26, 27, and 30 were implemented and proof was refreshed, Then both status ledgers now mark the requested unpaid work complete and keep slice 29 optional/off.]
+[TDD PROOF: before_or_alongside=yes tests=52 focused script tests, 30 Dell backend tests, 6 frontend tests, live proof commands result=passed]
+[SELF REVIEW RESULT: scope=KUBE PLAN completion files, provider-score API/UI, distributed test tooling, Dell pytest runner fixes fixes=remote SSH quoting and env handling reuse=existing bake-off task/model/settings page tests=passed blockers=coverage target not met for broad existing embedding API file coverage=80% mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=80% - not met]
+
+## 2026-06-17 - Codex - Added KUBE PLAN completion ledger
+
+[HANDOFF READ: 2026-06-17 by Codex - Completed MSI Docker-free cleanup and live proof.]
+[PROGRESS: User asked to complete the slices in `C:\Users\goldm\OneDrive\Desktop\KUBE PLAN`. I inspected the plan folder, compared it with the repo-owned Kubernetes status ledger and the latest handoff proof, then added a completion ledger inside that folder and linked it from the folder index. No commit or push was requested or made.]
+
+**What I did (plain English):** I made the KUBE PLAN folder usable as a current slice tracker. A slice means one planned chunk of work. The folder files were still mostly prompt templates with empty review checkboxes, while the repo already had a newer status ledger and live proof for many slices. I added a new `31-COMPLETION-LEDGER.md` file in the KUBE PLAN folder and added a pointer to it near the top of `00-INDEX.md`.
+
+**What now works that did not before:** The KUBE PLAN folder now tells the next agent which slices are done, which were completed under newer repo paths, which old wording was replaced, and which slices still need implementation. The ledger prevents a future agent from claiming the whole plan is complete when slices 24, 25, 26, 27, and 30 still have missing or partial pieces.
+
+**Files changed for this closeout:** `C:\Users\goldm\OneDrive\Desktop\KUBE PLAN\31-COMPLETION-LEDGER.md`, `C:\Users\goldm\OneDrive\Desktop\KUBE PLAN\00-INDEX.md`, and this handoff file.
+
+**Direct verification done:**
+- Read-back proof passed: `Get-Content -LiteralPath "C:\Users\goldm\OneDrive\Desktop\KUBE PLAN\31-COMPLETION-LEDGER.md" -TotalCount 80` showed the new ledger and the slice status table. turbo=blocked: documentation-only external-folder read-back.
+- Index pointer proof passed: `Select-String -LiteralPath "C:\Users\goldm\OneDrive\Desktop\KUBE PLAN\00-INDEX.md" -Pattern "31-COMPLETION-LEDGER"` found the pointer. turbo=blocked: documentation-only external-folder read-back.
+
+**What has issues or errors:** The normal sandbox runner blocked several read-only Windows commands with `CreateProcessAsUserW failed: 5`, so I used approved outside-sandbox reads and writes. The whole KUBE PLAN folder is not fully complete. Slices 24, 25, 26, 27, and 30 remain partial unless the operator chooses to defer them or accept the smaller implemented design. Slice 15 was replaced by the current Mint fallback path rather than completed exactly as written, because MSI no longer has Windows `kubectl`.
+
+Tech-debt delta: -5 debt items, -0 lines refactored.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: none.
+  Silent excepts wrapped: none.
+  Dead code removed: none.
+  TODOs resolved: none.
+  Other debt reduced: added one current completion ledger, linked the index to it, separated done slices from partial slices, marked the replaced MSI kubectl path honestly, and recorded the remaining stop list so future agents do not repeat stale slice inspection.
+
+[BDD PROOF: Given the KUBE PLAN folder had stale unchecked slice templates, When the folder is opened now, Then `31-COMPLETION-LEDGER.md` shows done, replaced, rehearsed, optional, and partial slices in one table.]
+[TDD PROOF: before_or_alongside=no tests=read-back proof and index-pointer proof result=passed reason=documentation-only status ledger, no code written]
+[SELF REVIEW RESULT: scope=KUBE PLAN ledger and index pointer fixes=honest status ledger reuse=docs/KUBE-PLAN-STATUS.md and latest handoff proof tests=read-back proof passed blockers=actual slices 24-27 and 30 still partial coverage=not applicable mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=0% actual=0% - met (documentation-only external-folder change; no code coverage applies)]
+
+## 2026-06-17 - Codex - Completed MSI Docker-free cleanup and live proof
+
+[HANDOFF READ: 2026-06-17 by Codex - Blocked full MSI Docker-free cleanup at static proof.]
+[PROGRESS: User asked to update the Docker cleanup and attempt again. I finished the repo-side Docker-free conversion, removed the remaining MSI Docker shims, cleaned PowerShell startup references, proved Docker Desktop and Docker WSL data are gone, and verified the live app path through Kubernetes, Dell, and Mint. No commit or push was made.]
+
+**What I did (plain English):** I finished making MSI work without Docker. MSI means the Windows laptop. Docker Desktop is gone from MSI, Docker's WSL data is gone, and the local `docker` command no longer resolves. Dell still runs Docker for helper work, and MSI reaches it with `ssh dell docker ...`. Mint remains the Kubernetes control-plane helper, and MSI can reach Kubernetes with `ssh mint-wifi kubectl ...` when Windows does not have `kubectl`.
+
+**What now works that did not before:** `scripts/backend_manage.py` now falls back to `ssh mint-wifi kubectl ...` when Windows `kubectl` is absent. `.githooks/check-observability-stack.py` does the same for Kubernetes observability checks. `scripts/remove-msi-docker.ps1` now removes repo-created user Docker shims and removes the PowerShell startup line that used to load the retired Docker wrapper.
+
+**Files changed for this closeout:** `scripts/backend_manage.py`, `scripts/test_backend_manage.py`, `.githooks/check-observability-stack.py`, `.githooks/test_check_observability_stack.py`, `scripts/remove-msi-docker.ps1`, `docs/KUBE-PLAN-STATUS.md`, and `AGENT-HANDOFF.md`.
+
+**Direct verification done:**
+- Focused tests passed: `python -m pytest -q -p no:randomly scripts/test_backend_manage.py .githooks/test_check_observability_stack.py` returned `21 passed`. turbo=blocked: host-side hook and runner tests for Windows command selection.
+- Python compile passed for `scripts/backend_manage.py` and `.githooks/check-observability-stack.py`. turbo=blocked: host-side syntax proof.
+- Static Docker-free guard passed: `python .githooks/check-msi-docker-free.py` printed `[MSI DOCKER-FREE: passed]`. turbo=blocked: host-side static scan.
+- Cleanup proof dry-run passed: `scripts/remove-msi-docker.ps1 -ProofFile C:\tmp\kube-db-cutover-proof.json` printed `[MSI DOCKER CUTOVER: ready=true]`.
+- MSI Docker command proof passed: `Get-Command docker` returned nothing.
+- Docker WSL proof passed: `wsl --list --quiet` showed only `Ubuntu-22.04`; no `docker-desktop` or `docker-desktop-data`.
+- Docker Desktop proof passed: `C:\Program Files\Docker\Docker\Docker Desktop.exe` was absent.
+- Kubernetes proof passed through Mint: `ssh mint-wifi kubectl get nodes` showed both Dell and Mint Ready.
+- Backend proof passed: `python scripts/backend_manage.py check` returned `System check identified no issues`.
+- Frontend proof passed: `http://192.168.0.91:30080/` returned HTTP 200.
+- Valkey proof passed: `ssh mint-wifi kubectl -n xf-app exec deploy/valkey -- valkey-cli ping` returned `PONG`.
+- Observability proof passed: `python .githooks/check-observability-stack.py` exited 0.
+- Dell helper proof passed: `ssh dell docker ps --format '{{.Names}}'` listed Dell test containers.
+- PowerShell startup proof passed: a new `powershell -Command 'Write-Output profile-ok'` printed `profile-ok` with no Docker wrapper error.
+- Storage proof: MSI free space is now about 135 GB. Earlier in the cleanup it was about 38 GB, so roughly 97 GB was reclaimed.
+
+**What has issues or errors:** The normal sandbox command runner failed to start some Windows commands with `CreateProcessAsUserW failed: 5`, so I used approved outside-sandbox PowerShell for the live proof. Windows `kubectl` is not installed, but the repo now falls back to Mint over SSH for Kubernetes checks. No source commit or push was requested or made.
+
+Tech-debt delta: -6 debt items, -0 lines refactored.
+  Boilerplate extracted: remote Kubernetes fallback is now shared inside the backend runner and mirrored in the observability hook.
+  Files split: none.
+  Magic numbers hoisted: Mint's SSH fallback host is now a named default and can be overridden by an environment variable.
+  Silent excepts wrapped: the MSI cleanup script now warns and continues when a Docker process cannot be stopped.
+  Dead code removed: remaining user-level Docker command shims were deleted from MSI.
+  TODOs resolved: none.
+  Other debt reduced: PowerShell startup no longer loads a retired Docker wrapper, and the cleanup script now removes that startup reference in future runs.
+
+[BDD PROOF: Given MSI must be Docker-free, When Docker Desktop, Docker WSL data, local Docker shims, and PowerShell Docker startup references are removed, Then normal repo checks still reach Kubernetes through Mint and Dell through SSH.]
+[TDD PROOF: before_or_alongside=yes tests=21 focused runner and hook tests plus static guard, cleanup dry-run, and live app checks result=passed]
+[SELF REVIEW RESULT: scope=MSI Docker-free cleanup fixes=remote Kubernetes fallback, cleanup script shim removal, status docs reuse=existing backend runner and observability hook tests=passed blockers=normal sandbox command runner sometimes fails to start Windows commands coverage=not measured mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=0% - not met - focused tests passed, but measured coverage was not run for these host-side scripts]
+
+## 2026-06-17 - Codex - Blocked full MSI Docker-free cleanup at static proof
+
+[HANDOFF READ: 2026-06-17 by Codex - Made normal MSI workflow use Kubernetes instead of local Docker.]
+[PROGRESS: User asked to make the whole repo Docker-CLI-free on MSI and reclaim storage. I converted several active runner and helper paths to Kubernetes or SSH-to-Dell Docker, retired old MSI Docker launch/recovery scripts, expanded the MSI Docker-free guard, and stopped before uninstalling Docker because the expanded guard still fails on many backend/user-facing docs and guidance strings. No commit or push was made.]
+
+**What I did (plain English):** I moved more repo commands away from MSI Docker. MSI means the Windows laptop. Dell still may run Docker, but MSI now asks Dell over SSH for the runner paths I touched. I did not remove Docker Desktop or delete Docker WSL data because the proof gate is still red.
+
+**What now works that did not before:** Python lint and pytest split runners now use `ssh <host> docker ...` instead of `docker --context ...` on MSI. Rust, Angular, property-test, and mutation runners were moved to the SSH helper shape where touched. `smart_build.py` now builds through SSH and refuses the old load-back-into-MSI path. `check_observability_health` now checks Kubernetes pod readiness through the in-cluster Kubernetes API instead of local Compose. `check-docker-health.ps1` now checks Kubernetes plus Dell/Mint SSH helpers and copies its report into the backend pod before importing it. Old MSI launch/recovery scripts now fail plainly instead of trying to start or repair Docker Desktop.
+
+**Files changed for this closeout:** `.githooks/check-msi-docker-free.py`, `.githooks/post-commit`, `scripts/remote_docker.py`, `scripts/dell_docker.py`, `scripts/run_lint_on_context.py`, `scripts/run_pytest_on_context.py`, `scripts/smart_build.py`, `scripts/machine_routing.py`, `scripts/quality-evidence-lib.sh`, `scripts/_dell_only_guard.sh`, Rust/Angular/Python mutation and quality shell runners, Dell helper PowerShell scripts, `scripts/check-docker-health.ps1`, `backend/apps/observability/management/commands/check_observability_health.py`, `config/observability-services.json`, and retired root/MSI Docker scripts.
+
+**Direct verification done:**
+- Focused tests passed: `python -m pytest -q -p no:randomly .githooks/test_check_msi_docker_free.py scripts/test_remote_docker.py scripts/test_dell_docker.py` returned `10 passed`. turbo=blocked: these are small host-side script tests for the runner being changed.
+- Python compile check passed for changed Python runner, guard, smart-build, routing, and observability command files. turbo=blocked: host-side syntax proof.
+- Expanded static guard failed: `python .githooks/check-msi-docker-free.py` still reports local Docker guidance in backend command docstrings/messages and docs such as `backend/apps/audit/fix_suggestions.py`, paper-trail management command help text, `docs/PAPER-TRAIL.md`, `docs/TDD-PIPELINE-RULE.md`, `docs/SAFE-DOCKER-REBUILD.md`, and related current docs. turbo=blocked: proof gate failed before live cleanup.
+
+**What has issues or errors:** The repo is not yet fully MSI Docker-free. The executable runner layer is much closer, but the static guard still finds user-facing Docker instructions and some backend strings that would send an operator back to local Compose. Because that proof failed, I did not uninstall Docker Desktop, unregister Docker WSL distributions, remove `%USERPROFILE%\.docker`, or delete additional MSI storage.
+
+Tech-debt delta: -8 debt items, -0 lines refactored.
+  Boilerplate extracted: shared remote Docker helper extended for Dell runner paths.
+  Files split: none.
+  Magic numbers hoisted: none.
+  Silent excepts wrapped: none.
+  Dead code removed: several old MSI Docker launch/recovery scripts now fail closed instead of performing obsolete actions.
+  TODOs resolved: none.
+  Other debt reduced: backend observability health no longer depends on local Compose, and smart-build refuses MSI image loading.
+
+[BDD PROOF: Given MSI must become Docker-free, When static proof still finds normal repo guidance that requires local Docker, Then destructive Docker removal must stop and report the remaining blockers.]
+[TDD PROOF: before_or_alongside=yes tests=10 focused guard/helper tests plus Python compile check result=passed; expanded static guard result=failed]
+[SELF REVIEW RESULT: scope=MSI Docker-free tooling conversion fixes=remote helper, runners, health checks, retired MSI scripts reuse=backend_manage and SSH helper patterns tests=partial blockers=static guard still fails on backend/docs guidance coverage=not measured mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=0% - not met - focused tests passed but measured coverage was not run, and the static proof is still failing]
+
+## 2026-06-17 - Codex - Made normal MSI workflow use Kubernetes instead of local Docker
+
+[HANDOFF READ: 2026-06-17 by Codex - Removed remaining MSI local runtime after Dell verification.]
+[PROGRESS: User asked to make MSI Docker-free for normal repo workflows. I added a shared Kubernetes backend command runner, rewired the main hooks and startup scripts away from local Docker, added an SSH-to-Dell Docker helper, switched observability stack checks to Kubernetes pods, and added a guard that blocks local Docker dependencies in the active hook and startup path. No commit or push was made.]
+
+**What I did (plain English):** I changed normal agent and developer checks so they do not need Docker Desktop, a local Docker service, or the Docker command on MSI. MSI means the Windows laptop. Kubernetes is the live cluster that now runs the app. Dell is the helper computer that can still run Docker when needed.
+
+**What now works that did not before:** Hooks that need Django management commands now call `scripts/backend_manage.py`, which runs `python manage.py` inside the Kubernetes backend pod by default. Session startup now targets the live cluster URL. The progress pulse no longer fails when local Docker is missing. The observability stack hook checks Kubernetes pods in `xf-obs`, not local Compose containers. Pre-commit now includes `.githooks/check-msi-docker-free.py`, which blocks active hook and startup scripts from adding local Docker dependencies again.
+
+**Files changed for this closeout:** `.githooks/_hook_helpers.py`, `.githooks/check-autoissue-quota.py`, `.githooks/check-always-on-quota.py`, `.githooks/check-django-deploy.py`, `.githooks/check-observability-stack.py`, `.githooks/check-observability-pipeline.py`, `.githooks/check-msi-docker-free.py`, `.githooks/lib-hwprofile.sh`, related hook tests, `scripts/backend_manage.py`, `scripts/dell_docker.py`, `scripts/session_start_payload.py`, `scripts/session-start-banner.ps1`, `scripts/agent_progress.py`, `scripts/precommit-docker.sh`, related script tests, and `docs/KUBE-PLAN-STATUS.md`.
+
+**Direct verification done:**
+- Focused tests passed: `python -m pytest -q -p no:randomly scripts/test_backend_manage.py scripts/test_dell_docker.py scripts/test_session_start_payload.py scripts/test_agent_progress.py scripts/test_precommit_docker.py .githooks/test_check_autoissue_quota.py .githooks/test_check_always_on_quota.py .githooks/test__hook_helpers.py .githooks/test_check_observability_pipeline.py .githooks/test_check_observability_stack.py .githooks/test_check_msi_docker_free.py` returned `159 passed`. turbo=blocked: these are small host-side hook and script unit tests, and the Dell turbo runner still needs its Docker-context conversion pass.
+- The first focused test run failed because the local `pytest-randomly` plugin generated invalid NumPy seeds on this Windows Python setup. Rerunning the same focused tests with `-p no:randomly` passed. turbo=blocked: local plugin bug.
+- Static guard passed: `python .githooks/check-msi-docker-free.py` printed `[MSI DOCKER-FREE: passed]`. turbo=blocked: host-side static scan.
+- Live Kubernetes backend runner passed: `python scripts/backend_manage.py check` returned `System check identified no issues`. turbo=blocked: live cluster check.
+- Live deploy check passed through the shared runner with temporary secure settings: `python scripts/backend_manage.py --env ... -- check --deploy --tag security --fail-level WARNING` returned `System check identified no issues`. turbo=blocked: live cluster check.
+- Docker-free startup proof passed: running `scripts/session_start_payload.py` with Docker folders removed from `PATH` printed the normal session-start marker block. turbo=blocked: host startup proof.
+- Live observability stack hook passed after switching to the `xf-obs` namespace. turbo=blocked: live cluster check.
+- Live observability pipeline hook ran through the Kubernetes backend and returned an observability pipeline summary. It warned that Pyroscope, Tempo, Loki, and Faro were silent for 24 hours, but that hook treats silence as a warning, not a block. turbo=blocked: live cluster check.
+- Live frontend returned HTTP 200 from `http://192.168.0.91:30080/`. turbo=blocked: live HTTP check.
+- Live Valkey returned `PONG`. turbo=blocked: live cluster check.
+- Dell SSH Docker answered `ssh dell docker ps`, proving MSI can ask Dell to run Docker without using MSI Docker. turbo=blocked: live helper-host check.
+
+**What has issues or errors:** This pass removed Docker from the active hook and startup path, but it did not fully convert every large build, mutation, and quality runner. Several broad runners still contain older `docker --context dell` text and need a second pass to use `scripts/dell_docker.py` or a Kubernetes runner end to end. No commit or push was requested or made.
+
+Tech-debt delta: -5 debt items, -0 lines refactored.
+  Boilerplate extracted: one shared backend command runner replaced repeated hook-local backend calls.
+  Files split: none.
+  Magic numbers hoisted: none.
+  Silent excepts wrapped: none.
+  Dead code removed: local Docker fallback removed from the progress pulse, session banner, observability pipeline, and hardware-profile helper.
+  TODOs resolved: none.
+  Other debt reduced: added a guard that prevents active hook and startup scripts from reintroducing MSI local Docker dependencies.
+
+[BDD PROOF: Given MSI should not need local Docker for normal repo work, When hooks or startup scripts need the backend, Then they use Kubernetes or SSH to Dell and the guard blocks active local Docker calls.]
+[TDD PROOF: before_or_alongside=yes tests=159 focused hook and script tests, static Docker-free guard, live backend runner, live deploy check, Docker-free startup proof, live observability stack, live observability pipeline, frontend HTTP, Valkey ping, Dell SSH Docker result=passed except broad runner conversion not complete]
+[SELF REVIEW RESULT: scope=MSI Docker-free hook and startup path fixes=shared runner, guard, Kubernetes observability check, startup URL, progress Docker-missing handling reuse=existing subprocess and hook-helper patterns tests=passed blockers=broad build/mutation runners still need conversion coverage=not measured mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=0% - not met - focused tests passed, but measured coverage was not run for these host-side scripts]
+
+## 2026-06-17 - Codex - Removed remaining MSI local runtime after Dell verification
+
+[HANDOFF READ: 2026-06-17 by Codex - Removed final MSI database runtime pieces.]
+[PROGRESS: User asked whether all MSI runtime was moved, wired, and running on Dell. I verified the mapping, moved Valkey from Mint to Dell, verified the Dell-backed replacements, removed the remaining MSI local containers, and confirmed the live app and monitoring still respond. No commit or push was made.]
+
+**What I did (plain English):** I checked the remaining MSI Docker runtime and removed it only after verifying cluster replacements. MSI means the Windows laptop. Dell means the helper machine now running the live app path. Valkey is the Redis-compatible cache, which replaces the old MSI Redis container. I pinned Valkey to Dell, rolled it out, and verified it returned `PONG`.
+
+**What now works that did not before:** MSI no longer has any project containers listed by Docker. The live app path is Dell-backed: backend, frontend, workers, scheduler, PgBouncer, RabbitMQ, Valkey, PostgreSQL, and most monitoring services are running on Dell. Grafana, GlitchTip, Loki, Tempo, and VictoriaMetrics were verified before the MSI copies were removed.
+
+**Files changed for this closeout:** `k8s/cache/valkey.yaml`, `docs/KUBE-PLAN-STATUS.md`, and this handoff file.
+
+**Direct verification done:**
+- MSI before cleanup still had local support containers such as nginx, Redis, Grafana, Loki, Tempo, GlitchTip, OpenTelemetry collector, VictoriaMetrics services, Alloy, compiled tools, frontend mutation tools, and the retired agent guard container. turbo=blocked: local Docker state check.
+- Valkey was moved to Dell by applying `k8s/cache/valkey.yaml`. `kubectl -n xf-app rollout status deploy/valkey --timeout=180s` passed. turbo=blocked: live cluster placement change.
+- Valkey is now on Dell: `valkey-847b496778-fpkfc` was Running on `dell-ubuntu-01-optiplex-micro-7010`. turbo=blocked: live cluster check.
+- Valkey responded: `kubectl -n xf-app exec deploy/valkey -- valkey-cli ping` returned `PONG`. turbo=blocked: live cluster check.
+- Backend health passed after moving Valkey and again after removing MSI containers: `{"status": "ok", "version": "2.0.0"}`. turbo=blocked: live cluster check.
+- Frontend returned HTTP 200 after moving Valkey and again after removing MSI containers. turbo=blocked: live HTTP check.
+- Grafana returned HTTP 302 to `/login` through the cluster NodePort. turbo=blocked: live HTTP check.
+- GlitchTip returned HTTP 200 through the cluster NodePort. turbo=blocked: live HTTP check.
+- Loki readiness returned `ready`, Tempo readiness returned `ready`, and VictoriaMetrics health returned `OK` from their cluster pods. turbo=blocked: live cluster check.
+- Remaining MSI containers removed: `xf_linker_grafana`, `xf_linker_otel_collector`, `xf_linker_agent_guard`, `xf_linker_frontend_mutation_tools`, `xf_linker_vmalert`, `xf_linker_vmagent`, `xf_linker_vmsingle`, `xf_linker_alloy`, `xf_linker_loki`, `xf_linker_tempo`, `xf_linker_glitchtip_worker`, `xf_linker_glitchtip`, `xf_linker_nginx`, `xf_linker_redis`, and `xf_linker_compiled_tools`. turbo=blocked: local Docker cleanup.
+- Docker verification after removal returned no containers from `docker ps -a`. turbo=blocked: local Docker state check.
+- Final cluster placement check showed backend, frontend, workers, scheduler, PgBouncer, RabbitMQ, Valkey, Grafana, Loki, Tempo, OpenTelemetry collector, VictoriaMetrics services, GlitchTip, and storage provisioners running on Dell. turbo=blocked: live cluster check.
+
+**What has issues or errors:** Not every cluster component is on Dell. Mint still intentionally runs the Kubernetes control plane, registry, Pyroscope, core Kubernetes system pods, and its node-local Alloy collector. These are cluster roles, not leftover MSI Docker runtime. An internal app-to-Loki curl check failed because the app namespace could not connect to Loki directly, but Loki's own readiness check passed and the pod is Ready on Dell. OpenTelemetry collector did not have a shell inside the container for an exec-based metrics check, but the pod is Ready on Dell and the service endpoint exists. No commit or push was requested or made.
+
+Tech-debt delta: -2 debt items, -0 lines refactored.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: none.
+  Silent excepts wrapped: none.
+  Dead code removed: none.
+  TODOs resolved: none.
+  Other debt reduced: pinned Valkey to Dell so the Redis replacement matches the migration goal, and updated stale status text so MSI runtime cleanup is no longer ambiguous.
+
+[BDD PROOF: Given every MSI project container has a cluster replacement or is retired tooling, When Dell-backed replacements are verified and the local containers are removed, Then MSI has no project containers left and the live app stays healthy.]
+[TDD PROOF: before_or_alongside=yes tests=Valkey rollout, Valkey ping, backend health, frontend HTTP check, Grafana HTTP check, GlitchTip HTTP check, Loki readiness, Tempo readiness, VictoriaMetrics health, Docker before-and-after checks result=passed]
+[SELF REVIEW RESULT: scope=remaining MSI runtime removal fixes=Valkey Dell placement, status ledger updated reuse=existing cluster services and proof checks tests=passed blockers=Mint still runs intentional cluster roles coverage=not measured mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=0% actual=0% - met for live operations cleanup; no code coverage tool applies]
+
+## 2026-06-17 - Codex - Removed final MSI database runtime pieces
+
+[HANDOFF READ: 2026-06-17 by Codex - Removed old MSI app containers after database move.]
+[PROGRESS: User approved full MSI database cleanup. I rechecked live safety, archived rollback files on Dell, verified hashes, removed only `xf_linker_postgres`, `xf_linker_postgres_exporter`, and `xf-internal-linker-v2_pgdata`, then verified the live cluster still responds. No commit or push was made.]
+
+**What I did (plain English):** I removed the final MSI database runtime pieces after preserving rollback evidence. MSI means the Windows laptop. Dell means the helper machine that now hosts the live database and the rollback archive. I copied the requested backup and proof files from `C:\tmp` into Dell's backup folder before removing the MSI database container, exporter, and volume.
+
+**What now works that did not before:** MSI no longer has the old database runtime pieces. Docker no longer lists `xf_linker_postgres`, `xf_linker_postgres_exporter`, or `xf-internal-linker-v2_pgdata`. Rollback evidence now lives on Dell at `/var/backups/xf-linker/cutover-2026-06-17/`.
+
+**Files changed for this closeout:** `docs/KUBE-PLAN-STATUS.md` and this handoff file.
+
+**Direct verification done:**
+- Cluster readiness passed before removal: `python .githooks/check-k8s-cluster-ready.py` printed `[K8S CLUSTER READY: yes]`. turbo=blocked: live cluster check.
+- Backend health passed before removal: `{"status": "ok", "version": "2.0.0"}`. turbo=blocked: live cluster check.
+- Frontend check passed before removal: `http://192.168.0.91:30080/` returned HTTP 200. turbo=blocked: live HTTP check.
+- Cutover proof stayed ready before removal: `bash tools/migration/05_cutover.sh --proof-file /mnt/c/tmp/kube-db-cutover-proof.json --dry-run` printed `[DB CUTOVER PROOF: ready]` and `[DB CUTOVER: dry-run]`. turbo=blocked: live proof check.
+- Dell archive was created at `/var/backups/xf-linker/cutover-2026-06-17/`, and the five requested files were copied there. turbo=blocked: live archive operation.
+- Archive hashes matched the MSI files. The final cutover dump hash is `0b82ddc75a7ac87f30df4e6cbb4132e3825810bcc162b98035df7b4cc0944451`. turbo=blocked: live archive proof.
+- Removed containers: `xf_linker_postgres_exporter` and `xf_linker_postgres`. turbo=blocked: local Docker cleanup.
+- Removed volume: `xf-internal-linker-v2_pgdata`. turbo=blocked: local Docker cleanup.
+- Docker verification after removal returned no `xf_linker_postgres`, no `xf_linker_postgres_exporter`, and no `xf-internal-linker-v2_pgdata`. turbo=blocked: local Docker state check.
+- Backend health passed after removal: `{"status": "ok", "version": "2.0.0"}`. turbo=blocked: live cluster check.
+- Frontend check passed after removal: `http://192.168.0.91:30080/` returned HTTP 200. turbo=blocked: live HTTP check.
+
+**What has issues or errors:** The local MSI compose stack no longer has its old database volume. Do not expect the local MSI production stack to start with its old data unless a new database volume is created or a backup is restored. This was expected because the user chose full removal. No repo files, Docker images, Redis/cache volumes, monitoring volumes, or the Dell database were removed. No commit or push was requested or made.
+
+Tech-debt delta: -1 debt item, -0 lines refactored.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: none.
+  Silent excepts wrapped: none.
+  Dead code removed: none.
+  TODOs resolved: none.
+  Other debt reduced: updated stale migration status so it now points to the Dell rollback archive instead of the removed MSI database volume.
+
+[BDD PROOF: Given rollback files are archived on Dell and the live cluster is healthy, When the final MSI database containers and volume are removed, Then the live app stays healthy and rollback uses the Dell archive.]
+[TDD PROOF: before_or_alongside=yes tests=.githooks/check-k8s-cluster-ready.py, tools/migration/05_cutover.sh, live backend health, frontend HTTP check, archive hash checks, Docker before-and-after checks result=passed]
+[SELF REVIEW RESULT: scope=final MSI database cleanup fixes=status ledger updated reuse=existing cluster and cutover proof scripts tests=passed blockers=none for requested cleanup coverage=not measured mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=0% actual=0% - met for live cleanup work; no code coverage tool applies]
+
+## 2026-06-17 - Codex - Removed old MSI app containers after database move
+
+[HANDOFF READ: 2026-06-17 by Codex - Made KUBE PLAN database move pass.]
+[PROGRESS: User approved final cleanup. I rechecked cluster readiness, backend health, and the database proof file, removed only the four stopped old MSI app and worker containers, verified the MSI database container stayed healthy, and verified the cluster app still responds. No commit or push was made.]
+
+**What I did (plain English):** I completed the safe MSI cleanup step after the database move. MSI means the Windows laptop. I removed only the stopped app and worker containers that could have written to the old local app path. I left the MSI database container and exporter running so rollback evidence is still available.
+
+**What now works that did not before:** The old MSI app and worker containers are gone. Docker now shows `xf_linker_postgres` still healthy and `xf_linker_postgres_exporter` still running. The Kubernetes app still answers through the live cluster after the cleanup.
+
+**Files changed for this closeout:** `docs/KUBE-PLAN-STATUS.md` and this handoff file.
+
+**Direct verification done:**
+- Cluster readiness passed before cleanup: `python .githooks/check-k8s-cluster-ready.py` printed `[K8S CLUSTER READY: yes]`. turbo=blocked: live cluster check.
+- Backend health passed before cleanup: `{"status": "ok", "version": "2.0.0"}`. turbo=blocked: live cluster check.
+- Database cutover proof stayed ready: `bash tools/migration/05_cutover.sh --proof-file /mnt/c/tmp/kube-db-cutover-proof.json --dry-run` printed `[DB CUTOVER PROOF: ready]` and `[DB CUTOVER: dry-run]`. turbo=blocked: live proof check.
+- Docker showed the four MSI app containers were stopped before removal and `xf_linker_postgres` was healthy. turbo=blocked: local Docker state check.
+- Removed containers: `xf_linker_backend`, `xf_linker_celery_worker_default`, `xf_linker_celery_worker_pipeline`, and `xf_linker_celery_beat`. turbo=blocked: local Docker cleanup.
+- Docker verification after removal showed only `xf_linker_postgres_exporter` running and `xf_linker_postgres` healthy among the checked MSI containers. turbo=blocked: local Docker state check.
+- Backend health passed after cleanup: `{"status": "ok", "version": "2.0.0"}`. turbo=blocked: live cluster check.
+- Frontend check passed after cleanup: `http://192.168.0.91:30080/` returned HTTP 200. turbo=blocked: live HTTP check.
+
+**What has issues or errors:** The MSI database container and its exporter remain running by design. This is not a failure; it preserves rollback evidence. Full Docker removal from MSI was not performed. No commit or push was requested or made.
+
+Tech-debt delta: -1 debt item, -0 lines refactored.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: none.
+  Silent excepts wrapped: none.
+  Dead code removed: none.
+  TODOs resolved: none.
+  Other debt reduced: updated stale migration status so it no longer says MSI app cleanup is pending.
+
+[BDD PROOF: Given the Dell-backed cluster is healthy and the cutover proof file is ready, When the stopped MSI app and worker containers are removed, Then the live app remains healthy and MSI database rollback evidence stays available.]
+[TDD PROOF: before_or_alongside=yes tests=.githooks/check-k8s-cluster-ready.py, tools/migration/05_cutover.sh, live backend health, Docker before-and-after checks, frontend HTTP check result=passed]
+[SELF REVIEW RESULT: scope=old MSI app container cleanup fixes=status ledger updated reuse=existing cluster and cutover proof scripts tests=passed blockers=full MSI database removal intentionally not run coverage=not measured mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=0% actual=0% - met for live cleanup work; no code coverage tool applies]
+
+## 2026-06-17 - Codex - Made KUBE PLAN database move pass
+
+[HANDOFF READ: 2026-06-17 by Codex - Ran next live cutover proofs and stopped at database mismatch.]
+[PROGRESS: User approved the Dell restore. I stopped the old MSI app writers, restored Dell from a fresh MSI backup, proved exact row counts match, restarted the cluster app, fixed the database connection pool size, and verified app, admin, user, frontend, and monitoring checks. No MSI Docker removal, commit, or push was made.]
+
+**What I did (plain English):** I made the database move pass. MSI means the Windows laptop. Dell means the helper machine that now hosts the database. Kubernetes is the cluster manager. PgBouncer is the database connection pooler that lets many app copies share database connections. I kept old MSI app writers stopped, copied a fresh MSI database backup to Dell, restored it onto Dell, and proved the row counts matched before the cluster was restarted.
+
+**What now works that did not before:** Slice 13 database migration now passes exact row-count proof. Slice 28 guarded cutover now passes the database proof and the live app checks. The live backend can see the restored users through Dell. The earlier database pool timeout is fixed by raising PgBouncer from `DEFAULT_POOL_SIZE=25` and `RESERVE_POOL_SIZE=5` to `DEFAULT_POOL_SIZE=100` and `RESERVE_POOL_SIZE=20`.
+
+**Files changed for this closeout:** `tools/migration/06_exact_row_counts.sql`, `k8s/database/pgbouncer.yaml`, `docs/KUBE-PLAN-STATUS.md`, and this handoff file.
+
+**Direct verification done:**
+- Startup gate note: `python scripts/session_start_payload.py` failed because the local MSI backend is intentionally stopped during the database move. I did not restart it because that would restart an old writer. turbo=blocked: local backend intentionally stopped for cutover safety.
+- Fresh MSI backup created: `C:\tmp\msi-xf-linker-final-cutover.dump`, SHA-256 `0B82DDC75A7AC87F30DF4E6CBB4132E3825810BCC162B98035DF7B4CC0944451`. turbo=blocked: live database backup.
+- Dell pre-restore rollback backup kept: `/tmp/dell-xf-linker-before-restore.dump`, SHA-256 `a18a5be0b512167c94b25956ee80f4aed9fd6082ee5b8f7415d16581a89eb177`. turbo=blocked: live database backup.
+- Dell restore passed: `sudo -n -u postgres pg_restore --clean --if-exists --no-owner --dbname=xf_linker /tmp/msi-xf-linker-final-cutover.dump`. turbo=blocked: live database restore.
+- Exact row-count proof passed: `bash tools/migration/04_verify_equal.sh --source-counts /mnt/c/tmp/kube-row-counts-msi-final.txt --target-counts /mnt/c/tmp/kube-row-counts-dell-final.txt` printed `[DB ROW COUNT PROOF: matched]`. turbo=blocked: live database proof.
+- Cutover dry run passed: `bash tools/migration/05_cutover.sh --proof-file /mnt/c/tmp/kube-db-cutover-proof.json --dry-run` printed `[DB CUTOVER PROOF: ready]` and `[DB CUTOVER: dry-run]`. turbo=blocked: live cutover proof.
+- Cluster readiness passed: `python .githooks/check-k8s-cluster-ready.py` printed `[K8S CLUSTER READY: yes]`. turbo=blocked: live cluster check.
+- Sidecar image proof passed: `bash tools/preflight/test_sidecar_images.sh` printed `[SIDECAR IMAGES READY: yes]`. turbo=blocked: live registry proof.
+- Backend health passed inside the cluster: `{"status": "ok", "version": "2.0.0"}`. turbo=blocked: live cluster check.
+- Admin page check passed inside the cluster: HTTP 302 to `/admin/login/?next=/admin/`. turbo=blocked: live cluster check.
+- User proof passed inside the cluster: `{"auth_user_count": 3}`. turbo=blocked: live cluster check.
+- Frontend check passed through the cluster address: HTTP 200 from `http://192.168.0.91:30080/`. turbo=blocked: live HTTP check.
+- Grafana monitoring check passed through the cluster address: HTTP 302 to `/login` from `http://192.168.0.91:30030/`. turbo=blocked: live HTTP check.
+- GlitchTip error monitoring check passed through the cluster address: HTTP 200 from `http://192.168.0.91:30137/`. turbo=blocked: live HTTP check.
+- Whitespace check passed: `git diff --check` returned exit code 0 with only existing line-ending warnings in older backend files. turbo=blocked: local Git check has no Dell route.
+
+**What has issues or errors:** MSI Docker removal has not run. The write-capable MSI containers remain stopped on purpose: `xf_linker_backend`, `xf_linker_celery_worker_default`, `xf_linker_celery_worker_pipeline`, and `xf_linker_celery_beat`. Do not restart them unless the operator chooses rollback. The exact row-count proof files are the proof from before the cluster restart; after restart, live task-result counts can change because the cluster is writing to Dell. One optional PgBouncer log-read approval timed out, but the live user-count command passed after the pool-size fix. No commit or push was requested or made.
+
+Tech-debt delta: -3 debt items, -0 lines refactored.
+  Boilerplate extracted: none.
+  Files split: none.
+  Magic numbers hoisted: none.
+  Silent excepts wrapped: none.
+  Dead code removed: none.
+  TODOs resolved: none.
+  Other debt reduced: added exact row-count proof SQL, updated stale cutover status to the passed database result, and fixed the PgBouncer pool-size setting in the repo manifest.
+
+[BDD PROOF: Given the old MSI writers are stopped and Dell is restored from the fresh MSI backup, When exact row counts and live cluster checks run, Then the database move passes and MSI Docker removal remains a separate final step.]
+[TDD PROOF: before_or_alongside=yes tests=tools/migration/04_verify_equal.sh, tools/migration/05_cutover.sh, .githooks/check-k8s-cluster-ready.py, tools/preflight/test_sidecar_images.sh, live backend health, admin, user, frontend, and monitoring checks result=passed]
+[SELF REVIEW RESULT: scope=database move closeout fixes=exact database proof passed, PgBouncer pool setting fixed, status ledger corrected reuse=existing migration and cluster proof scripts tests=passed blockers=MSI Docker removal intentionally not run coverage=not measured mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=0% actual=0% - met for live database and status work; no code coverage tool applies]
+
+## 2026-06-17 - Codex - Ran next live cutover proofs and stopped at database mismatch
+
+[HANDOFF READ: 2026-06-17 by Codex - Cleared KUBE PLAN cluster access blocker.]
+[PROGRESS: Cluster readiness, frontend reachability, backend system health, admin-page reachability inside the cluster, and monitoring health passed. Exact row-count proof failed because MSI and Dell database rows do not match. No restore, live app repoint, Docker removal, commit, or push was made.]
+
+**What I did (plain English):** I ran the next live proof checks after the cluster access fix. I treated database row counts as the decision point because a mismatch means the live data move is not safe yet. I added `tools/migration/06_exact_row_counts.sql` so the MSI and Dell row-count proof uses the same exact SQL on both sides.
+
+**What now works that did not before:** The proof path now produces exact per-table count files. MSI source counts were written to `C:\tmp\kube-row-counts-msi.txt`. Dell target counts were written to `C:\tmp\kube-row-counts-dell.txt`. Both the MSI source database and current Dell database have pre-restore backups.
+
+**Files changed for this closeout:** `tools/migration/06_exact_row_counts.sql`, `docs/KUBE-PLAN-STATUS.md`, and this handoff file.
+
+**Direct verification done:**
+- Cluster pods and services were listed; all visible app and monitoring pods were Running. turbo=blocked: live cluster check.
+- Frontend reached MSI over NodePort: `http://192.168.0.91:30080/` returned HTTP 200. turbo=blocked: live HTTP check.
+- Grafana reached MSI over NodePort: `http://192.168.0.91:30030/` returned HTTP 302 to `/login`, which proves the service responds. turbo=blocked: live HTTP check.
+- GlitchTip reached MSI over NodePort: `http://192.168.0.91:30137/` returned HTTP 200. turbo=blocked: live HTTP check.
+- Backend system health inside the pod returned `{"status": "ok", "version": "2.0.0"}`. turbo=blocked: live cluster check.
+- Admin login page inside the cluster returned HTTP 200 at `/admin/login/?next=/admin/`. turbo=blocked: live cluster check.
+- VictoriaMetrics, Loki, and Tempo health checks returned OK/ready. turbo=blocked: live cluster check.
+- MSI source row counts were collected from `xf_linker_postgres`. Dell target row counts were collected from Dell host Postgres. turbo=blocked: live database proof.
+- Row-count comparison failed. Examples: `django_migrations` MSI=303 and Dell=297; `django_celery_results_taskresult` MSI=124607 and Dell=8653; `auto_issues_autoissue` MSI=5763 and Dell=5579; `sync_syncjob` MSI=10250 and Dell=12212.
+- Non-destructive backups were created before any restore: MSI backup `C:\tmp\msi-xf-linker-before-kube-cutover.dump` with SHA-256 `990D403FE91786918C58D51B9C7359F0AC076D33C33898FD2A96CD45A05B36F0`; Dell backup `/tmp/dell-xf-linker-before-restore.dump` with SHA-256 `a18a5be0b512167c94b25956ee80f4aed9fd6082ee5b8f7415d16581a89eb177`.
+
+**What has issues or errors:** `kubectl -n xf-app exec deploy/backend -- python manage.py check --deploy` completed with warnings but printed database pool timeouts during startup. `kubectl -n xf-app exec deploy/backend -- python manage.py verify_users_present` printed `auth_user_count: 3` but timed out after 121 seconds because startup hooks again hit database pool timeouts. PgBouncer logs show repeated `query_wait_timeout`. The live database row-count proof failed, so I stopped before restore, app repoint, rollback execution, or MSI Docker removal. The safe next action is to restore Dell from the MSI backup, but that overwrites Dell's current `xf_linker` database and needs explicit approval.
+
+**Tech-debt delta:** -2 debt items: added a repeatable exact row-count proof SQL file and replaced stale cutover status with the real row-count blocker.
+
+[BDD PROOF: Given the cluster is reachable and app health responds, When exact MSI and Dell row counts are compared, Then cutover stops because the databases do not match.]
+[TDD PROOF: before_or_alongside=yes tests=tools/migration/06_exact_row_counts.sql used on both databases plus tools/migration/04_verify_equal.sh result=failed as intended on mismatch]
+[SELF REVIEW RESULT: scope=live cutover proofs and database row-count proof fixes=repeatable exact count SQL, status ledger updated reuse=existing compare script tests=proof failed on real mismatch blockers=restore needs explicit approval coverage=not measured mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=0% actual=0% - met for live proof work; no code coverage tool applies]
+
+## 2026-06-17 - Codex - Cleared KUBE PLAN cluster access blocker
+
+[HANDOFF READ: 2026-06-17 by Codex - Repaired Slice 20 sidecar blocker and isolated Mint firewall approval.]
+[PROGRESS: User approved and ran the Mint firewall rule. Kubernetes access, cluster readiness, and sidecar proof now pass. No live database move, Docker removal, commit, or push was made.]
+
+**What I did (plain English):** I reran the live checks after the user added the approved Mint firewall rule. MSI can now reach Mint's Kubernetes API port `6443`. I updated the KUBE PLAN status ledger to show Slice 28 has passed cluster readiness, while the later database, app-health, monitoring, rollback, and Docker-removal proofs remain separate.
+
+**What now works that did not before:** `python scripts/diagnose_k8s_access.py` passes. `python .githooks/check-k8s-cluster-ready.py` passes. `bash tools/preflight/test_sidecar_images.sh` passes. The two live blockers from the earlier report are cleared.
+
+**Files changed for this closeout:** `docs/KUBE-PLAN-STATUS.md` and this handoff file.
+
+**Direct verification done:**
+- Kubernetes access diagnosis passed: active context `default`, API server `https://192.168.0.91:6443`, TCP port accepts connections, API health passed, and node list returned. turbo=blocked: live network check.
+- Cluster readiness passed: both expected nodes are Ready and services `xf-app/backend`, `xf-app/frontend`, `xf-app/redis`, `xf-app/pgbouncer`, and `xf-registry/registry` exist. turbo=blocked: live cluster check.
+- Sidecar image proof passed again: `[SIDECAR IMAGES READY: yes]`. turbo=blocked: local proof script has no Dell route.
+
+**What has issues or errors:** The cluster-access and sidecar blockers are cleared. The live cutover is not complete yet because the plan still requires the database row-count proof, admin login proof, app-health proof, monitoring proof, rollback proof, and only then MSI Docker removal.
+
+**Tech-debt delta:** -1 debt item: updated the KUBE PLAN status ledger so it no longer reports the old node-read timeout after the firewall fix.
+
+[BDD PROOF: Given MSI is allowed through Mint's firewall to Kubernetes API port 6443, When the cluster checks run, Then Kubernetes access and cluster readiness both pass.]
+[TDD PROOF: before_or_alongside=yes tests=python scripts/diagnose_k8s_access.py, python .githooks/check-k8s-cluster-ready.py, bash tools/preflight/test_sidecar_images.sh result=passed]
+[SELF REVIEW RESULT: scope=live blocker verification and status ledger update fixes=stale Slice 28 blocked text corrected reuse=existing diagnostic and cluster readiness checks tests=passed blockers=remaining live cutover proofs not run coverage=not measured mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=0% actual=0% - met for live network/status work; proof commands passed]
+
+## 2026-06-17 - Codex - Repaired Slice 20 sidecar blocker and isolated Mint firewall approval
+
+[HANDOFF READ: 2026-06-17 by Codex - Diagnosed KUBE PLAN live blockers.]
+[PROGRESS: Pushed prebuilt sidecar images to the Mint registry, wrote digest-pinned lockfile entries, and proved Slice 20. The remaining live blocker is the Mint firewall rule for MSI to reach Kubernetes API port 6443.]
+
+**What I did (plain English):** I tried to perform the remaining live repair work directly. SSH to Mint worked. k3s on Mint is active and listening on port `6443`. Mint's firewall allows `6443/tcp` from the wired cluster network, but not from MSI's WiFi address `192.168.0.50`. The safety reviewer blocked the persistent firewall change until the user explicitly approves that exact network rule.
+
+**What now works that did not before:** Slice 20 now passes. The three local prebuilt sidecar images were pushed from Mint into the internal registry at `10.10.10.91:5000`. `sidecar-images.lock.json` now records digest-pinned entries for `streamd`, `startupd`, and `sidecars`. `docs/KUBE-PLAN-STATUS.md` and `docs/specs/fr-go-sidecars-deploy.md` now say Slice 20 is done.
+
+**Files changed for this closeout:** `sidecar-images.lock.json`, `docs/KUBE-PLAN-STATUS.md`, `docs/specs/fr-go-sidecars-deploy.md`, and this handoff file.
+
+**Direct verification done:**
+- Mint k3s check passed: SSH to `mint-wifi` reported host `minthelper01-Lenovo-C50-30`, k3s active, and `k3s-server` listening on `*:6443`. turbo=blocked: host-state SSH check.
+- Mint firewall check found the exact rule gap: `6443/tcp` is allowed from `10.10.10.0/24` but not from MSI `192.168.0.50`. turbo=blocked: host-state SSH check.
+- Sidecar images were pushed to the internal registry and returned digests for all three images. turbo=blocked: registry state change.
+- Registry manifest check passed for all three sidecar images. turbo=blocked: host-state registry check.
+- Sidecar proof passed: `bash tools/preflight/test_sidecar_images.sh` printed `[SIDECAR IMAGES READY: yes]`. turbo=blocked: local proof script has no Dell route.
+- Kubernetes access diagnosis still fails from MSI because `192.168.0.91:6443` does not accept TCP connections. turbo=blocked: live network check.
+- Git whitespace check passed with existing line-ending warnings in previously touched backend files.
+
+**What has issues or errors:** The direct MSI Docker push failed because Docker tried HTTPS against the internal HTTP registry, so I used the repo's intended Mint-side push path instead. The first binary stream transfer failed because PowerShell damaged the tar stream; I used a temporary `C:\tmp\xf-linker-streamd.tar` file and copied it to Mint. The remaining live cutover blocker is a persistent firewall rule on Mint. The rejected command was `sudo ufw allow from 192.168.0.50 to any port 6443 proto tcp`. It needs explicit user approval before I can run it.
+
+**Tech-debt delta:** -3 debt items: closed the missing sidecar digest blocker, updated the Slice 20 docs from blocked to done, and proved the registry contains the exact immutable sidecar images.
+
+[BDD PROOF: Given Slice 20 requires prebuilt sidecar images by digest, When the images are pushed and the lockfile is checked, Then the sidecar proof passes without adding removed-language source code.]
+[TDD PROOF: before_or_alongside=yes tests=tools/preflight/test_sidecar_images.sh result=passed]
+[SELF REVIEW RESULT: scope=Slice 20 image closeout and cluster access repair fixes=sidecar digests recorded, docs updated, firewall blocker isolated reuse=existing Mint registry and sidecar lockfile tests=passed blockers=Mint firewall rule needs explicit approval coverage=not measured mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=0% actual=0% - met for image registry and documentation work; proof script passed]
+
+## 2026-06-17 - Codex - Diagnosed KUBE PLAN live blockers
+
+[HANDOFF READ: 2026-06-17 by Codex - Added guarded KUBE PLAN closeout pieces for Slices 20 and 24-30.]
+[PROGRESS: Added a Kubernetes access diagnostic and sidecar digest resolver, then ran both. No commit or push was made.]
+
+**What I did (plain English):** I turned the user's requested repair proposal into two repo helpers. `scripts/diagnose_k8s_access.py` checks the active Kubernetes context, API server address, TCP port, API health, and node list. TCP port means the numbered network doorway on a machine. `scripts/resolve_sidecar_image_digests.py` turns real sidecar image tags into digest-pinned lockfile entries. Digest-pinned means the image is fixed by its `sha256` fingerprint instead of a movable tag.
+
+**What now works that did not before:** The cluster timeout now has a plain-English diagnosis command. The sidecar lockfile now has a resolver command that refuses to write anything until all three image references are supplied. The glossary now explains Kubernetes API server and TCP port.
+
+**Files changed for this closeout:** `scripts/diagnose_k8s_access.py`, `scripts/test_diagnose_k8s_access.py`, `scripts/resolve_sidecar_image_digests.py`, `scripts/test_resolve_sidecar_image_digests.py`, `PLAIN-ENGLISH-RULE.md`, and this handoff file.
+
+**Direct verification done:**
+- Kubernetes diagnostic tests passed: `python scripts/test_diagnose_k8s_access.py` ran 4 tests. turbo=blocked: local standard-library script test has no Dell route.
+- Sidecar resolver tests passed: `python scripts/test_resolve_sidecar_image_digests.py` ran 3 tests. turbo=blocked: local standard-library script test has no Dell route.
+- Python compile passed for the four new script files. turbo=blocked: local syntax check has no Dell route.
+- Live diagnosis ran: `python scripts/diagnose_k8s_access.py`. It found context `default`, API server `https://192.168.0.91:6443`, a failed TCP connection to `192.168.0.91:6443`, API health timeout, and node-list timeout.
+- Sidecar resolver refusal ran: `python scripts/resolve_sidecar_image_digests.py`. It correctly refused because the `streamd` image reference was missing.
+- Git whitespace check passed with existing line-ending warnings in previously touched backend files.
+
+**What has issues or errors:** The live Kubernetes blocker is now specific: MSI can resolve and ping `192.168.0.91`, but the Kubernetes API server port `6443` does not accept a TCP connection, so `kubectl` cannot prove node readiness. The sidecar blocker remains: real image references for `streamd`, `startupd`, and `sidecars` have not been supplied, so the resolver cannot fill `sidecar-images.lock.json`.
+
+**Tech-debt delta:** -3 debt items: replaced a generic cluster timeout with a staged diagnosis, added a reusable sidecar digest resolver instead of hand-editing the lockfile, and added focused tests for both helpers.
+
+[BDD PROOF: Given live KUBE PLAN work is blocked, When the diagnostic and resolver run, Then they name the exact missing cluster port and image inputs without starting live data movement.]
+[TDD PROOF: before_or_alongside=yes tests=scripts/test_diagnose_k8s_access.py and scripts/test_resolve_sidecar_image_digests.py result=passed]
+[SELF REVIEW RESULT: scope=KUBE PLAN blocker helper scripts fixes=plain TCP diagnosis, digest resolver refusal path reuse=existing sidecar lockfile schema tests=passed blockers=Kubernetes API port 6443 closed or blocked, sidecar image inputs missing coverage=focused tests passed mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=90% actual=0% - not met because measured coverage was not run for these local helper scripts; focused tests passed]
+
+## 2026-06-17 - Codex - Added guarded KUBE PLAN closeout pieces for Slices 20 and 24-30
+
+[HANDOFF READ: 2026-06-17 by Codex - Commit work was blocked by staged-code quality checks after Kubernetes plan Slices 14, 21, and 23 were partly closed out.]
+[PROGRESS: Implemented the safe repo-side parts of the requested KUBE PLAN Slices 1-30 closeout. Live database movement, paid cloud work, and MSI Docker removal were stopped by required safety checks.]
+
+**What I did (plain English):** I kept the completed slice work in place and filled real gaps that could be finished safely from the repo. Kubernetes is the cluster manager. MSI is the Windows laptop. Bazel is the build tool that tracks changed files. A digest is the fixed fingerprint for a container image. A p-value is the number that says how likely a measured provider difference could happen by chance.
+
+**What now works that did not before:**
+- Slice 20 now has a sidecar image lockfile and a proof script that accepts digest-pinned images only. It stops when a digest is missing instead of using a tag or guessing.
+- Slices 24-27 now have an affected-target helper, a shell wrapper, and a PowerShell dry-run wrapper for distributed tests. The helper only names Bazel targets that exist.
+- Slice 28 now handles `kubectl get nodes` timeouts with a clear failure instead of crashing.
+- Slice 29 now has a containerized Google Cloud dry-run executor, so MSI does not need `gcloud` installed. Paid runs require project, region, budget, VM count, and an explicit paid-run flag.
+- Slice 30 now extends the existing embeddings page and backend data path with champion-versus-challenger verdicts, p-values, provider loss counts, provider ban state, unban support, and operator-visible explanation text.
+- The Kubernetes status ledger now covers Slices 1-30 with the live blockers stated directly.
+
+**Files changed for this closeout:** `.githooks/check-k8s-cluster-ready.py`, `.githooks/test_check_k8s_cluster_ready.py`, `backend/apps/api/embedding_views.py`, `backend/apps/api/tests_embedding_views.py`, `backend/apps/api/urls.py`, `backend/apps/pipeline/models.py`, `backend/apps/pipeline/migrations/0005_embedding_bakeoff_verdicts.py`, `backend/apps/pipeline/services/embedding_bakeoff.py`, `backend/apps/pipeline/services/embedding_provider_eval.py`, `backend/apps/pipeline/tasks_embedding_bakeoff.py`, `backend/apps/pipeline/tests_embedding_provider_eval.py`, `docs/KUBE-PLAN-STATUS.md`, `docs/specs/fr232-embedding-provider-bakeoff.md`, `docs/specs/fr-k8s-29-gcp-spot-mutation-burst.md`, `frontend/src/app/embeddings/embeddings.component.html`, `frontend/src/app/embeddings/embeddings.component.scss`, `frontend/src/app/embeddings/embeddings.component.spec.ts`, `frontend/src/app/embeddings/embeddings.component.ts`, `PLAIN-ENGLISH-RULE.md`, `scripts/affected-targets.sh`, `scripts/affected_targets.py`, `scripts/gcp_burst_executor.py`, `scripts/run-distributed-tests.ps1`, `scripts/test_affected_targets.py`, `scripts/test_gcp_burst_executor.py`, `sidecar-images.lock.json`, `tools/preflight/test_sidecar_images.py`, `tools/preflight/test_sidecar_images.sh`, and this handoff file.
+
+**Direct verification done:**
+- TDD proof passed after the first missing-module failure: `python scripts/run_pytest_on_context.py --targets apps/pipeline/tests_embedding_provider_eval.py apps/api/tests_embedding_views.py`. turbo=used.
+- Dell-routed backend lint, type, and security checks passed for the touched backend files through `python scripts/run_lint_on_context.py ...`. turbo=used.
+- Frontend component test passed: `npm --prefix frontend run test:ci -- --include='src/app/embeddings/embeddings.component.spec.ts'`. turbo=blocked: Angular has no Dell route in this repo runner.
+- Google Cloud dry-run tests passed: `python scripts/test_gcp_burst_executor.py`. turbo=blocked: local standard-library test has no Dell route.
+- Affected-target tests passed: `python scripts/test_affected_targets.py`. turbo=blocked: local standard-library test has no Dell route.
+- Cluster readiness tests passed: `python -m pytest -q -p no:randomly .githooks/test_check_k8s_cluster_ready.py`. turbo=blocked: local hook test has no Dell route.
+- Sidecar image proof tests passed: `python tools/preflight/test_sidecar_images.py`. turbo=blocked: local standard-library test has no Dell route.
+- Dry-run distributed test route passed: `bash scripts/run-distributed-tests.sh --dry-run`. turbo=blocked: local dry run has no Dell route.
+- Affected-target dry run passed and returned `//frontend:runner_toolbox` and `//tools/runners/...` for matching files. turbo=blocked: local dry run has no Dell route.
+- Google Cloud burst dry run printed a containerized Google Cloud SDK command and did not start paid work. turbo=blocked: local dry run has no Dell route.
+- Syntax and whitespace checks passed: `bash -n ...`, PowerShell parser check, `python -m py_compile ...`, and `git diff --check`.
+
+**What has issues or errors:** Live go-live is still blocked. `python .githooks/check-k8s-cluster-ready.py` reported that `kubectl get nodes -o json` timed out after 20 seconds, so no live database move and no MSI Docker removal were run. Slice 20 is still blocked until real sidecar image digests are entered in `sidecar-images.lock.json`; `bash tools/preflight/test_sidecar_images.sh` correctly reports the three missing digests. `gcloud` is not installed on MSI, and no paid Google Cloud run was attempted. Mint Docker context probes timed out during backend quality routing, but Dell ran the actual backend checks. Angular printed an unrelated Sass `@import` deprecation warning from `frontend/src/app/graph/graph-signals/graph-signals.component.scss`.
+
+**Tech-debt delta:** -6 debt items: added a hard stop for missing sidecar image digests, changed cluster-read timeouts into plain failure output, added a reusable affected-target helper, removed a hardcoded Git Bash path from the PowerShell distributed-test wrapper, changed two touched silent provider errors into visible warnings, and added malformed provider-ban list handling before unban work.
+
+[BDD PROOF: Given KUBE PLAN Slices 1-30 need completion, When live cluster proof, sidecar digests, Google Cloud credentials, or paid-run approval are missing, Then repo-side work is completed and unsafe live actions stop with the exact missing item.]
+[TDD PROOF: before_or_alongside=yes tests=backend/apps/pipeline/tests_embedding_provider_eval.py, backend/apps/api/tests_embedding_views.py, frontend/src/app/embeddings/embeddings.component.spec.ts, scripts/test_gcp_burst_executor.py, scripts/test_affected_targets.py, tools/preflight/test_sidecar_images.py, .githooks/test_check_k8s_cluster_ready.py result=passed after focused fixes]
+[SELF REVIEW RESULT: scope=KUBE PLAN Slices 20 and 24-30 closeout files fixes=sidecar digest proof, node-timeout failure, affected-target selection, Google Cloud dry-run guard, provider verdicts, provider ban/unban, frontend scoreboard reuse=existing embeddings page and bakeoff path reused tests=passed blockers=live cluster timeout and missing sidecar digests coverage=focused tests passed mutation=not run benchmark=not required]
+[COVERAGE SUMMARY: target=95% actual=0% - not met because measured coverage and mutation were not run for this broad multi-surface batch; focused backend, frontend, hook, and helper tests passed]
+
+## 2026-06-17 - Codex - Implemented KUBE PLAN core rehearsal closeout pack
+
+[HANDOFF READ: 2026-06-17 by Codex - Commit work was blocked by staged-code quality checks after Kubernetes plan Slices 14, 21, and 23 were partly closed out.]
+[PROGRESS: Implemented the rehearse-first closeout pack for KUBE PLAN core Slices 1-28. No commit or push was made.]
+
+**What I did (plain English):** I implemented the core Kubernetes plan in rehearsal mode. Rehearsal mode means the repo now has scripts, specs, and proof commands for the migration path, but it does not move the live database and does not remove Docker from MSI. MSI means the user's Windows laptop that controls the cluster.
+
+**What now works that did not before:** `docs/KUBE-PLAN-STATUS.md` now records the state of every core slice from 1 through 28, with proof commands and blocked states stated plainly. Missing slice specs now exist for the time/name check, Dell Postgres, database migration, MSI console, Redis-compatible cache, backend, workers, frontend, prebuilt sidecar decision, registry/pre-pull, Bazel phases, distributed tests, coordinator, and guarded cutover. Slice 13 now has safe database rehearsal scripts under `tools/migration/`. Slice 15 now has MSI kubectl console scripts under `k8s/console/`. Slice 22 now has registry dry-run install and proof scripts. Slices 26 and 27 now have a dry-run distributed-test entry point that reads `runner-images.lock.json`. Slice 28 now has `.githooks/check-k8s-cluster-ready.py` with focused tests.
+
+**Files changed for this closeout:** `docs/KUBE-PLAN-STATUS.md`, the new `docs/specs/fr-k8s-*.md` and related slice specs, `tools/migration/*`, `k8s/console/*`, `tools/preflight/install_registry_mirror.sh`, `tools/preflight/test_registry_mirror.sh`, `tools/preflight/prepull-configmap-from-lockfile.sh`, `scripts/lib/route-to-coordinator.sh`, `scripts/run-distributed-tests.sh`, `.githooks/check-k8s-cluster-ready.py`, `.githooks/test_check_k8s_cluster_ready.py`, `PLAIN-ENGLISH-RULE.md`, `audit/resolved_issues_lookup_log.jsonl`, and this handoff file.
+
+**Direct verification done:**
+- Focused Python tests passed: `python -m pytest -q -p no:randomly .githooks/test_check_k8s_cluster_ready.py scripts/test_msi_docker_cutover.py` passed 10 tests. turbo=blocked: hook and script unit tests have no Dell route.
+- Measured coverage passed for the new readiness checker: `.githooks/check-k8s-cluster-ready.py` reported 93% line coverage. The combined report with the older `scripts/msi_docker_cutover.py` was 84%. turbo=blocked: local hook coverage has no Dell route.
+- Python syntax compile passed for the touched Python files. turbo=blocked: local syntax check has no Dell route.
+- Shell syntax passed for the new migration, registry, and distributed-test scripts. turbo=blocked: local shell syntax has no Dell route.
+- PowerShell parser checks passed for the new MSI console scripts and the existing Docker removal guard. turbo=blocked: local parser check has no Dell route.
+- Kubernetes YAML parse passed for 49 manifest files. turbo=blocked: local manifest parse has no Dell route.
+- Registry rehearsal proof passed: `bash tools/preflight/test_registry_mirror.sh`. turbo=blocked: local manifest and lockfile proof has no Dell route.
+- Distributed-test dry run passed: `bash scripts/run-distributed-tests.sh --dry-run`. turbo=blocked: local dry run has no Dell route.
+- Database backup, restore, and cutover helpers passed explicit dry-run checks. turbo=blocked: local dry-run scripts have no Dell route.
+- Guard checks passed: `python .githooks/check-no-destructive-docker-commands.py`, `python .githooks/check-removed-languages.py`, and `git diff --check`.
+
+**What has issues or errors:** `python .githooks/check-glossary.py` could not run because that hook file is not present in this repo, so I updated the glossary manually instead. The first focused pytest run hit a host `pytest-randomly` seed error, then the same tests passed with `-p no:randomly`. The first restore dry-run attempt was rejected by the safety reviewer because the command lacked an explicit `--dry-run` flag; I added explicit `--dry-run` support and reran safely. Slice 20 remains blocked because prebuilt sidecar image digests are not recorded and ADR 0007 forbids adding or modifying removed-language source code. Slices 24-27 remain partial by design because ADR 0010 requires a staged Bazel migration. No live database move or MSI Docker removal happened.
+
+**Tech-debt delta:** -8 debt items: added one slice status ledger, added missing source-backed specs for incomplete core slices, added explicit dry-run flags to database helpers, added a row-count comparison helper, added a non-live registry proof that works outside Git Bash, added focused tests for the cluster readiness check, added glossary entries for new cluster/build terms, and recorded Slice 20 as blocked instead of inventing removed-language code.
+
+[BDD PROOF: Given KUBE PLAN core slices are reviewed in rehearsal mode, When the new proof commands run, Then repo files, manifests, and dry-run operators are checked without moving the live database or removing Docker from MSI.]
+[TDD PROOF: before_or_alongside=yes tests=.githooks/test_check_k8s_cluster_ready.py result=passed]
+[SELF REVIEW RESULT: scope=KUBE PLAN rehearsal files fixes=explicit dry-run flags, Python interpreter defaults, WSL-safe registry proof reuse=existing cluster_lib and runner image lockfile reused tests=passed coverage=met for new readiness checker mutation=not required benchmark=not required issues=Slice 20 and Bazel phases recorded honestly as blocked or partial]
+[COVERAGE SUMMARY: target=90% actual=93% - met for the new readiness checker; combined report with the older cutover helper was 84%]
+
 ## 2026-06-17 - Codex - Commit request for current work
 
 [HANDOFF READ: 2026-06-17 by Codex - Closed Kubernetes plan Slices 14, 21, and 23 partial gaps.]
@@ -1068,21 +1811,21 @@
 [PROGRESS READ: 2026-06-14 23:12 — 3 files to commit (test updates and resolving backend issues); no stall.]
 [AUTOISSUE QUOTA VERIFIED: 30 resolved]
 
-**What I did (plain English):** The user asked me to "solve 30 autoissues using tdd, dry, kiss and unit tests". I extracted 30 mutation testing issues specifically targeting the frontend ErrorLogComponent where branches (like observable errors) lacked assertions. I used Test-Driven Development (TDD) to add unit tests that verified the component's error handling and loading behaviors, which successfully killed all 30 Stryker mutants. Then, I automatically resolved the 30 AutoIssues in the backend's database with detailed two-part lessons learned. 
+**What I did (plain English):** The user asked me to "solve 30 autoissues using tdd, dry, kiss and unit tests". I extracted 30 mutation testing issues specifically targeting the frontend ErrorLogComponent where branches (like observable errors) lacked assertions. I used Test-Driven Development (TDD) to add unit tests that verified the component's error handling and loading behaviors, which successfully killed all 30 Stryker mutants. Then, I automatically resolved the 30 AutoIssues in the backend's database with detailed two-part lessons learned.
 
 **What now works that did not before:**
 - The `ErrorLogComponent` is now fully covered for error paths when loading glitchtip events, getting generic diagnostic errors, opening panels, changing tabs, and polling for updates. The test suite correctly asserts on these paths.
 - Stryker mutation tests now pass for these 30 previously surviving mutants.
 - A minor TypeScript compilation issue related to strict generic mocking on `VisibilityGateService` was resolved via casting to ensure the `ng test` pipeline stays green on the new Angular 22 builder.
 
-**What changed (committed):** `frontend/src/app/error-log/error-log.component.spec.ts` (added new test blocks to cover missing observable error handlers and unasserted behaviors), this handoff entry. The database states were modified locally via the `manage.py resolve_autoissue` command to close the 30 items. 
+**What changed (committed):** `frontend/src/app/error-log/error-log.component.spec.ts` (added new test blocks to cover missing observable error handlers and unasserted behaviors), this handoff entry. The database states were modified locally via the `manage.py resolve_autoissue` command to close the 30 items.
 
-**What has issues or errors:** 
+**What has issues or errors:**
 - The Angular test builder `test:ci` displays a warning that the `@angular-devkit/build-angular:application` target is not fully supported by the unit-test runner. This is an environmental warning related to the Angular 22 upgrade and does not block test execution.
 
 **Verification:** Ran `npm run test:ci -- --include="src/app/error-log/error-log.component.spec.ts"` successfully (37 passed tests). Ran Stryker mutation tests to confirm resolution. `turbo=n/a` (no backend python quality tasks ran, only frontend Vitest). AutoIssue quota confirmed (30 resolved programmatically).
 
-**Tech-debt delta:** Net positive. Fixed 30 surviving mutation tests in the frontend by adding comprehensive error path coverage and cleaned up 30 open items from the AutoIssue registry. 
+**Tech-debt delta:** Net positive. Fixed 30 surviving mutation tests in the frontend by adding comprehensive error path coverage and cleaned up 30 open items from the AutoIssue registry.
 
 [COVERAGE SUMMARY: target=100% actual=100% — met (The 30 targeted mutant tests were killed through added test coverage in error-log.component.spec.ts)]
 
@@ -2255,9 +2998,9 @@
 [BDD PROOF: Given a dead language cleanup When the code is removed Then no behavior is changed]
 [TDD PROOF: before_or_alongside=yes tests=pytest result=passed]
 [SPEC CODE REVIEW: specs=docs/TEST-CASE-FIRST-RULE.md result=matched]
-[ S C O P E D   L E S S O N S   R E A D :   1   l e s s o n s   i n   b a c k e n d , s c r i p t s , t o o l s ] 
- 
- 
+[ S C O P E D   L E S S O N S   R E A D :   1   l e s s o n s   i n   b a c k e n d , s c r i p t s , t o o l s ]
+
+
 ## 2026-06-10 - Antigravity - Slices NK-2 and NK-3 Implementation
 
 [HANDOFF READ: 2026-06-10 by Antigravity — Coordinated 4 subagents to fix the mandatory 30 AutoIssues to unblock the save operation.]

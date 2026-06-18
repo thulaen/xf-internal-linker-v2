@@ -4,10 +4,10 @@ $ErrorActionPreference = "Stop"
 Write-Host "Starting Apache Tika on Dell..." -ForegroundColor Cyan
 
 try {
-    docker --context dell rm -f xf_dell_tika > $null 2>&1
+    ssh dell docker rm -f xf_dell_tika > $null 2>&1
 } catch {}
 
-docker --context dell run -d `
+ssh dell docker run -d `
   --name xf_dell_tika `
   --memory 512m `
   --network xf_dell_quality `
@@ -20,7 +20,7 @@ Write-Host "Tika container started. Allowing 3 seconds for boot..."
 Start-Sleep -Seconds 3
 
 # Check status
-$status = docker --context dell inspect -f '{{.State.Status}}' xf_dell_tika
+$status = ssh dell docker inspect -f '{{.State.Status}}' xf_dell_tika
 if ($status -eq "running") {
     Write-Host "[DELL TIKA STATUS: status=ok]" -ForegroundColor Green
 } else {

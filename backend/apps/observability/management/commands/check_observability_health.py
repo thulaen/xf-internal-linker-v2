@@ -1,13 +1,7 @@
-"""Probe every container in the observability + quality tier (Phase K.4).
+"""Probe every Kubernetes observability service (Phase K.4).
 
-Sticky #1 (paper_trail row 11) names this as the priority-4 session-start
-ritual: ``docker compose exec -T backend python manage.py
-check_observability_health`` shells ``docker compose ps`` to verify every
-container in the always-on tier (sonarqube, sonar-autoscan, glitchtip,
-glitchtip-worker, glitchtip-init, pyroscope, postgres-exporter,
-otel-collector, vmsingle, vmagent, vmalert, loki, alloy, tempo,
-grafana) is in the ``running`` state with health either ``starting`` or
-``healthy``.
+Sticky #1 (paper_trail row 11) names this as a session-start ritual. It now
+uses the Kubernetes API to verify each observability pod is Running and Ready.
 
 Each failing signal is filed as a deduped AutoIssue under the existing
 ``observability`` category so the next session-start ritual picks it
@@ -22,14 +16,16 @@ this command's role is to surface degraded signals as actionable
 AutoIssues for the next priority-1 read.
 
 Run:
-    docker compose exec -T backend python manage.py check_observability_health
+    python scripts/backend_manage.py check_observability_health
 """
 from __future__ import annotations
 
 import json
-import subprocess  # nosec B404
+import ssl
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
-from typing import Iterable
 
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -91,68 +87,68 @@ OBSERVABILITY_SERVICES = _observability_services()
 # States the hook accepts. ``starting`` is intentional — SonarQube takes
 # 60-120 seconds to initialise its Elasticsearch index, and blocking on
 # ``starting`` would add a 1-2-minute lag the user explicitly rejected.
-_OK_STATES = frozenset({"running"})
-_OK_HEALTH = frozenset({"healthy", "starting", ""})
-
 _FALLBACK_HEALTH = ""
 _CATEGORY_KEY = "observability"
+_K8S_NAMESPACE = "xf-obs"
+_K8S_TOKEN_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
+_K8S_CA_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
 
 
-def _docker_compose_ps_json(timeout: int = 15) -> list[dict]:
-    """Return parsed ``docker compose ps --format json`` rows."""
-    # argv below is a fixed literal list (no shell, no user input). The
-    # `docker` executable resolves via PATH so the command runs both
-    # inside the backend container (where Docker CLI is mounted at
-    # /usr/local/bin/docker) and on the host shell. Bandit B603/B607
-    # suppression is intentional because the command is not exposed to
-    # any untrusted caller.
+def _kubernetes_pods_for_service(service: str, timeout: int = 15) -> list[dict]:
+    """Return pod records for a service label from the in-cluster API."""
     try:
-        result = subprocess.run(  # nosec B603 B607
-            ["docker", "compose", "ps", "--format", "json"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+        token = _K8S_TOKEN_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
         return []
-    rows: list[dict] = []
-    for line in (result.stdout or "").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            rows.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-    return rows
+    if not token:
+        return []
+    selector = urllib.parse.quote(f"app={service}")
+    url = (
+        "https://kubernetes.default.svc/api/v1/namespaces/"
+        f"{_K8S_NAMESPACE}/pods?labelSelector={selector}"
+    )
+    request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    context = ssl.create_default_context(cafile=str(_K8S_CA_PATH)) if _K8S_CA_PATH.exists() else None
+    try:
+        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:  # nosec B310
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, urllib.error.URLError, json.JSONDecodeError):
+        return []
+    items = payload.get("items") if isinstance(payload, dict) else None
+    return [item for item in items or [] if isinstance(item, dict)]
 
 
-def _service_state(rows: Iterable[dict], service: str) -> tuple[str, str]:
-    """Return ``(state, health)`` for ``service`` or ``("absent", "")``."""
-    for row in rows:
-        if row.get("Service") == service:
-            return (
-                str(row.get("State") or "absent"),
-                str(row.get("Health") or _FALLBACK_HEALTH),
-            )
-    return "absent", _FALLBACK_HEALTH
+def _service_state(service: str) -> tuple[str, str]:
+    """Return ``(state, health)`` for a Kubernetes observability signal."""
+    pods = _kubernetes_pods_for_service(service)
+    if not pods:
+        return "absent", _FALLBACK_HEALTH
+    for pod in pods:
+        status = pod.get("status") or {}
+        phase = str(status.get("phase") or "unknown")
+        if phase != "Running":
+            return phase, "not-ready"
+        statuses = status.get("containerStatuses") or []
+        if not statuses:
+            return phase, "unknown"
+        not_ready = [item for item in statuses if not item.get("ready")]
+        if not_ready:
+            return phase, "not-ready"
+    return "Running", "Ready"
 
 
 def _is_signal_healthy(state: str, health: str) -> bool:
-    return state in _OK_STATES and health in _OK_HEALTH
+    return state == "Running" and health == "Ready"
 
 
 def _file_failure(category: AutoIssueCategory, service: str, state: str, health: str) -> int:
     """File or dedup an AutoIssue for a failing signal; return the row id."""
     title = f"observability signal degraded: {service}"
     body = (
-        f"{service} container state is '{state}' and health is "
+        f"{service} Kubernetes pod state is '{state}' and health is "
         f"'{health or 'unknown'}'. The Observability-Always-On rule "
         "requires this service to remain running for the entire session. "
-        f"Restart with `docker compose up -d {service}`."
+        f"Repair the Kubernetes deployment for {service} in namespace {_K8S_NAMESPACE}."
     )
     canonical_fingerprint = f"observability:{service}:{state}:{health or 'unknown'}"
     existing = AutoIssue.objects.filter(canonical_fingerprint=canonical_fingerprint).first()
@@ -194,7 +190,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options) -> None:
         dry_run: bool = options["dry_run"]
-        rows = _docker_compose_ps_json()
         category, _ = AutoIssueCategory.objects.get_or_create(
             key=_CATEGORY_KEY,
             defaults={
@@ -206,7 +201,7 @@ class Command(BaseCommand):
 
         failures: list[tuple[str, str, str, int]] = []
         for service in OBSERVABILITY_SERVICES:
-            state, health = _service_state(rows, service)
+            state, health = _service_state(service)
             if _is_signal_healthy(state, health):
                 continue
             if dry_run:

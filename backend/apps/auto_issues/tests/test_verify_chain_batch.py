@@ -52,11 +52,7 @@ class VerifyChainBatchCommandTests(TestCase):
         lesson = _autoissue("tdd_lesson", status=AutoIssue.STATUS_RESOLVED)
         test_case = _autoissue("test_case", lessons=_TEST_CASE)
         review = _autoissue("code_review_lesson", status=AutoIssue.STATUS_RESOLVED)
-        autoissue_quota = _resolved_autoissues(33)
-        autoissue_quota += _resolved_autoissues(
-            10,
-            source=AutoIssue.SOURCE_RUST_DEFECT,
-        )
+        autoissue_quota = _resolved_autoissues(28)
         paper_quota = _resolved_paper_entries(10)
         evidence = _paper_evidence_entry()
 

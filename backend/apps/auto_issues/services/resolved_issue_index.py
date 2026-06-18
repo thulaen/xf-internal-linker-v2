@@ -27,21 +27,54 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-def _detect_repo_root() -> Path:
+AUDIT_DIR_ENV = "XF_AUDIT_DIR"
+CONTAINER_REPO_ROOT = Path("/repo")
+# This is the last fallback for a writeable audit folder inside containers.
+FALLBACK_AUDIT_DIR = Path("/tmp/xf-linker-audit")  # nosec B108
+
+
+def _detect_repo_root(
+    *,
+    start_path: Path | None = None,
+    container_root: Path = CONTAINER_REPO_ROOT,
+) -> Path:
     """Detect the repo root regardless of whether we run inside docker.
 
     Inside the backend container the source tree is mounted at /repo while
     Python sees this file at /app/apps/...; on the host or in tests the file
     sits at <repo>/backend/apps/... and ancestry resolution works.
     """
-    container_root = Path("/repo")
-    if container_root.exists() and (container_root / "AGENT-HANDOFF.md").exists():
+    if container_root.exists():
         return container_root
+    current = start_path or Path(__file__).resolve()
+    for candidate in (current, *current.parents):
+        if (candidate / "AGENT-HANDOFF.md").exists() or (candidate / ".git").exists():
+            return candidate
     return Path(__file__).resolve().parents[4]
 
 
+def _can_write_audit_dir(path: Path) -> bool:
+    """Return whether an audit directory can be created or appended to."""
+    if path.exists():
+        return path.is_dir() and os.access(path, os.W_OK)
+    parent = path.parent
+    return parent.exists() and os.access(parent, os.W_OK)
+
+
+def _detect_audit_dir(repo_root: Path, *, env: dict[str, str] | None = None) -> Path:
+    """Return the writable audit directory for lookup evidence."""
+    env_value = (env or os.environ).get(AUDIT_DIR_ENV, "").strip()
+    if env_value:
+        return Path(env_value).expanduser()
+    if repo_root != repo_root.parent:
+        repo_audit = repo_root / "audit"
+        if _can_write_audit_dir(repo_audit):
+            return repo_audit
+    return FALLBACK_AUDIT_DIR
+
+
 REPO_ROOT = _detect_repo_root()
-AUDIT_DIR = REPO_ROOT / "audit"
+AUDIT_DIR = _detect_audit_dir(REPO_ROOT)
 INDEX_PATH = AUDIT_DIR / "resolved_issues_index.jsonl"
 AUDIT_LOG_PATH = AUDIT_DIR / "resolved_issues_lookup_log.jsonl"
 HANDOFF_PATH = REPO_ROOT / "AGENT-HANDOFF.md"

@@ -76,7 +76,7 @@ if ! tar -cf - \
     --exclude='frontend/.angular' --exclude='frontend/coverage' \
     --exclude='frontend/reports' --exclude='frontend/.stryker-tmp' \
     frontend \
-    | docker --context "$ANGULAR_DOCKER_CONTEXT" run --rm -i \
+    | "$PY" scripts/remote_docker.py --host "$ANGULAR_DOCKER_CONTEXT" -- run --rm -i \
         -v "$ANGULAR_VOLUME":/work \
         alpine:latest sh -c "rm -rf /work/frontend && tar -xf - -C /work"; then
   echo "FAIL run-angular-mutation: could not sync frontend source to Dell." >&2
@@ -92,7 +92,7 @@ mutate_oneline="$(printf '%s' "$mutate_targets" | paste -sd, -)"
 mutation_cores="$ANGULAR_CORES"
 [[ "$mutation_cores" -gt 4 ]] && mutation_cores=4
 
-exec docker --context "$ANGULAR_DOCKER_CONTEXT" run --rm \
+exec "$PY" scripts/remote_docker.py --host "$ANGULAR_DOCKER_CONTEXT" -- run --rm \
   -v "$ANGULAR_VOLUME":/work \
   -e CI=true \
   -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \

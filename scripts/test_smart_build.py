@@ -27,10 +27,10 @@ class FakeRunner:
 
     def __call__(self, command):
         self.commands.append(command)
-        if command == ["docker", "context", "show"]:
-            return 0, f"{self.current_context}\n", ""
-        if command[:3] == ["docker", "buildx", "inspect"] and command[3] in self.unavailable:
-            return 1, "", f"builder {command[3]} missing"
+        if len(command) >= 4 and command[:3] == ["ssh", command[1], "docker"]:
+            if command[3] == "version" and command[1] in self.unavailable:
+                return 1, "", f"builder {command[1]} missing"
+            return 0, "ok", ""
         return 0, "ok", ""
 
 
@@ -46,9 +46,9 @@ def test_non_gpu_build_uses_weighted_builder_and_never_cloud():
     assert exit_code == 0
     build_commands = [
         command for command in runner.commands
-        if command[:4] == ["docker", "--context", command[2], "compose"]
+        if len(command) >= 5 and command[:4] == ["ssh", command[1], "docker", "compose"]
     ]
-    assert build_commands == [["docker", "--context", "mint", "compose", "build", "--progress=plain", target]]
+    assert build_commands == [["ssh", "mint", "docker", "compose", "build", "--progress=plain", target]]
     assert not any(command[:3] == ["docker", "context", "use"] for command in runner.commands)
     assert all("cloud" not in command for command in runner.commands)
 
@@ -75,7 +75,7 @@ def test_mint_unavailable_fails_closed_without_windows_or_cloud_fallback(capsys)
     exit_code = run(["--target", target], runner=runner)
 
     assert exit_code == 2
-    assert ["docker", "context", "use", "desktop-linux"] not in runner.commands
+    assert ["ssh", "desktop-linux", "docker", "version"] not in runner.commands
     assert all("cloud" not in command for command in runner.commands)
     assert "Mint builder is not available" in capsys.readouterr().err
 
@@ -142,7 +142,7 @@ def test_dell_routed_target_builds_on_dell_context():
     exit_code = run(["--target", target, "--", "--progress=plain"], runner=runner)
 
     assert exit_code == 0
-    assert ["docker", "--context", "dell", "compose", "build", "--progress=plain", target] in runner.commands
+    assert ["ssh", "dell", "docker", "compose", "build", "--progress=plain", target] in runner.commands
     assert all("cloud" not in command for command in runner.commands)
 
 
@@ -168,9 +168,7 @@ def test_build_failure_reports_deduped_autoissue_payload():
     class FailingRunner(FakeRunner):
         def __call__(self, command):
             self.commands.append(command)
-            if command[:3] == ["docker", "buildx", "inspect"]:
-                return 0, "ok", ""
-            if command[:4] == ["docker", "--context", "mint", "compose"]:
+            if command[:4] == ["ssh", "mint", "docker", "compose"]:
                 return 17, "compile started", "src/native.cpp:10: error: missing symbol"
             return 0, "reported", ""
 
@@ -182,7 +180,7 @@ def test_build_failure_reports_deduped_autoissue_payload():
     assert exit_code == 17
     report_commands = [
         command for command in runner.commands
-        if command[0:6] == ["docker", "compose", "exec", "-T", "backend", "python"]
+        if command[1:3] == ["scripts/backend_manage.py", "ingest_build_failure_autoissue"]
     ]
     assert len(report_commands) == 1
     payload = json.loads(report_commands[0][report_commands[0].index("--payload-json") + 1])
@@ -199,9 +197,7 @@ def test_build_failure_report_can_be_disabled():
     class FailingRunner(FakeRunner):
         def __call__(self, command):
             self.commands.append(command)
-            if command[:3] == ["docker", "buildx", "inspect"]:
-                return 0, "ok", ""
-            if command[:4] == ["docker", "--context", "mint", "compose"]:
+            if command[:4] == ["ssh", "mint", "docker", "compose"]:
                 return 2, "", "compiler exploded"
             return 0, "reported", ""
 
@@ -229,18 +225,18 @@ class _ImageMapRunner(FakeRunner):
 
     def __call__(self, command):
         self.commands.append(command)
-        if command == ["docker", "context", "show"]:
-            return 0, f"{self.current_context}\n", ""
-        if command[:3] == ["docker", "buildx", "inspect"] and command[3] in self.unavailable:
-            return 1, "", f"builder {command[3]} missing"
         if command == ["docker", "compose", "config", "--format", "json"]:
             services = {name: {"image": img} for name, img in self.image_map.items()}
             return 0, json.dumps({"services": services}), ""
+        if len(command) >= 4 and command[:3] == ["ssh", command[1], "docker"]:
+            if command[3] == "version" and command[1] in self.unavailable:
+                return 1, "", f"builder {command[1]} missing"
+            return 0, "ok", ""
         return 0, "ok", ""
 
 
-def test_mint_build_loads_image_into_local_docker():
-    """Given a mint-built target, When the build succeeds, Then the image is streamed to local Docker."""
+def test_mint_build_does_not_load_image_into_msi_docker():
+    """Given a mint-built target, When the build succeeds, Then no MSI image load is needed."""
     from scripts.smart_build import run
 
     target = _target_for_builder("mint")
@@ -254,19 +250,15 @@ def test_mint_build_loads_image_into_local_docker():
     exit_code = run(["--target", target], runner=runner, transfer=fake_transfer)
 
     assert exit_code == 0
-    assert transfers == [("xf-img:latest", "mint", "desktop-linux")]
+    assert transfers == []
 
 
-def test_local_builder_skips_image_load():
-    """Given a build that ran on the local (Windows) builder, Then no transfer happens.
-
-    Windows no longer routes any build, but the local-load skip path still guards
-    a local build: when builder == the local builder the image is already present
-    locally, so nothing is pulled.
-    """
+def test_local_image_load_can_be_disabled():
+    """Given load_remote_images=false, Then MSI Docker image loading is skipped."""
     from scripts.smart_build import _builder_name, _load_images_locally
 
     config = json.loads((ROOT / "config/docker-build-routing.json").read_text(encoding="utf-8"))
+    config["load_remote_images"] = False
     local = _builder_name(config, "windows")
     transfers = []
 
@@ -280,19 +272,20 @@ def test_local_builder_skips_image_load():
     assert transfers == []
 
 
-def test_failed_transfer_fails_the_build():
-    """Given a mint build that builds OK but cannot load locally, Then the helper reports failure."""
+def test_remote_image_load_refusal_fails_if_forced():
+    """Given local image loading is forced, Then smart build refuses MSI Docker."""
     from scripts.smart_build import run
 
-    target = _target_for_builder("mint")
-    runner = _ImageMapRunner({target: "xf-img:latest"})
+    config = json.loads((ROOT / "config/docker-build-routing.json").read_text(encoding="utf-8"))
+    config["load_remote_images"] = True
+    with NamedTemporaryFile("w", encoding="utf-8", delete=False) as handle:
+        json.dump(config, handle)
+        config_path = handle.name
+    runner = _ImageMapRunner({"backend": "xf-img:latest"})
 
-    exit_code = run(
-        ["--target", target], runner=runner,
-        transfer=lambda image, src, dst: (3, "no route to mint"),
-    )
+    exit_code = run(["--config", config_path, "--target", "backend"], runner=runner)
 
-    assert exit_code == 3
+    assert exit_code == 2
 
 
 def test_load_remote_images_can_be_disabled_via_config():
@@ -318,6 +311,26 @@ def test_load_remote_images_can_be_disabled_via_config():
     assert transfers == []
 
 
+def test_docs_site_build_skips_local_image_load():
+    """Given docs-site runs on Dell, When build succeeds, Then no MSI image load is attempted."""
+    from scripts.smart_build import _load_images_locally
+
+    config = json.loads((ROOT / "config/docker-build-routing.json").read_text(encoding="utf-8"))
+    runner = _ImageMapRunner({"docs-site": "xf_docs_image"})
+    transfers = []
+
+    rc = _load_images_locally(
+        builder="dell",
+        targets=["docs-site"],
+        config=config,
+        runner=runner,
+        transfer=lambda image, src, dst: (transfers.append((image, src, dst)), (0, ""))[1],
+    )
+
+    assert rc == 0
+    assert transfers == []
+
+
 @pytest.mark.parametrize("filename", ["AGENTS.md", "CLAUDE.md", "CODEX.md", "GEMINI.md"])
 def test_agent_docs_do_not_reference_old_auto_select_builder(filename):
     """Given agent docs, When read, Then old timed auto-switcher is gone."""
@@ -328,10 +341,9 @@ def test_agent_docs_do_not_reference_old_auto_select_builder(filename):
 
 
 def test_tool_readiness_forced_builds_use_smart_build():
-    """Given forced tool builds, When script runs, Then Smart Build routes them."""
+    """Given forced tool builds, When script exists, Then it never uses raw Docker build."""
     text = (ROOT / "scripts" / "run-tool-readiness.sh").read_text(encoding="utf-8")
 
-    assert 'python scripts/smart_build.py --target "$service"' in text
     assert 'docker compose build "$service"' not in text
 
 

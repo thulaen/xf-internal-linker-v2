@@ -24,9 +24,9 @@ class RegistryRefreshTests(SimpleTestCase):
         self.assertEqual(result["status"], "ok")
         self.assertEqual(result["line_count"], 1)
 
-    def test_registry_read_refresh_is_scheduled_every_thirty_minutes(self):
+    def test_registry_read_refresh_is_scheduled_hourly(self):
         entry = CELERY_BEAT_SCHEDULE["auto-issues-registry-read-refresh"]
 
         self.assertEqual(entry["task"], "auto_issues.refresh_registry_read")
-        self.assertEqual(entry["schedule"], 1800.0)
-        self.assertEqual(entry["options"]["expires"], 1700)
+        self.assertEqual(entry["schedule"], 3600.0)
+        self.assertEqual(entry["options"]["expires"], 3500)

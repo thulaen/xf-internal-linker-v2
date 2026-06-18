@@ -66,20 +66,7 @@ Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\.ruff_cache") -Labe
 Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\.pytest_cache") -Label "pytest cache"
 Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\htmlcov") -Label "pytest-cov HTML output"
 
-
-$dockerAvailability = Get-DockerAvailability
-if ($dockerAvailability.Status -eq "ok") {
-    $dockerSafe = Get-DockerSafeScript
-    # `docker system prune -f` removes stopped containers, unused networks, dangling images, and build cache in one call.
-    # It never touches named volumes, so pgdata / redis-data / media_files / staticfiles (and thus embeddings) are always safe.
-    Write-Host "Pruning Docker (stopped containers, unused networks, dangling images, build cache)..."
-    & $dockerSafe system prune -f
-    if ($LASTEXITCODE -ne 0) {
-        throw "Docker system prune failed with exit code $LASTEXITCODE."
-    }
-} else {
-    Write-Host "Skipping Docker prune. $(Get-DockerUnavailableMessage -Availability $dockerAvailability)"
-}
+Write-Host "Skipping Docker prune. MSI Docker is retired; remote helper cleanup is handled on Dell or Mint."
 
 # Attempt Windows-space reclaim without stopping the app.
 # Full virtual-disk compaction is intentionally skipped here because it

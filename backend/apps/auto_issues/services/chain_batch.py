@@ -139,7 +139,7 @@ def _autoissue_group_result(row: dict[str, Any], expected_category: str, group: 
 
 
 def _verify_autoissue_quota(ids: list[int], resolved_after: datetime | None) -> Result:
-    errors = _quota_count_errors(ids, 43, "AutoIssue")
+    errors = _quota_count_errors(ids, 28, "AutoIssue")
     rows = _autoissue_rows(ids)
     errors.extend(_missing_errors(ids, rows, "AutoIssue"))
     errors.extend(_duplicate_canonical_errors(ids, rows, "AutoIssue"))

@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_gate_path_is_the_django_endpoint() -> None:
     assert session_start_payload.GATE_PATH == "/api/session-gate/"
-    assert session_start_payload.DEFAULT_BASE_URL == "http://localhost"
+    assert session_start_payload.DEFAULT_BASE_URL == "http://192.168.0.91:30080"
 
 
 def test_stdout_reconfigure_helper_is_safe() -> None:
@@ -87,14 +87,14 @@ def test_call_gate_builds_url_with_type_and_areas(mocked_urlopen) -> None:
     ).encode("utf-8")
 
     data = session_start_payload._call_gate(
-        "http://localhost",
+            "http://192.168.0.91:30080",
         "reconciliation",
         ["backend/apps/auto_issues", "backend/apps/api"],
         timeout=1.0,
     )
 
     called_url = mocked_urlopen.call_args[0][0]
-    assert called_url.startswith("http://localhost/api/session-gate/?")
+    assert called_url.startswith("http://192.168.0.91:30080/api/session-gate/?")
     assert "type=reconciliation" in called_url
     assert called_url.count("area=") == 2
     assert data["total_open_count"] == 3
@@ -118,7 +118,8 @@ def test_call_gate_exits_with_plain_english_fix_when_backend_down(
         raise AssertionError("expected SystemExit")
 
     assert "FAIL: the backend is not responding" in message
-    assert "docker compose up -d backend nginx" in message
+    assert "kubectl -n xf-app get pods -l app=backend" in message
+    assert "docker compose" not in message
 
 
 # ── Documentation pins (unchanged protocol surface) ──────────────────

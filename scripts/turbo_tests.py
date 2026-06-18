@@ -253,7 +253,7 @@ def _run_shard_local(
 
     ``cmd_template`` is currently unused (reserved for future callers that want
     to override the default pytest invocation); the local runner always uses the
-    canonical ``docker compose run`` path.  Uses ``docker compose run`` (not
+    canonical remote helper path. Uses SSH to the helper (not
     ``exec``) so the shard gets a fresh container with no shared state from
     other concurrent shards.
     """

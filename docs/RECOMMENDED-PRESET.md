@@ -31,7 +31,7 @@ Both are deliberate operator-choice defaults, not defects. The standing default-
 The dict at the top of `backend/apps/suggestions/recommended_weights.py` is the source of truth. Every value has a comment block above it citing the FR-XXX spec or paper that justifies the number. To regenerate this file's per-key tables, run:
 
 ```
-docker compose exec backend python manage.py shell -c "
+python scripts/backend_manage.py shell -c "
 from apps.suggestions.recommended_weights import RECOMMENDED_PRESET_WEIGHTS
 for k, v in sorted(RECOMMENDED_PRESET_WEIGHTS.items()):
     print(f'{k}\t{v}')

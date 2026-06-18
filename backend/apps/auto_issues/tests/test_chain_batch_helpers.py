@@ -2,8 +2,8 @@
 
 No database: every helper here turns plain dict "rows" (the shape returned by
 ``QuerySet.values()``) or a list of ids into a pass/fail Result or an error
-list. The EXACT assertions below kill mutation survivors on the boundary
-numbers (43, 10), the status comparisons, the keyword membership checks, and
+    list. The EXACT assertions below kill mutation survivors on the boundary
+    numbers (28, 10), the status comparisons, the keyword membership checks, and
 the cutoff datetime comparison.
 """
 

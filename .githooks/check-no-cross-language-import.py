@@ -62,26 +62,34 @@ class Violation:
 def _string_arg_contains_services(node: ast.Call) -> bool:
     """Return True if any positional or keyword arg is a string-literal that
     points into the services tier."""
+    values = _string_literals_from_call(node)
+    return any(_is_services_literal(value) for value in values)
 
-    def _check_const(value: object) -> bool:
-        if not isinstance(value, str):
-            return False
-        return any(hint in value for hint in _SERVICES_HINTS)
 
+def _string_literals_from_call(node: ast.Call) -> list[str]:
+    values: list[str] = []
     for arg in node.args:
-        if isinstance(arg, ast.Constant) and _check_const(arg.value):
-            return True
-        if isinstance(arg, (ast.List, ast.Tuple)):
-            for elt in arg.elts:
-                if isinstance(elt, ast.Constant) and _check_const(elt.value):
-                    return True
+        values.extend(_string_literals_from_arg(arg))
     for kw in node.keywords:
-        if kw.arg in ("args", "executable", "shell_command") and isinstance(
-            kw.value, ast.Constant
-        ):
-            if _check_const(kw.value.value):
-                return True
-    return False
+        if kw.arg in ("args", "executable", "shell_command"):
+            values.extend(_string_literals_from_arg(kw.value))
+    return values
+
+
+def _string_literals_from_arg(node: ast.AST) -> list[str]:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return [node.value]
+    if isinstance(node, (ast.List, ast.Tuple)):
+        return [
+            elt.value
+            for elt in node.elts
+            if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+        ]
+    return []
+
+
+def _is_services_literal(value: str) -> bool:
+    return any(hint in value for hint in _SERVICES_HINTS)
 
 
 def _is_ctypes_load(node: ast.Call) -> bool:
@@ -132,19 +140,22 @@ def _scan_python(path: Path, source: str) -> list[Violation]:
         line_no = getattr(node, "lineno", 0)
         if 0 < line_no <= len(lines):
             snippet = lines[line_no - 1].strip()[:160]
-        if _is_ctypes_load(node) and _string_arg_contains_services(node):
-            violations.append(
-                Violation(path, line_no, snippet, "ctypes.CDLL into services/")
-            )
-        elif _is_subprocess_call(node) and _string_arg_contains_services(node):
-            violations.append(
-                Violation(path, line_no, snippet, "subprocess into services/")
-            )
-        elif _is_os_system(node) and _string_arg_contains_services(node):
-            violations.append(
-                Violation(path, line_no, snippet, "os.system into services/")
-            )
+        rule = _call_violation_rule(node)
+        if rule:
+            violations.append(Violation(path, line_no, snippet, rule))
     return violations
+
+
+def _call_violation_rule(node: ast.Call) -> str:
+    if not _string_arg_contains_services(node):
+        return ""
+    if _is_ctypes_load(node):
+        return "ctypes.CDLL into services/"
+    if _is_subprocess_call(node):
+        return "subprocess into services/"
+    if _is_os_system(node):
+        return "os.system into services/"
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -225,7 +236,7 @@ def _format_failure(violations: list[Violation]) -> str:
         text += f"  {rel}:{v.line}: [{v.rule}] {v.snippet}\n"
     text += (
         "\nIf you believe this is a false positive, file the report first "
-        "with:\n  docker compose exec -T backend python manage.py "
+        "with:\n  python scripts/backend_manage.py "
         "report_hook_false_positive --hook check-no-cross-language-import "
         "--context \"<plain-English explanation>\"\n"
     )

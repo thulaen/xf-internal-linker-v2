@@ -20,6 +20,9 @@ class CheckCodeQLAutoIssuesTests(unittest.TestCase):
         with patch.object(hook.subprocess, "run") as run:
             run.return_value.returncode = 0
             self.assertEqual(hook.main(), 0)
+            command = run.call_args.args[0]
+            self.assertIn("scripts/backend_manage.py", command)
+            self.assertNotIn("docker", command)
 
     def test_fails_when_backend_verifier_fails(self) -> None:
         with patch.object(hook.subprocess, "run") as run:

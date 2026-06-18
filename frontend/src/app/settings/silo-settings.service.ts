@@ -270,6 +270,33 @@ export interface GoogleSetupChoices {
   }>;
 }
 
+export interface EmbeddingProviderScore {
+  provider: string;
+  signature: string;
+  sample_size: number;
+  mrr_at_10: number | null;
+  ndcg_at_10: number | null;
+  recall_at_10: number | null;
+  latency_ms_p50: number | null;
+  latency_ms_p95: number | null;
+  compared_to: string;
+  verdict: string;
+  p_value: number | null;
+  loss_count: number;
+  is_banned: boolean;
+  explanation: string;
+}
+
+export interface EmbeddingProviderScoreRun {
+  job_id: string;
+  created_at: string | null;
+  providers: EmbeddingProviderScore[];
+}
+
+export interface EmbeddingProviderScoreRunList {
+  runs: EmbeddingProviderScoreRun[];
+}
+
 export interface GA4TelemetryUpdate {
   behavior_enabled: boolean;
   property_id: string;
@@ -1100,6 +1127,24 @@ export class SiloSettingsService {
 
   deleteHelper(id: number): Observable<void> {
     return this.http.delete<void>(`/api/settings/helpers/${id}/`);
+  }
+
+  listEmbeddingProviderScoreRuns(): Observable<EmbeddingProviderScoreRunList> {
+    return this.http.get<EmbeddingProviderScoreRunList>('/api/embedding/provider-evaluations/');
+  }
+
+  startEmbeddingProviderScoreRun(sampleSize: number): Observable<{ task_id: string; sample_size: number }> {
+    return this.http.post<{ task_id: string; sample_size: number }>(
+      '/api/embedding/provider-evaluations/run/',
+      { sample_size: sampleSize, cost_confirmed: true },
+    );
+  }
+
+  unbanEmbeddingProvider(provider: string): Observable<{ provider: string; is_banned: boolean }> {
+    return this.http.post<{ provider: string; is_banned: boolean }>(
+      '/api/embedding/provider/unban/',
+      { provider },
+    );
   }
 
   recalculateClickDistance(): Observable<{ job_id: string }> {

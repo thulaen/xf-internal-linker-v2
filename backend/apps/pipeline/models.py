@@ -125,6 +125,12 @@ class EmbeddingBakeoffResult(TimestampedModel):
     cost_usd = models.DecimalField(max_digits=10, decimal_places=6, default=0)
     latency_ms_p50 = models.IntegerField(default=0)
     latency_ms_p95 = models.IntegerField(default=0)
+    compared_to = models.CharField(max_length=32, blank=True)
+    verdict = models.CharField(max_length=32, default="pending", db_index=True)
+    p_value = models.DecimalField(max_digits=8, decimal_places=6, default=1)
+    loss_count = models.IntegerField(default=0)
+    is_banned = models.BooleanField(default=False, db_index=True)
+    explanation = models.CharField(max_length=255, blank=True)
 
     class Meta:
         verbose_name = "Embedding Bake-off Result"

@@ -30,19 +30,9 @@ if [ -z "$head_hash" ]; then
   exit 0
 fi
 
-# Try to run the command via Docker. If anything fails, warn but do
-# not block — the commit has already landed.
-if ! command -v docker >/dev/null 2>&1; then
-  echo "[decision-point] docker not on PATH; skipping Decision Point ritual." >&2
-  exit 0
-fi
-
-if ! docker compose ps --status running --services 2>/dev/null | grep -q '^backend$'; then
-  echo "[decision-point] backend container not running; skipping. Run \`docker compose up -d backend\` then \`docker compose exec -T backend python manage.py decision_point --commit ${head_hash:0:7}\` to back-fill." >&2
-  exit 0
-fi
-
-docker compose exec -T backend python manage.py decision_point --commit "$head_hash" 2>&1 || \
-  echo "[decision-point] command exited non-zero; rerun manually after fixing." >&2
+# Try to run the command through the Kubernetes backend. If anything fails,
+# warn but do not block — the commit has already landed.
+python scripts/backend_manage.py decision_point --commit "$head_hash" 2>&1 || \
+  echo "[decision-point] Kubernetes backend command exited non-zero; rerun manually after fixing." >&2
 
 exit 0

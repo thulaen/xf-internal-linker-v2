@@ -36,9 +36,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 _PROBE_DOCKER_TIMEOUT = 15
 _PROBE_SSH_TIMEOUT = 10
 
-# Docker context names that mean "the local Docker Desktop engine". On the
-# Windows host (the MSI) these are forbidden quality targets — tests, lint,
-# coverage, and mutation run on the Dell helper only.
+# Helper names that mean "the retired local container engine". On the Windows
+# host (the MSI) these are forbidden quality targets — tests, lint, coverage,
+# and mutation run on the Dell helper only.
 _LOCAL_CONTEXT_NAMES = frozenset({"", "default", "desktop-linux", "desktop-windows"})
 
 
@@ -115,9 +115,9 @@ def _assert_no_local_context_on_windows(machines: list[dict]) -> None:
     if local_targets:
         raise RemoteUnavailableError(
             "Machine(s) " + ", ".join(local_targets)
-            + " point at the local Docker Desktop engine. Tests and "
+            + " point at the retired local container engine. Tests and "
             "mutation runs are blocked on this Windows machine (MSI) — "
-            "route the work to the Dell docker context instead."
+            "route the work to the Dell SSH helper instead."
         )
 
 
@@ -167,8 +167,7 @@ def _select_machines(
     reachable = [m for m in machines if id(m) in reachable_ids]
     if not reachable:
         raise RemoteUnavailableError(
-            "No quality machine is reachable (not even local Docker). "
-            "Start Docker / fix the remote and retry."
+            "No quality machine is reachable. Fix the remote helper and retry."
         )
     _renormalise_with_ceilings(reachable)
     return reachable
@@ -179,11 +178,17 @@ def _probe_reachable(machine: dict) -> bool:
     transport = machine["transport"]
     try:
         if transport == "docker_local":
+            if _on_windows_host():
+                return False
             cmd = ["docker", "info", "--format", "{{.NCPU}}"]
             timeout = _PROBE_DOCKER_TIMEOUT
         elif transport == "docker_context":
-            cmd = ["docker", "--context", machine["context"], "info"]
-            timeout = _PROBE_DOCKER_TIMEOUT
+            host = machine.get("context") or machine.get("name")
+            if host == "__local__":
+                cmd = ["docker", "info"]
+            else:
+                cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host, "docker", "info"]
+            timeout = _PROBE_SSH_TIMEOUT
         elif transport == "ssh":
             host = machine.get("ssh_host", machine["name"])
             cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host, "true"]
@@ -209,11 +214,11 @@ def _probe_reachable(machine: dict) -> bool:
 
 
 def _remote_image_present(ctx: str, image: str) -> bool:
-    """True only if `image` already exists on the `ctx` docker engine."""
+    """True only if `image` already exists on the helper host."""
     try:
         proc = subprocess.run(
-            ["docker", "--context", ctx, "image", "inspect", image],
-            capture_output=True, timeout=_PROBE_DOCKER_TIMEOUT,
+            ["ssh", ctx, "docker", "image", "inspect", image],
+            capture_output=True, timeout=_PROBE_SSH_TIMEOUT,
             cwd=str(REPO_ROOT), check=False,
         )
         return proc.returncode == 0
@@ -222,7 +227,7 @@ def _remote_image_present(ctx: str, image: str) -> bool:
 
 
 def _remote_is_idle(ctx: str, load_per_core: float) -> bool:
-    """True only if the `ctx` host's 1-min load is at or below idle threshold.
+    """True only if the helper host's 1-min load is at or below idle threshold.
 
     Reads the host load average and core count via a tiny alpine container
     (load average is not namespaced, so the container sees the real host load).
@@ -230,9 +235,9 @@ def _remote_is_idle(ctx: str, load_per_core: float) -> bool:
     """
     try:
         proc = subprocess.run(
-            ["docker", "--context", ctx, "run", "--rm", "alpine",
+            ["ssh", ctx, "docker", "run", "--rm", "alpine",
              "sh", "-c", "cat /proc/loadavg && nproc"],
-            capture_output=True, timeout=_PROBE_DOCKER_TIMEOUT,
+            capture_output=True, timeout=_PROBE_SSH_TIMEOUT,
             cwd=str(REPO_ROOT), text=True, check=False,
         )
         if proc.returncode != 0:

@@ -48,6 +48,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import shlex
 import subprocess
 import sys
 import threading
@@ -127,6 +128,15 @@ def _load_lint_routing_config() -> dict:
             {"name": "dell", "transport": "docker_context", "context": "dell",
              "weight": 1.0, "max_weight": 1.0},
         ]
+    context_override = os.environ.get("XF_LINT_DOCKER_CONTEXT")
+    if context_override:
+        machines = [
+            {
+                **machine,
+                "context": context_override,
+            }
+            for machine in machines
+        ]
     return {"machines": machines}
 
 
@@ -150,19 +160,30 @@ def _tar_producer(env: dict) -> subprocess.Popen:
     )
 
 
+def _remote_docker_cmd(context: str, *args: str) -> list[str]:
+    """Return a command that runs Docker on the helper host through SSH."""
+    if context == "__local__":
+        return ["docker", *args]
+    remote_command = "docker " + " ".join(shlex.quote(arg) for arg in args)
+    return ["ssh", context, remote_command]
+
+
 def _sync_source_to_context(context: str, env: dict) -> str | None:
     """Push a FULL source snapshot into xf_lint_repo on the remote context.
 
-    Bare ``docker --context <ctx> run`` + alpine extracts the tar stream — the
+    ``ssh <host> docker run`` + alpine extracts the tar stream — the
     Compose layer is bypassed because it would resolve Windows bind-mount paths
     and send them to the remote Linux daemon. Returns None on success, else a
     plain-English error string.
     """
-    extractor = [
-        "docker", "--context", context, "run", "--rm", "-i",
+    extractor = _remote_docker_cmd(
+        context,
+        "run",
+        "--rm",
+        "-i",
         "-v", f"{_LINT_VOLUME}:/repo",
         "alpine:latest", "sh", "-c", "tar -xf - -C /repo",
-    ]
+    )
     try:
         tar = _tar_producer(env)
         sink = subprocess.Popen(
@@ -174,7 +195,7 @@ def _sync_source_to_context(context: str, env: dict) -> str | None:
         out, _ = sink.communicate(timeout=300)
         tar_rc = tar.wait()
     except FileNotFoundError:
-        return f"{context} source sync failed: tar or docker not found on PATH."
+        return f"{context} source sync failed: tar or ssh not found on PATH."
     except subprocess.TimeoutExpired:
         return f"{context} source sync timed out after 5 minutes."
     if tar_rc != 0 or sink.returncode != 0:
@@ -185,11 +206,13 @@ def _sync_source_to_context(context: str, env: dict) -> str | None:
 def _run_remote_sha(context: str, env: dict):
     """Return ``run_remote(rel_slice)->(rc,out)`` that sha256sums the remote copy."""
     def run_remote(rel_slice: list[str]) -> tuple[int, str]:
-        cmd = [
-            "docker", "--context", context, "run", "--rm",
+        cmd = _remote_docker_cmd(
+            context,
+            "run",
+            "--rm",
             "-v", f"{_LINT_VOLUME}:/repo", "-w", "/repo/backend",
             "alpine:latest", "sh", "-c", "sha256sum " + " ".join(rel_slice),
-        ]
+        )
         try:
             proc = subprocess.run(
                 cmd, cwd=REPO_ROOT, text=True, encoding="utf-8",
@@ -239,19 +262,33 @@ def _ensure_dmypy_container(context: str) -> str | None:
     """
     env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
     rc, out = _run(
-        ["docker", "--context", context, "inspect", "-f",
-         "{{.State.Running}}", _DMYPY_CONTAINER],
+        _remote_docker_cmd(
+            context,
+            "inspect",
+            "-f",
+            "{{.State.Running}}",
+            _DMYPY_CONTAINER,
+        ),
         env, timeout=60,
     )
     if rc == 0 and out.strip().lower() == "true":
         return None
     # A stopped or half-created container blocks the name; clear it first.
-    _run(["docker", "--context", context, "rm", "-f", _DMYPY_CONTAINER],
-         env, timeout=60)
+    _run(_remote_docker_cmd(context, "rm", "-f", _DMYPY_CONTAINER), env, timeout=60)
     rc, out = _run(
-        ["docker", "--context", context, "run", "-d",
-         "--name", _DMYPY_CONTAINER, "--restart", "unless-stopped",
-         *_container_flags(), _IMAGE, "sleep", "infinity"],
+        _remote_docker_cmd(
+            context,
+            "run",
+            "-d",
+            "--name",
+            _DMYPY_CONTAINER,
+            "--restart",
+            "unless-stopped",
+            *_container_flags(),
+            _IMAGE,
+            "sleep",
+            "infinity",
+        ),
         env, timeout=120,
     )
     if rc != 0:
@@ -261,21 +298,27 @@ def _ensure_dmypy_container(context: str) -> str | None:
 
 
 def _remote_lint_cmd(context: str, tool: str, files: list[str]) -> list[str]:
-    """The docker command that lints one slice on the remote context.
+    """The SSH-to-helper command that lints one slice on the remote host.
 
     mypy execs into the warm ``xf-dmypy-daemon`` container so the dmypy daemon
     keeps its parsed-code state between commits; the other tools use one-shot
-    ``docker run --rm`` containers.
+    ``ssh <host> docker run --rm`` containers.
     """
     if tool == "mypy":
-        return ["docker", "--context", context, "exec", _DMYPY_CONTAINER,
-                *_inner_command(tool, files)]
-    return [
-        "docker", "--context", context, "run", "--rm",
+        return _remote_docker_cmd(
+            context,
+            "exec",
+            _DMYPY_CONTAINER,
+            *_inner_command(tool, files),
+        )
+    return _remote_docker_cmd(
+        context,
+        "run",
+        "--rm",
         *_container_flags(),
         _IMAGE,
         *_inner_command(tool, files),
-    ]
+    )
 
 
 def _run(cmd: list[str], env: dict, timeout: int) -> tuple[int, str]:
@@ -323,11 +366,14 @@ def _oneshot_mypy_cmd(context: str, files: list[str]) -> list[str]:
     incremental engine, so the daemon-only defects cannot fire. Slower than the
     warm daemon, used only as the crash fallback.
     """
-    return [
-        "docker", "--context", context, "run", "--rm", *_container_flags(),
+    return _remote_docker_cmd(
+        context,
+        "run",
+        "--rm",
+        *_container_flags(),
         _IMAGE, "mypy", "--config-file", "/repo/backend/mypy.ini",
         "--no-incremental", *files,
-    ]
+    )
 
 
 def _run_mypy_self_healing(context: str, files: list[str], env: dict
@@ -346,8 +392,7 @@ def _run_mypy_self_healing(context: str, files: list[str], env: dict
     notice = ("[LINT SELF-HEAL: dmypy daemon crashed; reset it and re-ran mypy "
               "one-shot (--no-incremental) for a clean verdict]\n")
     sys.stdout.write(notice)
-    _run(["docker", "--context", context, "rm", "-f", _DMYPY_CONTAINER],
-         env, timeout=60)
+    _run(_remote_docker_cmd(context, "rm", "-f", _DMYPY_CONTAINER), env, timeout=60)
     fb_rc, fb_out = _run(_oneshot_mypy_cmd(context, files), env, timeout=900)
     return fb_rc, out + "\n" + notice + fb_out
 
@@ -526,6 +571,27 @@ def _load_audit_ignores() -> tuple[list[str], list[str]]:
     return pip_ids, safety_ids
 
 
+def _all_pip_audit_findings_ignored(out: str) -> bool:
+    """Return True when pip-audit found only documented allowlist entries."""
+    for line in out.splitlines():
+        words = line.strip().split()
+        if len(words) >= 6 and words[:1] == ["Found"] and words[4:5] == ["ignored"]:
+            try:
+                return int(words[1]) == int(words[5])
+            except ValueError:
+                return False
+    return False
+
+
+def _dependency_audit_effective_rc(tool: str, rc: int, out: str) -> int:
+    """Return the audit verdict after documented allowlist handling."""
+    if rc == 0:
+        return 0
+    if tool == "pip-audit" and _all_pip_audit_findings_ignored(out):
+        return 0
+    return rc
+
+
 def _run_dependency_audit(evidence_out: Path | None) -> None:
     """Run pip-audit and safety check on Dell.
 
@@ -562,27 +628,38 @@ def _run_dependency_audit(evidence_out: Path | None) -> None:
         return
     routing = _load_machine_routing()
     machines = routing._select_machines(_load_lint_routing_config())
-    dell_ctx = next((m.get("context", "dell") for m in machines if m["name"] == "dell"), "dell")
+    dell_ctx = next(
+        (m.get("context", "dell") for m in machines if m["name"] == "dell"),
+        "dell",
+    )
     env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
     _sync_source_to_context(dell_ctx, env)
 
     for tool, cmd_args in pending:
-        cmd = [
-            "docker", "--context", dell_ctx, "run", "--rm",
+        cmd = _remote_docker_cmd(
+            dell_ctx,
+            "run",
+            "--rm",
             "-v", f"{_LINT_VOLUME}:/repo", "-w", "/repo/backend",
-            _IMAGE, *cmd_args
-        ]
+            _IMAGE, *cmd_args,
+        )
         rc, out = _run(cmd, env, timeout=300)
+        effective_rc = _dependency_audit_effective_rc(tool, rc, out)
         if out.strip():
             sys.stdout.write(f"----- {tool} @ dell (rc={rc}) -----\n{out}\n")
-        if rc == 0:
+        if effective_rc == 0:
             cache.record(tool, [subject])
         if evidence_out:
             _append_evidence(
-                evidence_out, check_type="security", status="passed" if rc == 0 else "failed",
+                evidence_out,
+                check_type="security",
+                status="passed" if effective_rc == 0 else "failed",
                 tool_name=tool, command=f"{tool} (Dell context)",
-                summary=f"{tool} {'passed' if rc == 0 else 'failed'} for backend dependencies.",
-                failure_fingerprint=f"{tool}:{rc}"
+                summary=(
+                    f"{tool} {'passed' if effective_rc == 0 else 'failed'} "
+                    "for backend dependencies."
+                ),
+                failure_fingerprint=f"{tool}:{effective_rc}",
             )
 
 

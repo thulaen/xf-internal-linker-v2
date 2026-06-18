@@ -52,13 +52,13 @@ The local command writes:
 After a local scan, import one SARIF file:
 
 ```powershell
-docker compose exec -T backend python manage.py ingest_codeql_sarif --language python --path /repo/reports/codeql/python.sarif --max-open 10
+python scripts/backend_manage.py ingest_codeql_sarif --language python --path /repo/reports/codeql/python.sarif --max-open 10
 ```
 
 Then verify:
 
 ```powershell
-docker compose exec -T backend python manage.py verify_codeql_autoissues --max-open 10 --block-open
+python scripts/backend_manage.py verify_codeql_autoissues --max-open 10 --block-open
 ```
 
 If any CodeQL-backed AutoIssue is still open, commits stop until the issue is fixed or reviewed through the normal AutoIssue process.
