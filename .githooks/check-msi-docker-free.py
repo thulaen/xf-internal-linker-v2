@@ -15,6 +15,7 @@ DOC_SUFFIXES = {".md", ".rst", ".txt"}
 
 PATH_ALLOWLIST = {
     ".githooks/check-msi-docker-free.py",
+    ".githooks/check-bazel-public-entrypoints.py",
     ".githooks/check-mint-first-build.py",
     ".githooks/check-no-parallel-quality.py",
     "scripts/banner_superseded_plans.py",
@@ -24,7 +25,6 @@ PATH_ALLOWLIST = {
     "scripts/remove-msi-docker.ps1",
     "scripts/reclaim-docker-windows-space.ps1",
     "scripts/_quality_concurrency.sh",
-    "scripts/run-python-quality.sh",
     "tools/quality/internal/run-python-quality.sh",
     "tools/quality/internal/run-angular-quality.sh",
     "tools/quality/internal/run-rust-quality.sh",

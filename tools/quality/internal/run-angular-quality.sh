@@ -6,8 +6,8 @@
 # stylelint, and the Vitest unit tests (jsdom) run inside the
 # xf-linker-frontend-mutation-tools image on Dell. Dell is REQUIRED — there is
 # no Windows fallback. Vitest parallelises across its own worker pool; the
-  # scoped --include keeps each run to the changed specs. Set ANGULAR_CORES to
-# override the Dell core cap (20-thread i5-13500T).
+# scoped --include keeps each run to the changed specs. Set ANGULAR_CORES to
+# override the visible-core default.
 set -euo pipefail
 export PATH="/usr/bin:/bin:${PATH:-}"
 export MSYS_NO_PATHCONV=1
@@ -35,8 +35,8 @@ if ! command -v "$PY" >/dev/null 2>&1; then
 fi
 
 ANGULAR_DOCKER_CONTEXT="${ANGULAR_DOCKER_CONTEXT:-dell}"
-ANGULAR_CORES="${ANGULAR_CORES:-16}"
-[[ "$ANGULAR_CORES" -gt 16 ]] && ANGULAR_CORES=16
+. scripts/quality_cores.sh
+ANGULAR_CORES="${ANGULAR_CORES:-$(quality_cores angular-test)}"
 ANGULAR_VOLUME="${ANGULAR_VOLUME:-xf_angular_repo}"
 IMAGE="xf-linker-frontend-mutation-tools:latest"
 
@@ -113,12 +113,17 @@ exec "$PY" scripts/remote_docker.py --host "$ANGULAR_DOCKER_CONTEXT" -- run --rm
   -w /work/frontend \
   -e CI=true \
   -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \
+  -e ANGULAR_CORES="$ANGULAR_CORES" \
+  -e VITEST_MAX_THREADS="$ANGULAR_CORES" \
+  -e VITEST_MIN_THREADS="$ANGULAR_CORES" \
   -e LINT_TARGETS="$lint_oneline" \
   -e OXLINT_TARGETS="$oxlint_oneline" \
   -e SCSS_TARGETS="$scss_oneline" \
   -e TEST_INCLUDES="$test_oneline" \
   "$IMAGE" sh -lc '
   set -eu
+  export VITEST_MAX_THREADS="${VITEST_MAX_THREADS:-$ANGULAR_CORES}"
+  export VITEST_MIN_THREADS="${VITEST_MIN_THREADS:-$ANGULAR_CORES}"
   # The image baked node_modules at /app; the synced source has none. Symlink
   # it so ng / vitest / eslint / stylelint resolve their toolchain + .bin.
   ln -sfn /app/node_modules /work/frontend/node_modules

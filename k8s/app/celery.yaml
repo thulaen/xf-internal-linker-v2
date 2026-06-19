@@ -2,12 +2,11 @@
 #
 # Plain English: these are the "do the heavy lifting off to the side" processes.
 # They pull jobs from the RabbitMQ queue and run them. Three roles:
-#   * celery-default  — light/general jobs. Prefork pool (2 copies). Each copy
-#     RECYCLES after 200 jobs or ~780 MB (graceful: hands memory back), and the
-#     whole pod is hard-capped at 2 GB.
+#   * celery-default  — light/general jobs. Solo pool (one task at a time), and
+#     the whole pod is hard-capped at 1.5 GB.
 #   * celery-pipeline — heavy ML jobs (embeddings, ranking pipeline). Kept in
 #     single-process mode (the ML libraries' threads make prefork recycling
-#     unsafe), so memory is bounded by a HARD 4 GB pod ceiling — if it ever
+#     unsafe), so memory is bounded by a HARD 3 GB pod ceiling — if it ever
 #     exceeds, Kubernetes restarts just this worker, never the machine.
 #   * celery-beat     — the scheduler (decides when periodic jobs run). Tiny.
 #
@@ -46,9 +45,8 @@ spec:
           # likely the psycopg connection pool's background thread + locks not
           # surviving os.fork()). At --concurrency=1 prefork buys nothing over
           # solo anyway (one task at a time either way), so solo sidesteps the
-          # fork entirely. Trade-off: prefork's per-child memory recycle
-          # (--max-tasks/--max-memory-per-child) is gone; the hard 5Gi pod limit
-          # is the memory backstop (k8s restarts the pod), same as celery-pipeline.
+          # fork entirely. The hard pod limit is the memory backstop (Kubernetes
+          # restarts the pod), same as celery-pipeline.
           command:
             - celery
             - -A
@@ -98,7 +96,7 @@ spec:
               cpu: "100m"
               memory: "768Mi"
             limits:
-              memory: "5Gi"
+              memory: "1536Mi"
       volumes:
         - name: kernels
           persistentVolumeClaim:
@@ -185,7 +183,7 @@ spec:
               cpu: "250m"
               memory: "1Gi"
             limits:
-              memory: "4Gi"
+              memory: "2Gi"
       volumes:
         - name: kernels
           persistentVolumeClaim:
@@ -261,7 +259,7 @@ spec:
               cpu: "50m"
               memory: "128Mi"
             limits:
-              memory: "512Mi"
+              memory: "256Mi"
       volumes:
         - name: kernels
           persistentVolumeClaim:

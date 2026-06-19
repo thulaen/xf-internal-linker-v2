@@ -255,9 +255,9 @@ Present today (verified):
   #2470 open); the frontend source union is still three values (AutoIssue #2471
   open);
 - the live quality stack that PreGate runs through today is the Docker
-  quality-runner scripts (`scripts/run-python-quality.sh`,
-  `scripts/run-angular-quality.sh`, `scripts/run-rust-quality.sh`,
-  `scripts/run-pbt.sh`) plus the 40-plus `.githooks/check-*.py` chain driven by
+  quality-runner Bazel targets (`//tools/quality:python`,
+  `//tools/quality:frontend`, `//tools/quality:rust`,
+  `//tools/quality:pbt`) plus the 40-plus `.githooks/check-*.py` chain driven by
   `scripts/precommit-docker.sh`.
 
 Planned but not yet built (from the locked plans): the governance module, the
@@ -1183,7 +1183,8 @@ Required test layers:
 
 - Property-based testing through the live repo gate. The repo already runs a
   hard pre-commit property-based-testing gate (landed 2026-06-13):
-  `scripts/run-pbt.sh`, wired at `scripts/precommit-docker.sh:359`, with a single
+  `python scripts/bazel_default.py run //tools/quality:pbt`, wired through
+  `scripts/precommit-docker.sh`, with a single
   five-minute shared budget, scoped to changed files, Dell-only and fail-closed.
   Property-based testing means generating many inputs to test a rule, not just
   hand-picking examples (citation lineage QuickCheck [QUICKCHECK]). PreGate's
@@ -1232,7 +1233,7 @@ the same slice.
 
 Dogfooding bootstrap (resolving the chicken-and-egg). PreGate's own gates do not
 exist during PG.01-PG.05, so those slices are held to the EXISTING repo gates — the
-`.githooks` chain, `scripts/run-pbt.sh`, the mutation ratchet, and the coverage
+`.githooks` chain, `//tools/quality:pbt`, the mutation ratchet, and the coverage
 hooks — which already enforce TDD, coverage, and mutation. As each PreGate gate arms
 (Section 14.2), it is immediately pointed at PreGate's own code under
 `apps/governance/pregate/` and its Rust crate, so the engine measures itself. The
@@ -1250,18 +1251,18 @@ target path.
 
 | Layer | Exact command |
 |---|---|
-| Python property (rides the PBT gate) | `docker compose run --rm backend-quality python -m pytest -m property -p no:randomly -n auto` (whole gate: `bash scripts/run-pbt.sh`) |
-| Python unit and integration | `docker compose run --rm backend-quality python -m pytest <target>` |
-| Python mutation (ratcheted) | `bash scripts/run-python-mutation.sh <target>` (mutmut) |
-| Python lint and types | `docker compose run --rm backend-quality ruff check <target>` and `... python -m mypy --config-file backend/mypy.ini <target>` |
+| Python property (rides the PBT gate) | `python scripts/bazel_default.py run //tools/quality:pbt` |
+| Python unit and integration | `python scripts/bazel_default.py run //tools/quality:python` |
+| Python mutation (ratcheted) | `python scripts/bazel_default.py run //tools/quality:mutation` |
+| Python lint and types | `python scripts/bazel_default.py run //tools/quality:python` |
 | Rust property | `cargo nextest run -E "test(/prop_/)"` (PROPTEST_CASES budget) |
-| Rust mutation | `bash scripts/run-rust-mutation.sh <crate>` (cargo-mutants) |
-| Rust lint | `bash scripts/run-rust-quality.sh` (cargo fmt, clippy, nextest) |
+| Rust mutation | `python scripts/bazel_default.py run //tools/quality:mutation` |
+| Rust lint | `python scripts/bazel_default.py run //tools/quality:rust` |
 | Rust unit, snapshot, fuzz, concurrency | `cargo nextest run` (unit + insta snapshot); `cargo fuzz run <target>` (fuzz); `cargo test` under loom (concurrency) |
 | Rust and Python coverage | `cargo llvm-cov` (Rust) and `coverage.py` via `backend-quality` (Python) |
 | Rust extension build | `maturin develop` for local iteration, `maturin build` for release, through the Docker-managed path |
-| Frontend (any TypeScript surface) | `npm run test:ci` (Vitest) and `bash scripts/run-angular-mutation.sh` (Stryker) |
-| The PBT pre-commit gate | `bash scripts/run-pbt.sh` (wired at `scripts/precommit-docker.sh:359`) |
+| Frontend (any TypeScript surface) | `python scripts/bazel_default.py run //tools/quality:frontend` and `python scripts/bazel_default.py run //tools/quality:mutation` |
+| The PBT pre-commit gate | `python scripts/bazel_default.py run //tools/quality:pbt` |
 
 ## 14. Roadmap
 
@@ -1382,7 +1383,7 @@ using the same template (this is normal slice-by-slice execution, not deferral).
 | PG.15 | Rule pack: performance-regression proof (`pregate_performance_proof`) composing with `regression_gate.py` | 6,000 | PG.06 | A hot-path edit with no benchmark proof, or a regression-gate block, hard-blocks. |
 
 Each PG.06-PG.15 slice ships its `check-pregate-*.py` hook plus `property`-marked
-tests that ride `scripts/run-pbt.sh`, and follows the Quality Bar (mutation pass
+tests that ride `//tools/quality:pbt`, and follows the Quality Bar (mutation pass
 on touched files, coverage above 90 percent, all hooks green, clean tree).
 
 Parser dependency and splits (do not hide these). PG.06 through PG.14 are semantic
@@ -1409,7 +1410,7 @@ bootstrapping a parser inside a "rule pack" slice.
   keep the 25 existing source names stable.
 - Files: edit `backend/apps/auto_issues/models.py` (+ migration), add a source
   registry module, edit `frontend/src/app/core/services/auto-issues.service.ts`.
-- Verify: `docker compose run --rm backend-quality python -m pytest` for the new
+- Verify: `python scripts/bazel_default.py run //tools/quality:python` for the new
   round-trip test; `npm run test:ci` for the client.
 - Done: #2470 and #2471 resolved; existing sources unchanged; tests green.
 
@@ -1721,7 +1722,7 @@ blocks any weakening.
 TDD is mandatory and evidenced. Every slice writes a failing test first, then the
 code that turns it green, then refactors — recorded with the repo's TDD-strict
 markers (timestamped red, green, refactor) and the live property-based-testing
-gate (`scripts/run-pbt.sh`). No production line lands without a failing test
+gate (`//tools/quality:pbt`). No production line lands without a failing test
 first.
 
 "Exhaustive unit testing" is defined, not left to taste. A unit is exhaustively
@@ -1763,7 +1764,7 @@ AutoIssues → PreGate dogfooding its own code through every gate.
 | 7 | Mutation score | ≥90% Python; ≥95% Stryker frontend; Rust cargo-mutants ratchet → 90%; PreGate kernel ≥95% | `check-mutation-score.py` ratchet (exists) | pre-push hard-block | mutation tile | Section 18.0 / Section 13 |
 | 8 | Module coupling | No upward or sibling cross-module import outside `api.py` (Layer 1→2→3); efferent fan-out ≤20 external module deps; no cross-language direct calls | `check-no-cross-language-import.py` (exists) + NEW `check-modular-monolith-boundaries.py` + `import-linter` (`.importlinter`) | pre-commit + CI hard-block | coupling tile; feeds SCW | Gap B + SCW (Section 19) |
 | 9 | Code duplication | ≤3% duplicated logical blocks system-wide; ZERO new 6+ logical-line duplicate blocks | NEW `check-pregate-duplication.py` driving the USO engine — EXTENDS `papertrail_dedup` with a new code-token normalizer over the Tree-sitter parse (new work, not a drop-in; depends on PG.03b) | hard-block on any new duplicate block | duplication tile | USO (Section 19) |
-| 10 | Build + test time | Pre-commit fast gate ≤5 min; changed-file test suite ≤2 min; full master gate ≤15 min; any single unit test >1s flagged; >10% wall-time regression blocks | `run-pbt.sh` budget (exists) + NEW `check-pregate-build-time.py` + `regression_gate.py` extended to wall-time | hard-block locally; nightly-shed for the heavy master gate | build/test-time trend | Section 10 / Gap K |
+| 10 | Build + test time | Pre-commit fast gate ≤5 min; changed-file test suite ≤2 min; full master gate ≤15 min; any single unit test >1s flagged; >10% wall-time regression blocks | `//tools/quality:pbt` budget (exists) + NEW `check-pregate-build-time.py` + `regression_gate.py` extended to wall-time | hard-block locally; nightly-shed for the heavy master gate | build/test-time trend | Section 10 / Gap K |
 
 Each metric is also a rule pack (Section 9) with its own AutoIssue picker source,
 so the operator sees which gate is noisy at a glance.

@@ -8,7 +8,7 @@ status: active
 ## Purpose
 
 Fan out Python SimpleTestCase unit tests across Dell (60%), Windows (30%), Mint (10%).
-Reuses machine_routing.py weighted partition — same logic as turbo_mutation.py.
+Reuses machine_routing.py weighted partition — same logic as the private Bazel mutation coordinator.
 
 ## Behaviour (BDD)
 

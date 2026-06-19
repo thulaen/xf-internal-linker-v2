@@ -22,7 +22,9 @@ def test_direct_pytest_runs_do_not_create_windows_cache() -> None:
 
 
 def test_python_quality_runner_keeps_test_caches_off_repo_mount() -> None:
-    script = (ROOT / "scripts" / "run-python-quality.sh").read_text(encoding="utf-8")
+    script = (ROOT / "tools" / "quality" / "internal" / "run-python-quality.sh").read_text(
+        encoding="utf-8"
+    )
 
     for marker in (
         "XDG_CACHE_HOME",

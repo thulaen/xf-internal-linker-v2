@@ -12,7 +12,7 @@ import targets  # noqa: E402
 HEAD = {
     "global_ceiling": 2000000000,
     "scopes": {
-        "atlas": {"target": 1000000000, "locked": True},
+        "atlas": {"target": 1000000000, "loc_target": 2000000000, "locked": True},
         "ranklab": {"target": 28000000, "locked": True},
         "scratch": {"target": 100, "locked": False},
     },
@@ -56,6 +56,14 @@ class LockTests(unittest.TestCase):
 
     def test_unlocked_scope_may_change(self):
         staged = _staged(scratch={"target": 1, "locked": False})
+        self.assertEqual(targets.lock_violations(HEAD, staged), [])
+
+    def test_lowering_locked_loc_target_is_blocked(self):
+        staged = _staged(atlas={"loc_target": 5000000})
+        self.assertTrue(any("loc_target" in v for v in targets.lock_violations(HEAD, staged)))
+
+    def test_raising_locked_loc_target_is_allowed(self):
+        staged = _staged(atlas={"loc_target": 3000000000})
         self.assertEqual(targets.lock_violations(HEAD, staged), [])
 
 

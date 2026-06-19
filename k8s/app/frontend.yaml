@@ -19,8 +19,8 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: frontend
@@ -63,7 +63,7 @@ spec:
               cpu: "100m"
               memory: "256Mi"
             limits:
-              memory: "1Gi"
+              memory: "384Mi"
       volumes:
         # Self-signed staging TLS cert, created machine-side:
         #   kubectl -n xf-app create secret tls frontend-tls --cert=tls.crt --key=tls.key

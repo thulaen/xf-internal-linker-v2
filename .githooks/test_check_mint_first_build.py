@@ -62,6 +62,14 @@ class ScanTextTests(unittest.TestCase):
         self.assertFalse(hook.scan_text("scripts/smart_build.py", "docker compose build backend\n"))
         self.assertFalse(hook.scan_text("scripts/build-smart.ps1", "docker compose build backend\n"))
 
+    def test_bazel_public_entrypoint_guard_forbidden_list_is_exempt(self) -> None:
+        self.assertFalse(
+            hook.scan_text(
+                ".githooks/check-bazel-public-entrypoints.py",
+                '"docker compose build compiled-tools",\n',
+            )
+        )
+
     def test_docker_compose_run_is_not_a_build(self) -> None:
         v = hook.scan_text("scripts/foo.sh", "docker compose run --rm backend-quality sh -lc 'x'\n")
         self.assertFalse(v, "`run` is not a build and must not be flagged")

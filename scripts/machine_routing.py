@@ -4,7 +4,6 @@
 This tiny module is the SINGLE SOURCE of the machine-selection and
 weighted-partition logic used by the quality runners:
 
-* ``scripts/turbo_mutation.py`` — the per-language mutation sweep.
 * ``scripts/run_pytest_on_context.py`` — the sharded pytest path.
 * ``scripts/run_lint_on_context.py`` — the sharded lint/type-check path.
 * ``scripts/turbo_tests.py`` — the split test runner.
@@ -29,6 +28,11 @@ import platform
 import subprocess
 from pathlib import Path
 from typing import Callable
+
+try:
+    import dell_ssh_preflight
+except ImportError:
+    from scripts import dell_ssh_preflight
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -61,23 +65,15 @@ class RemoteUnavailableError(RuntimeError):
 
 
 def _machines_from_config(cfg: dict) -> list[dict]:
-    """Read the `machines` array, or synthesise the legacy two-machine list.
-
-    Backward compatibility: a config with only the old
-    `split{local_pct, remote_pct, remote_context}` block (no `machines` key)
-    becomes [windows@local_pct, mint(context)@remote_pct] so today's mint-only
-    setup keeps running as the same 65/35 two-way split.
-    """
+    """Read the `machines` array, or synthesise a Dell-only legacy list."""
     machines = cfg.get("machines")
     if machines:
         return [dict(m) for m in machines]
     split = cfg.get("split", {})
-    ctx = split.get("remote_context", "mint")
+    ctx = split.get("remote_context", "dell")
     return [
-        {"name": "windows", "transport": "docker_local",
-         "weight": split.get("local_pct", 0.65), "max_weight": 1.0},
-        {"name": "mint", "transport": "docker_context", "context": ctx,
-         "weight": split.get("remote_pct", 0.35), "max_weight": 1.0},
+        {"name": ctx, "transport": "docker_context", "context": ctx,
+         "weight": 1.0, "max_weight": 1.0},
     ]
 
 
@@ -187,11 +183,11 @@ def _probe_reachable(machine: dict) -> bool:
             if host == "__local__":
                 cmd = ["docker", "info"]
             else:
-                cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host, "docker", "info"]
+                cmd = [*_ssh_base_command(host), "docker", "info"]
             timeout = _PROBE_SSH_TIMEOUT
         elif transport == "ssh":
             host = machine.get("ssh_host", machine["name"])
-            cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host, "true"]
+            cmd = [*_ssh_base_command(host), "true"]
             timeout = _PROBE_SSH_TIMEOUT
         else:
             return False
@@ -217,7 +213,7 @@ def _remote_image_present(ctx: str, image: str) -> bool:
     """True only if `image` already exists on the helper host."""
     try:
         proc = subprocess.run(
-            ["ssh", ctx, "docker", "image", "inspect", image],
+            [*_ssh_base_command(ctx), "docker", "image", "inspect", image],
             capture_output=True, timeout=_PROBE_SSH_TIMEOUT,
             cwd=str(REPO_ROOT), check=False,
         )
@@ -235,7 +231,7 @@ def _remote_is_idle(ctx: str, load_per_core: float) -> bool:
     """
     try:
         proc = subprocess.run(
-            ["ssh", ctx, "docker", "run", "--rm", "alpine",
+            [*_ssh_base_command(ctx), "docker", "run", "--rm", "alpine",
              "sh", "-c", "cat /proc/loadavg && nproc"],
             capture_output=True, timeout=_PROBE_SSH_TIMEOUT,
             cwd=str(REPO_ROOT), text=True, check=False,
@@ -272,6 +268,11 @@ def _probe_ready(machine: dict) -> bool:
     ):
         return False
     return True
+
+
+def _ssh_base_command(host: str) -> list[str]:
+    """Return the SSH command that works from Windows hook shells."""
+    return dell_ssh_preflight.ssh_base_command(host)
 
 
 def _partition_weighted(items: list, machines: list[dict]) -> dict[str, list]:
@@ -311,7 +312,7 @@ def _dispatch_to_machines(
     for m in machines:
         slice_items = plan.get(m["name"]) or []
         if not slice_items:
-            continue  # fail-open: empty slice → no thread, no container call
+            continue  # empty slice -> no thread, no container call
         t = threading.Thread(target=per_machine, args=(m, slice_items))
         t.start()
         threads.append(t)

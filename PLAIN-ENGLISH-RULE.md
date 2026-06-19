@@ -221,6 +221,7 @@ When you must mention a technical concept, use the plain-English version from th
 | the settings file that tells kubectl how to reach a Kubernetes cluster | kubeconfig |
 | the command-line tool that talks to Kubernetes | kubectl |
 | the user's Windows laptop that controls the cluster but should not run builds after cutover | MSI |
+| Dell accepts a network connection but its SSH service does not answer the first login greeting in time | Dell SSH banner timeout |
 | the lightweight Kubernetes distribution running the two-node cluster | k3s |
 | Kent Beck's book identifier for the test-first programming source used by the rule docs | ISBN-978-0321146533 |
 | the international test-documentation standard cited by the rule docs | ISO-IEC-IEEE-29119-3-2021 |

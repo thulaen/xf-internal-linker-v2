@@ -12,7 +12,7 @@ if (-not (Test-Path $gitBash)) {
 
 Push-Location $repoRoot
 try {
-    & $gitBash scripts/run-tool-readiness.sh
+    python scripts/bazel_default.py run //tools/quality:tool_readiness
     if ($LASTEXITCODE -ne 0) { throw "Docker tool-readiness failed." }
 
     docker compose config | Out-Null

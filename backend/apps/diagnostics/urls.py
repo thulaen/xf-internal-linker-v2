@@ -19,6 +19,23 @@ urlpatterns = [
     path("features/", views.FeatureReadinessView.as_view(), name="feature-readiness"),
     path("resources/", views.ResourceUsageView.as_view(), name="resource-usage"),
     path("weights/", views.WeightDiagnosticsView.as_view(), name="weight-diagnostics"),
+    path("accuracy/tools/", views.AccuracyToolsView.as_view(), name="accuracy-tools"),
+    path(
+        "accuracy/summary/",
+        views.AccuracySummaryView.as_view(),
+        name="accuracy-summary",
+    ),
+    path(
+        "accuracy/findings/",
+        views.AccuracyFindingsView.as_view(),
+        name="accuracy-findings",
+    ),
+    path(
+        "accuracy/report/",
+        views.AccuracyReportView.as_view(),
+        name="accuracy-report",
+    ),
+    path("accuracy/run/", views.AccuracyRunView.as_view(), name="accuracy-run"),
     # FR-247 — Stage-2 cpp/python pathway counter for the /performance card.
     # See docs/specs/fr247-fast-path-observability.md.
     path(

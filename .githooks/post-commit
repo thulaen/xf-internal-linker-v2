@@ -35,4 +35,7 @@ fi
 python scripts/backend_manage.py decision_point --commit "$head_hash" 2>&1 || \
   echo "[decision-point] Kubernetes backend command exited non-zero; rerun manually after fixing." >&2
 
+python .githooks/commit_quota_state.py record-success --commit "$head_hash" 2>&1 || \
+  echo "[quota-state] commit quota state could not be recorded; rerun manually after fixing." >&2
+
 exit 0

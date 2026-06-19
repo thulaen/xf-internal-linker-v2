@@ -27,42 +27,30 @@ behaviour matters more than adding a tool for every language.
 | C++ | Mull | Scoped CI pilot | Active project with scoped native-test execution. CI installs it only for `test_fieldrel`, not the whole C++ tree. |
 | Go | avito-tech/go-mutesting | Active CI gate when Go modules exist | Active in 2025 and supports file, directory, and package targets. CI runs it for every Go module once a `go.mod` exists. |
 
-## Docker Availability
+## Bazel-Owned Tooling
 
-The `compiled-tools` Docker service installs the backend-side compiled-language and mutation
-tools so a new PC can rebuild the stack and get the same tools quickly:
+Bazel is the public mutation entry point. Private Docker images may still install
+the backend-side compiled-language and mutation tools so helper machines can run
+the same checks repeatably:
 
 - `mutmut` for Python.
-- `mull-runner-19` for scoped C++ mutation pilots.
-- `go` and `go-mutesting` for future scoped Go package mutation pilots.
 - `cmake`, `ninja`, and `clang++-19` for C++ tests, fuzzing, and benchmarks.
 
-The frontend Stryker toolchain lives in the frontend build image. Check it with:
+The frontend Stryker toolchain lives in the frontend build image, but agents do
+not call it directly. Run mutation with:
 
 ```bash
-docker compose --profile tools run --rm compiled-tools
-docker compose --profile tools run --rm frontend-mutation-tools
-```
-
-Run frontend mutation from that image with:
-
-```bash
-docker compose --profile tools run --rm frontend-mutation-tools npx stryker run
+python scripts/bazel_default.py run //tools/quality:mutation
 ```
 
 ## Python
 
 ```bash
-cd backend
-mutmut run \
-  --paths-to-mutate=apps/pipeline/services/field_aware_relevance.py \
-  --runner="python -m pytest apps/pipeline/tests.py::FieldAwareRelevanceServiceTests -p randomly -x -q --no-cov" \
-  --processes=2
-mutmut results
+python scripts/bazel_default.py run //tools/quality:mutation
 ```
 
-`mutmut results` exits with failure if any mutant survived. Mutmut must run on a system with
-`fork`, so use Linux or WSL for local runs.
+Bazel owns the changed-file scope and runs the needed Python, frontend, and Rust
+mutation tools through the private quality targets.
 
 ## Angular And JavaScript
 

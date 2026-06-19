@@ -60,7 +60,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 #     rustup/cargo-install layer above stays cached.
 #   - cargo-nextest: prebuilt pinned release binary (faster and more
 #     reproducible than `cargo install`). NOTE: nextest does not run doctests;
-#     scripts/run-rust-quality.sh keeps a `cargo test --doc` step for that.
+#     the Bazel Rust quality target keeps a `cargo test --doc` step for that.
 #   - sccache: prebuilt pinned release binary. The runner scripts set
 #     RUSTC_WRAPPER=sccache and mount the xf_sccache named volume at runtime,
 #     so compile caches survive `cargo clean` and the per-sync tree wipe.

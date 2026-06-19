@@ -32,6 +32,7 @@ _BUILD_RE = re.compile(r"\bdocker(?:-compose)?\s+(?:compose\s+|buildx\s+)?build\
 
 # The router scripts MUST invoke the real docker build — exempt them.
 _ROUTER_BASENAMES = frozenset({"smart_build.py", "build-smart.ps1"})
+_PATH_ALLOWLIST = frozenset({".githooks/check-bazel-public-entrypoints.py"})
 
 _SCANNED_EXTS = frozenset({".sh", ".ps1", ".py"})
 
@@ -51,7 +52,10 @@ def is_scanned_path(path: str) -> bool:
 
 def scan_text(path: str, text: str) -> list[str]:
     """Return a list of violation messages for raw build commands in *text*."""
-    name = Path(path.replace("\\", "/")).name
+    normalised_path = path.replace("\\", "/")
+    if normalised_path in _PATH_ALLOWLIST:
+        return []
+    name = Path(normalised_path).name
     if name in _ROUTER_BASENAMES:
         return []
     violations: list[str] = []

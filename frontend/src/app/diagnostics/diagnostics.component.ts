@@ -26,6 +26,7 @@ import { buildRuntimeExecutionCards, buildRuntimeLaneCards, RuntimeExecutionCard
 import { ConflictListComponent } from './conflict-list/conflict-list.component';
 import { ReadinessMatrixComponent } from './readiness-matrix/readiness-matrix.component';
 import { ServiceCardComponent } from './service-card/service-card.component';
+import { AccuracyLabCardComponent } from './accuracy-lab-card/accuracy-lab-card.component';
 import { SuppressedPairsCardComponent } from './suppressed-pairs-card/suppressed-pairs-card.component';
 import { SpecViewerDialogComponent } from '../settings/spec-viewer-dialog/spec-viewer-dialog.component';
 
@@ -47,6 +48,17 @@ const WAVE2_SIGNAL_IDS = [
   'rsqva',
 ];
 
+type ServiceFilter = 'all' | 'issues' | 'warnings' | 'healthy' | 'not_configured' | 'down';
+
+interface ServiceFilterCounts {
+  all: number;
+  issues: number;
+  warnings: number;
+  healthy: number;
+  not_configured: number;
+  down: number;
+}
+
 @Component({
   selector: 'app-diagnostics',
   standalone: true,
@@ -54,7 +66,7 @@ const WAVE2_SIGNAL_IDS = [
     CommonModule, MatTooltipModule, MatButtonModule, MatIconModule, MatTabsModule,
     MatCardModule, MatChipsModule, MatProgressSpinnerModule,
     PersistTabDirective, ServiceCardComponent, ConflictListComponent,
-    ReadinessMatrixComponent, SuppressedPairsCardComponent,
+    ReadinessMatrixComponent, AccuracyLabCardComponent, SuppressedPairsCardComponent,
   ],
   templateUrl: './diagnostics.component.html',
   styleUrls: ['./diagnostics.component.scss'],
@@ -119,10 +131,9 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   // Phase 0.14 — System Health filter bar.
   // Persists the operator's last-used chip across reloads via
   // localStorage so refreshing the page doesn't lose context.
-  readonly serviceFilter = signal<'all' | 'issues' | 'warnings' | 'healthy' | 'not_configured' | 'down'>(
+  readonly serviceFilter = signal<ServiceFilter>(
     (typeof localStorage !== 'undefined'
-      ? (localStorage.getItem('diagnostics.serviceFilter') as
-        | 'all' | 'issues' | 'warnings' | 'healthy' | 'not_configured' | 'down' | null)
+      ? (localStorage.getItem('diagnostics.serviceFilter') as ServiceFilter | null)
       : null) ?? 'issues',
   );
 
@@ -157,8 +168,8 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
     });
   });
 
-  readonly serviceFilterCounts = computed(() => {
-    const counts = {
+  readonly serviceFilterCounts = computed<ServiceFilterCounts>(() => {
+    const counts: ServiceFilterCounts = {
       all: 0, issues: 0, warnings: 0, healthy: 0, not_configured: 0, down: 0,
     };
     for (const s of this.coreServices()) {
@@ -176,7 +187,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
     return counts;
   });
 
-  setServiceFilter(filter: 'all' | 'issues' | 'warnings' | 'healthy' | 'not_configured' | 'down'): void {
+  setServiceFilter(filter: ServiceFilter): void {
     this.serviceFilter.set(filter);
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('diagnostics.serviceFilter', filter);

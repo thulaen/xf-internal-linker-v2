@@ -108,7 +108,7 @@ spec:
               cpu: "100m"
               memory: "256Mi"
             limits:
-              memory: "1Gi"
+              memory: "640Mi"
           readinessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "ping"]

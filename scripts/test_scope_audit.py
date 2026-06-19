@@ -12,9 +12,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # The C, C++, Go, Haskell, and Lua wrappers were deleted, so they are no longer
 # audited here.
 WRAPPERS = [
-    "scripts/run-python-quality.sh",
-    "scripts/run-angular-quality.sh",
-    "scripts/run-rust-quality.sh",
+    "tools/quality/internal/run-python-quality.sh",
+    "tools/quality/internal/run-angular-quality.sh",
+    "tools/quality/internal/run-rust-quality.sh",
 ]
 
 # Wrappers that own their scope decision inline (they print a scope-decision line
@@ -22,7 +22,7 @@ WRAPPERS = [
 # to commit_scope.py and run-angular-quality.sh is an empty placeholder, so neither
 # carries the inline marker and neither belongs in this stricter list.
 SCOPE_DECISION_WRAPPERS = [
-    "scripts/run-python-quality.sh",
+    "tools/quality/internal/run-python-quality.sh",
 ]
 
 FORBIDDEN_PATTERNS = [

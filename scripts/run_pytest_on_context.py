@@ -25,7 +25,7 @@ verify fails mid-run, that slice FAILS (rc=1) instead of running anywhere else.
 Tests that need services absent from Dell's bare test stack must self-skip
 (see ``backend/apps/observability/tests_faro_alloy_smoke.py``).
 
-For LOCAL commits ``scripts/run-python-quality.sh`` defaults ``XF_PYTEST_SPLIT=1``
+For local commits the Bazel Python quality target defaults ``XF_PYTEST_SPLIT=1``
 so Dell runs 100% of the changed test targets; CI keeps it off and runs them in
 the CI container.
 
@@ -57,6 +57,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 import sys  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from _sync_tar_excludes import TAR_EXCLUDES as _TAR_EXCLUDES  # noqa: E402
+import dell_ssh_preflight  # noqa: E402
 # The exact repo roots tarred to Dell for every pytest run. This tuple IS the
 # tar command's file list — edit here to change what reaches /repo on Dell.
 _SYNC_ROOTS = (
@@ -93,7 +94,7 @@ _DELL_COMPILED_VOLUME = "xf_dell_compiled_repo"
 _DELL_TEST_NET = "xf_dell_test_net"
 
 # Pytest flags for the Dell slices, mirroring the existing scoped run in
-# scripts/run-python-quality.sh (random order, reuse the test DB so migrations
+# the Bazel Python quality target (random order, reuse the test DB so migrations
 # run once). `--override-ini addopts=` drops the repo's heavy default addopts
 # (coverage, etc.) so a scoped shard stays fast.
 #
@@ -209,7 +210,7 @@ def _remote_docker_cmd(context: str, *args: str) -> list[str]:
     if context == "__local__":
         return ["docker", *args]
     remote_command = "docker " + " ".join(shlex.quote(arg) for arg in args)
-    return ["ssh", context, remote_command]
+    return [*dell_ssh_preflight.ssh_base_command(context), remote_command]
 
 
 def _sync_source_to_context(context: str, env: dict) -> str | None:
@@ -347,9 +348,14 @@ def _remote_pytest_cmd(context: str, targets: list[str],
         "-v", "xf_dell_quality_cache:/tmp/xf-test-cache",
         "-w", "/repo/backend",
         "-e", "DJANGO_SETTINGS_MODULE=config.settings.test",
+        "-e", "DJANGO_SECRET_KEY=dell-pytest-secret",
         "-e", "SECRET_KEY=dell-pytest-secret",
         "-e", "ALLOWED_HOSTS=*",
+        "-e", "POSTGRES_DB=xf_linker_test",
+        "-e", "POSTGRES_USER=xf_linker_user",
+        "-e", "POSTGRES_PASSWORD=xf_linker_test_password",
         "-e", "POSTGRES_HOST=postgres",
+        "-e", "POSTGRES_PORT=5432",
         "-e", "REDIS_URL=redis://redis:6379/0",
         "-e", "CELERY_BROKER_URL=redis://redis:6379/2",
         "-e", "PYTHONPATH=/opt/xf/compiled/active:/opt/xf/compiled:/repo/backend",

@@ -87,8 +87,8 @@ cargo-mutants / Stryker, keeping the kill-rate gates. Coverage via Bazel's combi
 Pre-commit/pre-push invoke Bazel (`bazel test` affected targets + the mutation rules). Update
 CLAUDE.md + AGENTS.md to mark the three superseded rules as replaced by ADR 0010.
 
-- **Delete:** `scripts/run-python-quality.sh`, `precommit-docker.sh`/`prepush-docker.sh` bodies
-  (rewired to Bazel), the remaining smart-build references.
+- **Delete:** the old public `scripts/run-*-quality.sh` scripts and route
+  `precommit-docker.sh` / `prepush-docker.sh` through Bazel affected targets.
 - **NOT here:** removing Docker from MSI / the live-DB move — that is the separate go-live
   (KUBE PLAN SLICE-13 + 28), still deferred.
 

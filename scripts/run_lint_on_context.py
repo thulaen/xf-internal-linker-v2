@@ -2,7 +2,7 @@
 """Distribute the read-only Python lint / type-check tools across machines.
 
 Dell carries 100% of the changed-file lint load (config: ``lint_machines`` in
-``config/mutation-routing.json``); Windows carries the rest. The three tools —
+``config/mutation-routing.json``); MSI carries 0%. The three tools —
 ``ruff`` (which also carries the old error-only lint job via the PLE rules in
 ``backend/pyproject.toml``), ``mypy``, ``bandit`` — are read-only (no
 database), so a machine only needs the source synced and the
@@ -20,7 +20,7 @@ sees fresh files.
 This mirrors the two existing sharders so the behaviour is identical and the
 proven pieces are reused, not re-invented:
 
-* the weighted split + fail-open machine selection come from the SINGLE shared
+* the weighted split + fail-closed machine selection come from the SINGLE shared
   ``scripts/machine_routing.py`` (Hamilton largest-remainder, ceiling clamp),
   the same module the mutation gate and the coverage gate import;
 * the Dell push is the SAME ``tar -> alpine extract -> sha256 manifest`` hand-
@@ -32,13 +32,11 @@ Fail-CLOSED at the probe layer: if the configured Dell context does not answer
 its reachability probe, ``machine_routing._select_machines`` raises and this gate
 hard-fails with a "fix Dell" message — work is NEVER silently moved to Windows.
 If Dell answers the probe but a slice's source sync or manifest verify fails
-mid-run, that slice is re-linted locally and the fallback is announced on stdout
-(``dell->local(unverified)``); the check still runs and the verdict is identical
-in shape to the Dell path — only WHERE that slice is linted changes.
+mid-run, that slice fails closed. It is not re-linted on MSI.
 
-For LOCAL commits ``scripts/run-python-quality.sh`` defaults ``XF_LINT_SPLIT=1``
+For local commits the Bazel Python quality target defaults ``XF_LINT_SPLIT=1``
 so Dell carries 100% of the changed-file lint load; CI keeps it off and lints in
-the CI container. Set ``XF_LINT_SPLIT=0`` to force a local-only run.
+the CI container. MSI never uses this as a local quality fallback.
 """
 
 from __future__ import annotations
@@ -60,6 +58,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # the SAME bytes, so the exclude list MUST match exactly or the manifest fails.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from _sync_tar_excludes import TAR_EXCLUDES as _TAR_EXCLUDES  # noqa: E402
+import dell_ssh_preflight  # noqa: E402
 
 # This gate's OWN source-snapshot volume on the remote machine, parallel to
 # xf_mutation_repo / xf_coverage_repo so the three gates never collide.
@@ -114,7 +113,7 @@ def _load_machine_routing():
 def _load_lint_routing_config() -> dict:
     """Read the ``lint_machines`` block from config/mutation-routing.json.
 
-    Falls back to a Dell-1.0 / Windows-0.0 pair (fail-closed: Dell does 100%,
+    Falls back to a Dell-1.0 route (fail-closed: Dell does 100%,
     MSI 0%) if the key is absent so an older config never crashes the gate.
     """
     path = REPO_ROOT / "config" / "mutation-routing.json"
@@ -165,7 +164,7 @@ def _remote_docker_cmd(context: str, *args: str) -> list[str]:
     if context == "__local__":
         return ["docker", *args]
     remote_command = "docker " + " ".join(shlex.quote(arg) for arg in args)
-    return ["ssh", context, remote_command]
+    return [*dell_ssh_preflight.ssh_base_command(context), remote_command]
 
 
 def _sync_source_to_context(context: str, env: dict) -> str | None:

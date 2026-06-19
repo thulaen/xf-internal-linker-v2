@@ -221,7 +221,7 @@ def test_compute_priority_returns_zero_for_negative_score():
 
 Run it inside the backend container:
 ```
-scripts/run-python-quality.sh
+python scripts/bazel_default.py run //tools/quality:python
 ```
 
 Record the timestamp:

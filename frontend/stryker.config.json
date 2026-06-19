@@ -3,7 +3,7 @@
   "packageManager": "npm",
   "testRunner": "command",
   "commandRunner": {
-    "command": "npm run test:ci -- --include $STRYKER_TEST_INCLUDES"
+    "command": "npm run test:ci -- $STRYKER_TEST_INCLUDES"
   },
   "mutate": [
     "src/app/**/*.component.ts",

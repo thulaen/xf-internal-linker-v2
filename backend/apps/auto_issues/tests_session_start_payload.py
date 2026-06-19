@@ -39,8 +39,10 @@ class SessionStartPayloadServiceTests(SimpleTestCase):
     def test_extract_autoissue_lines_keeps_registry_block(self) -> None:
         text = (
             "[REGISTRY READ: 2 open]\n"
-            "  #1879 [agent/high] observability signal degraded: tempo\n"
-            "  #1878 [agent/high] observability signal degraded: sonarqube\n"
+            "| ID | Source | Severity | Title | Files |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| #1879 | agent | high | observability signal degraded: tempo | - |\n"
+            "| #1878 | agent | high | observability signal degraded: sonarqube | - |\n"
             "[CI FAILED RUNS READ: 0 latest]"
         )
 
@@ -48,8 +50,10 @@ class SessionStartPayloadServiceTests(SimpleTestCase):
             extract_autoissue_lines(text),
             [
                 "[REGISTRY READ: 2 open]",
-                "#1879 [agent/high] observability signal degraded: tempo",
-                "#1878 [agent/high] observability signal degraded: sonarqube",
+                "| ID | Source | Severity | Title | Files |",
+                "| --- | --- | --- | --- | --- |",
+                "| #1879 | agent | high | observability signal degraded: tempo | - |",
+                "| #1878 | agent | high | observability signal degraded: sonarqube | - |",
             ],
         )
 

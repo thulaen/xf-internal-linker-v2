@@ -16,7 +16,7 @@ the tests work without installing anything.
 API contract under test
 -----------------------
 ``_run_shard_local(files, cmd_template)``
-    Run a test shard locally in the backend container.
+    Run a test shard locally only when the diagnostic override is set on MSI.
     Returns ``(rc: int, output: str)``.
 
 ``_run_shard_context(files, cmd_template, context)``
@@ -26,13 +26,12 @@ API contract under test
 
 ``_run_shard_on_machine(machine, files, cmd_template)``
     Dispatch to ``_run_shard_local`` or ``_run_shard_context`` based on
-    ``machine["transport"]``.  Unknown transports return ``(1, "Unknown...")``.
+    ``machine["transport"]``. Unknown transports return ``(1, "Unknown...")``.
 
 ``_merge_shard_results(results)``
     Accept a list of ``{"machine": dict, "rc": int|None, "output": str}`` dicts.
-    Entries with ``rc=None`` are treated as un-executed and are re-run locally
-    via ``_run_shard_local``.  Returns overall ``rc`` (0 if ALL pass, 1 if ANY
-    fail, including local re-run failures).
+    Entries with ``rc=None`` fail closed on MSI unless a diagnostic override is
+    set. Returns overall ``rc`` (0 if ALL pass, 1 if ANY fail).
 
 ``_collect_simpletest_files(paths)``
     Return the list of Python test-module paths discovered under ``paths``.
@@ -97,6 +96,7 @@ class _FakeResult:
 def test_run_shard_local_rc0_returns_zero_and_has_pytest_in_cmd(monkeypatch) -> None:
     tt = _load_turbo_tests()
     captured: list = []
+    monkeypatch.setattr(tt.sys, "platform", "linux")
 
     def fake_run(cmd, **k):
         captured.append(cmd)
@@ -116,6 +116,7 @@ def test_run_shard_local_rc0_returns_zero_and_has_pytest_in_cmd(monkeypatch) -> 
 
 def test_run_shard_local_rc1_returns_one(monkeypatch) -> None:
     tt = _load_turbo_tests()
+    monkeypatch.setattr(tt.sys, "platform", "linux")
 
     monkeypatch.setattr(
         tt.subprocess, "run",
@@ -127,6 +128,40 @@ def test_run_shard_local_rc1_returns_one(monkeypatch) -> None:
     )
 
     assert rc == 1, f"expected rc=1, got {rc}"
+
+
+def test_run_shard_local_refuses_msi_without_diagnostic(monkeypatch) -> None:
+    tt = _load_turbo_tests()
+    monkeypatch.setattr(tt.sys, "platform", "win32")
+    monkeypatch.delenv("XF_ALLOW_MSI_LOCAL_QUALITY", raising=False)
+    monkeypatch.setattr(
+        tt.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("MSI must not start local quality containers")
+        ),
+    )
+
+    rc, output = tt._run_shard_local(["apps/foo/tests.py"], "pytest {files}")
+
+    assert rc == 1
+    assert "MSI is dev-only" in output
+
+
+def test_run_shard_local_allows_explicit_diagnostic_on_msi(monkeypatch) -> None:
+    tt = _load_turbo_tests()
+    monkeypatch.setattr(tt.sys, "platform", "win32")
+    monkeypatch.setenv("XF_ALLOW_MSI_LOCAL_QUALITY", "1")
+    monkeypatch.setattr(
+        tt.subprocess,
+        "run",
+        lambda cmd, **kwargs: _FakeResult(0, stdout="diagnostic ok"),
+    )
+
+    rc, output = tt._run_shard_local(["apps/foo/tests.py"], "pytest {files}")
+
+    assert rc == 0
+    assert "diagnostic ok" in output
 
 
 # ── _run_shard_context ────────────────────────────────────────────────────────
@@ -175,24 +210,40 @@ def test_run_shard_context_sync_error_returns_1_without_subprocess(monkeypatch) 
 
 # ── _run_shard_on_machine ─────────────────────────────────────────────────────
 
-def test_run_shard_on_machine_docker_local_calls_only_run_shard_local(monkeypatch) -> None:
+def test_run_shard_on_machine_docker_local_refuses_msi(monkeypatch) -> None:
     tt = _load_turbo_tests()
-    calls: list[str] = []
-
-    monkeypatch.setattr(
-        tt, "_run_shard_local",
-        lambda files, cmd: (calls.append("local"), (0, "ok"))[1],
-    )
+    monkeypatch.setattr(tt.sys, "platform", "win32")
+    monkeypatch.delenv("XF_ALLOW_MSI_LOCAL_QUALITY", raising=False)
     monkeypatch.setattr(
         tt, "_run_shard_context",
-        lambda files, cmd, context: (calls.append("context"), (0, "ok"))[1],
+        lambda *args: (_ for _ in ()).throw(
+            AssertionError("docker_local must not use context runner")
+        ),
     )
 
     rc, _ = tt._run_shard_on_machine(
         _local_machine(), ["apps/foo/tests.py"], "pytest {files}"
     )
 
-    assert calls == ["local"], f"expected only local call, got: {calls}"
+    assert rc == 1
+
+
+def test_run_shard_on_machine_docker_local_allows_diagnostic(monkeypatch) -> None:
+    tt = _load_turbo_tests()
+    calls: list[str] = []
+    monkeypatch.setattr(tt.sys, "platform", "win32")
+    monkeypatch.setenv("XF_ALLOW_MSI_LOCAL_QUALITY", "1")
+    monkeypatch.setattr(
+        tt,
+        "_run_shard_local",
+        lambda files, cmd: (calls.append("local"), (0, "ok"))[1],
+    )
+
+    rc, _ = tt._run_shard_on_machine(
+        _local_machine(), ["apps/foo/tests.py"], "pytest {files}"
+    )
+
+    assert calls == ["local"]
     assert rc == 0
 
 
@@ -261,9 +312,32 @@ def test_merge_shard_results_any_fail_returns_rc1() -> None:
     assert rc == 1, f"expected rc=1 when any shard fails, got {rc}"
 
 
-def test_merge_shard_results_none_rc_reruns_locally(monkeypatch) -> None:
+def test_merge_shard_results_none_rc_refuses_local_rerun_on_msi(monkeypatch) -> None:
+    tt = _load_turbo_tests()
+    monkeypatch.setattr(tt.sys, "platform", "win32")
+    monkeypatch.delenv("XF_ALLOW_MSI_LOCAL_QUALITY", raising=False)
+    monkeypatch.setattr(
+        tt,
+        "_run_shard_local",
+        lambda *args: (_ for _ in ()).throw(
+            AssertionError("MSI must not rerun crashed remote shards locally")
+        ),
+    )
+
+    results = [
+        {"machine": _context_machine(), "rc": None, "output": "",
+         "files": ["apps/baz/tests.py"], "cmd": "pytest {files}"},
+    ]
+    rc = tt._merge_shard_results(results)
+
+    assert rc == 1
+
+
+def test_merge_shard_results_none_rc_allows_diagnostic_rerun(monkeypatch) -> None:
     tt = _load_turbo_tests()
     rerun_calls: list = []
+    monkeypatch.setattr(tt.sys, "platform", "win32")
+    monkeypatch.setenv("XF_ALLOW_MSI_LOCAL_QUALITY", "1")
 
     def fake_local(files, cmd):
         rerun_calls.append(files)
@@ -277,8 +351,8 @@ def test_merge_shard_results_none_rc_reruns_locally(monkeypatch) -> None:
     ]
     rc = tt._merge_shard_results(results)
 
-    assert rerun_calls, "_run_shard_local must be called for rc=None entries"
-    assert rc == 0, f"expected rc=0 when local re-run passes, got {rc}"
+    assert rerun_calls
+    assert rc == 0
 
 
 def test_merge_shard_results_none_rc_local_also_fails_returns_rc1(monkeypatch) -> None:
@@ -293,7 +367,7 @@ def test_merge_shard_results_none_rc_local_also_fails_returns_rc1(monkeypatch) -
     rc = tt._merge_shard_results(results)
 
     assert rc == 1, (
-        f"expected rc=1 when both remote (None) and local re-run fail, got {rc}"
+        f"expected rc=1 when diagnostic rerun fails, got {rc}"
     )
 
 
@@ -461,9 +535,27 @@ class _MonkeyPatch:
         self._undo.append((target, name, old))
         setattr(target, name, value)
 
+    def setenv(self, name, value):
+        old = __import__("os").environ.get(name)
+        self._undo.append((__import__("os").environ, name, old))
+        __import__("os").environ[name] = value
+
+    def delenv(self, name, raising=True):
+        env = __import__("os").environ
+        old = env.get(name)
+        if old is None and raising:
+            raise KeyError(name)
+        self._undo.append((env, name, old))
+        env.pop(name, None)
+
     def undo(self) -> None:
         for target, name, old in reversed(self._undo):
-            setattr(target, name, old)
+            if hasattr(target, "pop") and old is None:
+                target.pop(name, None)
+            elif hasattr(target, "__setitem__"):
+                target[name] = old
+            else:
+                setattr(target, name, old)
         self._undo.clear()
 
 

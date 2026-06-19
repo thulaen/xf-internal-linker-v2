@@ -69,7 +69,7 @@ def test_pbt_is_hard_gate_after_unit_tests() -> None:
     """PBT hard-blocks the commit and runs AFTER the Python/Rust unit-test gates
     so their Dell volumes are already warm."""
     text = PRECOMMIT.read_text(encoding="utf-8")
-    assert "run_hard_gate run-pbt bash scripts/run-pbt.sh" in text
+    assert "run_hard_gate run-pbt python scripts/bazel_default.py run //tools/quality:pbt" in text
     assert text.index("bazel-rust-quality") < text.index("run_hard_gate run-pbt")
 
 

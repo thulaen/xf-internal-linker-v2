@@ -88,7 +88,7 @@ Backend currently means Python backend plus C++ backend extensions. It also incl
 The current per-language floor is enforced by:
 
 - Backend: `--cov-fail-under=68` in `backend/pytest.ini` (ratchet; raises only).
-- Frontend: `scripts/run-angular-quality.sh` reads the Karma coverage report, records full-app coverage as quality debt, and blocks only new or changed Angular component/service targets that violate the ratchet policy.
+- Frontend: `python scripts/bazel_default.py run //tools/quality:frontend` reads the coverage report, records full-app coverage as quality debt, and blocks only new or changed Angular component/service targets that violate the ratchet policy.
 - C++: GoogleTest line/branch coverage is instrumented through Docker-managed coverage scripts and must fail below 100% branch coverage.
 - Go: `go-quality` in `.github/workflows/ci.yml` and `.githooks/pre-push` run Go tests with `-coverprofile=cover.out`, fail below 95% total coverage, and run Go mutation testing when a Go module exists.
 - Rust: `scripts/run-rust-coverage.sh` runs `cargo llvm-cov` over every Rust workspace (`rust/` and `services/speccheck/`) inside the Docker-managed `compiled-tools` image. The long-term target is **95%** line coverage (phase E8 of [`docs/PYTHON-RUST-MIGRATION-PLAN.md`](PYTHON-RUST-MIGRATION-PLAN.md)). Because current Rust coverage may still be below 95%, this gate does **not** hard-fail for being below the target. Instead it stores a per-workspace floor in `config/rust-coverage-floor.json` that can only rise, fails only when a workspace drops below its stored floor, and ratchets the floor up toward 95% as coverage improves. Rust mutation testing uses `cargo-mutants` with a 0.75 kill-rate gate (see `docs/MUTATION-THRESHOLDS.md`).

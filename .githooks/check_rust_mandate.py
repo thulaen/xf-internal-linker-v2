@@ -135,19 +135,8 @@ def _gate_steps(ws: RustWorkspace) -> tuple[tuple[str, str], ...]:
 
 
 def _mutants_command(ws: RustWorkspace) -> str:
-    """cargo-mutants command for one workspace.
-
-    speccheck appends `-- --test catalog` to route mutation runs to its
-    integration test target; the rust/ kernels pass nothing after `--` so
-    cargo-mutants runs the package's default (inline unit) test set.
-    """
-    base = (
-        f"cargo mutants -p {ws.mutants_package} --jobs 4 --timeout 60 "
-        "--minimum-test-timeout 30"
-    )
-    if ws.mutants_test_args:
-        return f"{base} -- {' '.join(ws.mutants_test_args)}"
-    return base
+    """Bazel-owned Rust mutation command for one workspace."""
+    return "python scripts/bazel_default.py run //tools/quality:mutation"
 
 
 def _staged_rust_workspaces(root: Path) -> list[RustWorkspace]:

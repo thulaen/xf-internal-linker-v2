@@ -12,6 +12,7 @@ and ``SchedulerDispatchView.post`` (which queues a Celery job).
 import hmac
 
 from django.conf import settings
+from django.http import HttpResponse
 
 _BYTES_PER_KIB = 1024.0  # bytes per kibibyte
 _SECONDS_PER_HOUR = 3600  # 60 * 60
@@ -43,6 +44,13 @@ from .health import (
 from .signal_registry import SIGNALS, validate_signal_contract
 from .signal_health import compute_wave2_signal_health
 from apps.api.query_params import coerce_pagination
+from .accuracy_lab import (
+    accuracy_findings_payload,
+    accuracy_report_markdown,
+    accuracy_summary_payload,
+    accuracy_tools_payload,
+    run_accuracy_audit_now,
+)
 
 
 class DiagnosticsOverviewView(views.APIView):
@@ -136,6 +144,52 @@ class NegativeMemoryDiagnosticsView(views.APIView):
                 ),
             }
         )
+
+
+class AccuracyToolsView(views.APIView):
+    """GET-only view for local Accuracy Lab tool status."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return response.Response(accuracy_tools_payload())
+
+
+class AccuracySummaryView(views.APIView):
+    """GET-only view for the latest Accuracy Lab summary cards."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return response.Response(accuracy_summary_payload())
+
+
+class AccuracyFindingsView(views.APIView):
+    """GET-only view for agent-ready Accuracy Lab findings."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return response.Response(accuracy_findings_payload())
+
+
+class AccuracyReportView(views.APIView):
+    """GET-only view for the latest Markdown Accuracy Lab report."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return HttpResponse(accuracy_report_markdown(), content_type="text/markdown")
+
+
+class AccuracyRunView(views.APIView):
+    """POST-only view that starts one local read-only Accuracy Lab run."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        status_code, payload = run_accuracy_audit_now()
+        return response.Response(payload, status=status_code)
 
 
 _SUPPRESSED_PAIRS_PAGE_SIZE_DEFAULT = 25

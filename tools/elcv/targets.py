@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """ELCV target-lock logic (pure + testable).
 
-A scope marked "locked": true in elcv-scopes.json may be RAISED but never lowered,
-removed, or unlocked, unless the config carries a top-level "unlock": "<reason>". The
-global ceiling is likewise lock-only-up. This is what makes 1B (and 28M / 5M / 2B) a firm,
-agent-proof commitment — no silent down-scoping (the Codex 28M->5M incident).
+A scope marked "locked": true in elcv-scopes.json may have either ruler — the ELCV
+"target" or the raw-lines "loc_target" — RAISED but never lowered, and the scope may
+never be removed or unlocked, unless the config carries a top-level "unlock": "<reason>".
+The global ceiling is likewise lock-only-up. This is what makes the mission (2B lines /
+2B ELCV ceiling, plus 28M / 5M sub-initiatives) a firm, agent-proof commitment — no
+silent down-scoping (the Codex 28M->5M incident).
 
 The git plumbing lives in .githooks/check-elcv-targets.py; this module is the pure
 comparison so it can be unit-tested without git.
@@ -36,6 +38,10 @@ def lock_violations(head: dict, staged: dict) -> list[str]:
         if new.get("target", 0) < definition.get("target", 0):
             out.append(
                 f"locked scope '{name}' target lowered {definition['target']} -> {new.get('target')}")
+        head_loc = definition.get("loc_target")
+        if head_loc and new.get("loc_target", 0) < head_loc:
+            out.append(
+                f"locked scope '{name}' loc_target lowered {head_loc} -> {new.get('loc_target')}")
         if not new.get("locked", False):
             out.append(f"locked scope '{name}' had its lock removed")
     return out

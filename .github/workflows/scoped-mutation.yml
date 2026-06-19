@@ -62,141 +62,25 @@ jobs:
           echo "rust=$(echo "$payload" | jq -c '.rust // []')" >> "$GITHUB_OUTPUT"
           echo "any=$(echo "$payload" | jq -r '.any_mutation_targets')" >> "$GITHUB_OUTPUT"
 
-  angular-mutation:
-    name: Stryker (changed Angular files)
+  bazel-mutation:
+    name: Bazel mutation (changed files)
     needs: detect
-    if: needs.detect.outputs.any == 'true' && needs.detect.outputs.angular != '[]'
+    if: needs.detect.outputs.any == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
-      - name: Install frontend deps
-        working-directory: frontend
-        run: npm ci
-      - name: Run Stryker on changed files only
-        working-directory: frontend
+      - name: Run Bazel mutation target
         env:
           XF_QUALITY_ENV: ci
           XF_CHANGED_ANGULAR: ${{ needs.detect.outputs.angular }}
-        run: |
-          set -e
-          changed=$(echo "$XF_CHANGED_ANGULAR" | jq -r '.[] | sub("^frontend/"; "")' | tr '\n' ' ')
-          echo "Mutating: $changed"
-          # Rewrite stryker.config.json with only the changed targets.
-          python3 -c "
-          import json
-          from pathlib import Path
-          cfg = json.loads(Path('stryker.config.json').read_text())
-          cfg['mutate'] = '''$changed'''.split()
-          Path('/tmp/stryker.changed.config.json').write_text(json.dumps(cfg, indent=2))
-          "
-          # CI: uncapped. Hard-block on score regression.
-          npx stryker run /tmp/stryker.changed.config.json
-
-  python-mutation:
-    name: mutmut (changed Python files)
-    needs: detect
-    if: needs.detect.outputs.any == 'true' && needs.detect.outputs.python != '[]'
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-    steps:
-      - uses: actions/checkout@v5
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install backend deps
-        working-directory: backend
-        run: |
-          pip install -r requirements.txt
-          pip install mutmut pytest pytest-django pytest-randomly
-      - name: Run mutmut on changed files only
-        working-directory: backend
-        env:
-          XF_QUALITY_ENV: ci
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
           XF_CHANGED_PYTHON: ${{ needs.detect.outputs.python }}
-        run: |
-          set -e
-          changed=$(echo "$XF_CHANGED_PYTHON" | jq -r '.[] | sub("^backend/"; "")' | tr '\n' ' ')
-          echo "Mutating: $changed"
-          python - "$changed" <<'PY'
-          from pathlib import Path
-          import sys
-
-          paths = [path for path in sys.argv[1].split() if path]
-          Path("pyproject.toml").write_text(
-              "[tool.mutmut]\n"
-              f"paths_to_mutate = {paths!r}\n"
-              "pytest_add_cli_args = ['-p', 'randomly', '-x', '-q', '--no-cov']\n",
-              encoding="utf-8",
-          )
-          PY
-          # CI: uncapped.
-          mutmut run --max-children 2
-          mutmut export-cicd-stats
-
-  rust-mutation:
-    name: cargo-mutants (changed Rust crates)
-    needs: detect
-    if: needs.detect.outputs.any == 'true' && needs.detect.outputs.rust != '[]'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      # Route via the compiled-tools docker image. It bakes the rustup
-      # stable toolchain (pinned by rust-toolchain.toml) plus cargo-mutants.
-      # Both Rust workspaces
-      # are covered: the new /repo/rust kernel workspace and the existing
-      # services/speccheck workspace. We resolve which workspace(s) the
-      # changed files belong to and run cargo-mutants there. CI runs
-      # uncapped per the XF_QUALITY_ENV=ci gate.
-      - name: Build compiled-tools image
-        run: docker compose build compiled-tools
-      - name: Run scoped cargo-mutants via Docker
-        env:
-          XF_QUALITY_ENV: ci
           XF_CHANGED_RUST: ${{ needs.detect.outputs.rust }}
-        run: |
-          set -e
-          # Map each changed Rust path to its owning workspace root.
-          # rust/**         -> /repo/rust
-          # services/<n>/** -> /repo/services/<n>
-          workspaces=$(echo "$XF_CHANGED_RUST" | jq -r '
-            .[]
-            | if startswith("rust/") then "/repo/rust"
-              elif startswith("services/") then "/repo/services/" + (split("/")[1])
-              else empty end
-          ' | sort -u)
-          if [ -z "$workspaces" ]; then
-            echo "No Rust workspace resolved from changed files; nothing to mutate."
-            exit 0
-          fi
-          for ws in $workspaces; do
-            echo "::group::cargo-mutants in $ws"
-            docker compose run --rm \
-              -e XF_QUALITY_ENV=ci \
-              compiled-tools bash -lc "
-                set -euo pipefail
-                cd '$ws'
-                cargo mutants --no-shuffle --jobs 2
-              "
-            echo "::endgroup::"
-          done
+        run: python scripts/bazel_default.py run //tools/quality:mutation
 
   remote-only-evidence:
     name: Record CI completion evidence
-    needs: [detect, angular-mutation, python-mutation, rust-mutation]
+    needs: [detect, bazel-mutation]
     if: always() && needs.detect.outputs.any == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -204,6 +88,4 @@ jobs:
       - name: Summary
         run: |
           echo "Scoped mutation workflow finished."
-          echo "Angular: ${{ needs.angular-mutation.result }}"
-          echo "Python:  ${{ needs.python-mutation.result }}"
-          echo "Rust:    ${{ needs.rust-mutation.result }}"
+          echo "Bazel mutation: ${{ needs.bazel-mutation.result }}"

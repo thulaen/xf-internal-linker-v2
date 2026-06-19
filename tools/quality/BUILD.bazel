@@ -1,17 +1,32 @@
 sh_binary(
+    name = "tool_readiness",
+    srcs = ["tool_readiness.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
+    name = "pbt",
+    srcs = ["pbt.sh"],
+    visibility = ["//visibility:public"],
+)
+
+sh_binary(
     name = "python",
+    data = ["internal/run-python-quality.sh"],
     srcs = ["python.sh"],
     visibility = ["//visibility:public"],
 )
 
 sh_binary(
     name = "frontend",
+    data = ["internal/run-angular-quality.sh"],
     srcs = ["frontend.sh"],
     visibility = ["//visibility:public"],
 )
 
 sh_binary(
     name = "rust",
+    data = ["internal/run-rust-quality.sh"],
     srcs = ["rust.sh"],
     visibility = ["//visibility:public"],
 )
@@ -65,33 +80,48 @@ sh_binary(
 )
 
 sh_test(
+    name = "tool_readiness_test",
+    srcs = ["tool_readiness.sh"],
+    tags = ["local", "affected-default"],
+)
+
+sh_test(
+    name = "pbt_test",
+    srcs = ["pbt.sh"],
+    tags = ["local", "manual", "requires-dell", "slow"],
+)
+
+sh_test(
     name = "python_test",
+    data = ["internal/run-python-quality.sh"],
     srcs = ["python.sh"],
-    tags = ["local", "manual", "requires-network"],
+    tags = ["local", "manual", "requires-dell", "requires-network", "slow"],
 )
 
 sh_test(
     name = "frontend_test",
+    data = ["internal/run-angular-quality.sh"],
     srcs = ["frontend.sh"],
-    tags = ["local", "manual", "requires-network"],
+    tags = ["local", "manual", "requires-dell", "requires-network", "slow"],
 )
 
 sh_test(
     name = "rust_test",
+    data = ["internal/run-rust-quality.sh"],
     srcs = ["rust.sh"],
-    tags = ["local", "manual", "requires-network"],
+    tags = ["local", "manual", "requires-dell", "requires-network", "slow"],
 )
 
 sh_test(
     name = "provider_score_backend_test",
     srcs = ["provider_score_backend.sh"],
-    tags = ["local", "manual", "requires-network"],
+    tags = ["local", "manual", "requires-dell", "requires-network", "slow"],
 )
 
 sh_test(
     name = "distributed_dry_run_test",
     srcs = ["distributed_dry_run.sh"],
-    tags = ["local", "manual"],
+    tags = ["local", "manual", "requires-dell"],
 )
 
 sh_test(
@@ -113,9 +143,15 @@ sh_test(
 )
 
 sh_test(
+    name = "mutation_test",
+    srcs = ["mutation.sh"],
+    tags = ["local", "manual", "mutation"],
+)
+
+sh_test(
     name = "affected_targets_test",
     srcs = ["affected_targets.sh"],
-    tags = ["local"],
+    tags = ["local", "affected-default"],
 )
 
 sh_test(
@@ -135,6 +171,7 @@ test_suite(
         ":frontend_test",
         ":msi_docker_free_test",
         ":provider_score_backend_test",
+        ":tool_readiness_test",
         ":python_test",
         ":rust_test",
     ],

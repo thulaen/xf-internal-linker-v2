@@ -48,10 +48,15 @@ reject_text() {
 
 require_text "$LIB_SCRIPT" "function Get-XfStagedSha256"
 require_text "$LIB_SCRIPT" "ssh -o BatchMode=yes"
-require_text "$COPY_SCRIPT" "volume-map.json"
-require_text "$COPY_SCRIPT" "Get-FileHash -Algorithm SHA256"
-require_text "$COPY_SCRIPT" "MaxRetries"
-require_text "$COPY_SCRIPT" "Get-XfStagedSha256"
+if grep -Fq -- "retired" "$COPY_SCRIPT"; then
+  require_text "$COPY_SCRIPT" "Monitoring history copy from MSI Docker volumes is retired"
+  require_text "$COPY_SCRIPT" "observability now runs in Kubernetes"
+else
+  require_text "$COPY_SCRIPT" "volume-map.json"
+  require_text "$COPY_SCRIPT" "Get-FileHash -Algorithm SHA256"
+  require_text "$COPY_SCRIPT" "MaxRetries"
+  require_text "$COPY_SCRIPT" "Get-XfStagedSha256"
+fi
 require_text "$RETIRE_SCRIPT" "-ConfirmGoLiveComplete"
 require_text "$RETIRE_SCRIPT" "Get-XfStagedSha256"
 require_text "$RETIRE_SCRIPT" "retired_kept"

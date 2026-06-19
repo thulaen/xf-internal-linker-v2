@@ -6,8 +6,8 @@ BDD:
   Then it returns rc=1 and a "shard skipped" message (never silently passes)
 
   Given a shard result whose rc is None (thread crashed)
-  When _merge_shard_results() runs
-  Then it re-runs that shard locally before deciding the final return code
+  When _merge_shard_results() runs on MSI
+  Then it fails closed instead of rerunning locally
 """
 
 from __future__ import annotations
@@ -34,10 +34,27 @@ tt = _load()
 
 
 class TestRunShardOnMachine(TestCase):
-    def test_docker_local_dispatches_local(self) -> None:
+    def test_docker_local_refuses_msi_without_diagnostic(self) -> None:
+        with mock.patch.object(tt.sys, "platform", "win32"), mock.patch.dict(
+            tt.os.environ,
+            {"XF_ALLOW_MSI_LOCAL_QUALITY": ""},
+            clear=False,
+        ):
+            tt.os.environ.pop("XF_ALLOW_MSI_LOCAL_QUALITY", None)
+            rc, out = tt._run_shard_on_machine(
+                {"transport": "docker_local", "name": "windows"}, ["a.py"]
+            )
+        self.assertEqual(rc, 1)
+        self.assertIn("MSI is dev-only", out)
+
+    def test_docker_local_dispatches_local_for_diagnostic(self) -> None:
         with mock.patch.object(
             tt, "_run_shard_local", return_value=(0, "ok")
-        ) as local:
+        ) as local, mock.patch.object(tt.sys, "platform", "win32"), mock.patch.dict(
+            tt.os.environ,
+            {"XF_ALLOW_MSI_LOCAL_QUALITY": "1"},
+            clear=False,
+        ):
             rc, out = tt._run_shard_on_machine(
                 {"transport": "docker_local", "name": "windows"}, ["a.py"]
             )
@@ -77,18 +94,26 @@ class TestMergeShardResults(TestCase):
         ]
         self.assertEqual(tt._merge_shard_results(results), 1)
 
-    def test_none_rc_triggers_local_rerun(self) -> None:
+    def test_none_rc_fails_closed_on_msi(self) -> None:
         results = [{"machine": {"name": "w"}, "rc": None, "files": ["a.py"], "cmd": ""}]
-        with mock.patch.object(
-            tt, "_run_shard_local", return_value=(0, "rerun ok")
-        ) as rerun:
+        with mock.patch.object(tt.sys, "platform", "win32"), mock.patch.dict(
+            tt.os.environ,
+            {"XF_ALLOW_MSI_LOCAL_QUALITY": ""},
+            clear=False,
+        ):
+            tt.os.environ.pop("XF_ALLOW_MSI_LOCAL_QUALITY", None)
             final = tt._merge_shard_results(results)
-        rerun.assert_called_once_with(["a.py"], "")
-        self.assertEqual(final, 0)
+        self.assertEqual(final, 1)
 
-    def test_none_rc_rerun_failure_returns_one(self) -> None:
+    def test_none_rc_diagnostic_rerun_failure_returns_one(self) -> None:
         results = [{"machine": {"name": "w"}, "rc": None, "files": ["a.py"], "cmd": ""}]
-        with mock.patch.object(tt, "_run_shard_local", return_value=(1, "rerun bad")):
+        with mock.patch.object(tt, "_run_shard_local", return_value=(1, "rerun bad")), (
+            mock.patch.object(tt.sys, "platform", "win32")
+        ), mock.patch.dict(
+            tt.os.environ,
+            {"XF_ALLOW_MSI_LOCAL_QUALITY": "1"},
+            clear=False,
+        ):
             self.assertEqual(tt._merge_shard_results(results), 1)
 
 

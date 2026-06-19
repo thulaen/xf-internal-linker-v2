@@ -49,7 +49,15 @@ def main():
 
     # Define the core hooks.
     all_hooks = [
-        {"name": "tool-readiness", "cmd": ["sh", "scripts/run-tool-readiness.sh"]},
+        {
+            "name": "tool-readiness",
+            "cmd": [
+                "python",
+                "scripts/bazel_default.py",
+                "run",
+                "//tools/quality:tool_readiness",
+            ],
+        },
         {
             "name": "bazel-python-quality",
             "cmd": ["python", "scripts/bazel_default.py", "run", "//tools/quality:python"],

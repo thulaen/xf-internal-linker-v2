@@ -110,11 +110,11 @@ class GuardWiringTests(unittest.TestCase):
 
     def test_context_runners_validate_their_context_override(self) -> None:
         expectations = {
-            "scripts/run-python-mutation.sh": "$PYTHON_MUTATION_DOCKER_CONTEXT",
+            "tools/quality/internal/run-python-mutation.sh": "$PYTHON_MUTATION_DOCKER_CONTEXT",
             "tools/quality/internal/run-rust-quality.sh": "$RUST_MUTATION_DOCKER_CONTEXT",
-            "scripts/run-rust-mutation.sh": "$RUST_MUTATION_DOCKER_CONTEXT",
+            "tools/quality/internal/run-rust-mutation.sh": "$RUST_MUTATION_DOCKER_CONTEXT",
             "tools/quality/internal/run-angular-quality.sh": "$ANGULAR_DOCKER_CONTEXT",
-            "scripts/run-angular-mutation.sh": "$ANGULAR_DOCKER_CONTEXT",
+            "tools/quality/internal/run-angular-mutation.sh": "$ANGULAR_DOCKER_CONTEXT",
         }
         for rel, var in expectations.items():
             text = self._text(rel)

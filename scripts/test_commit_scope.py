@@ -41,10 +41,36 @@ def test_push_paths_use_upstream_merge_base(monkeypatch) -> None:
     assert ("diff", "--name-only", "--diff-filter=ACM", "abc123..HEAD") in calls
 
 
+def test_push_base_falls_back_to_head_parent(monkeypatch) -> None:
+    outputs = iter(
+        [
+            SimpleNamespace(stdout="", returncode=1),
+            SimpleNamespace(stdout="parent123\n", returncode=0),
+        ]
+    )
+    monkeypatch.setattr(commit_scope, "run_git", lambda _repo, _args: next(outputs))
+
+    assert commit_scope.push_base(Path(".")) == "parent123"
+
+
+def test_push_new_paths_use_push_base(monkeypatch) -> None:
+    monkeypatch.setattr(commit_scope, "push_base", lambda _repo: "base123")
+    monkeypatch.setattr(
+        commit_scope,
+        "run_git",
+        lambda _repo, args: SimpleNamespace(stdout="new.py\n", returncode=0),
+    )
+
+    assert commit_scope.push_new_paths(Path(".")) == ["new.py"]
+
+
 def test_repo_wide_scope_is_limited_to_tooling_and_global_config() -> None:
     """Only repo-wide tool and config changes request a wider check."""
 
-    assert commit_scope.requires_full_repo_scope(["scripts/run-python-quality.sh"]) is True
+    assert commit_scope.requires_full_repo_scope(["scripts/bazel_default.py"]) is True
+    assert commit_scope.requires_full_repo_scope(
+        ["tools/quality/internal/run-python-mutation.sh"]
+    ) is False
     assert commit_scope.requires_full_repo_scope([".githooks/pre-commit"]) is True
     assert commit_scope.requires_full_repo_scope(["services/streamd/internal/state/state.go"]) is False
 

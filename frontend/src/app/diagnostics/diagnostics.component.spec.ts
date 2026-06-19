@@ -13,6 +13,7 @@ import { ScrollAttentionService } from '../core/services/scroll-attention.servic
 import { ConflictListComponent } from './conflict-list/conflict-list.component';
 import { DiagnosticsComponent } from './diagnostics.component';
 import { DiagnosticsService, WeightDiagnosticsResponse, WeightSignal } from './diagnostics.service';
+import { AccuracyLabCardComponent } from './accuracy-lab-card/accuracy-lab-card.component';
 import { ReadinessMatrixComponent } from './readiness-matrix/readiness-matrix.component';
 import { ServiceCardComponent } from './service-card/service-card.component';
 import { SuppressedPairsCardComponent } from './suppressed-pairs-card/suppressed-pairs-card.component';
@@ -20,7 +21,7 @@ import { SuppressedPairsCardComponent } from './suppressed-pairs-card/suppressed
 @Component({
   selector: 'app-service-card',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockServiceCardComponent {
@@ -30,7 +31,7 @@ class MockServiceCardComponent {
 @Component({
   selector: 'app-conflict-list',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockConflictListComponent {
@@ -41,7 +42,7 @@ class MockConflictListComponent {
 @Component({
   selector: 'app-readiness-matrix',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockReadinessMatrixComponent {
@@ -49,9 +50,17 @@ class MockReadinessMatrixComponent {
 }
 
 @Component({
+  selector: 'app-accuracy-lab-card',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: '',
+})
+class MockAccuracyLabCardComponent {}
+
+@Component({
   selector: 'app-suppressed-pairs-card',
   standalone: true,
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
 })
 class MockSuppressedPairsCardComponent {}
@@ -121,13 +130,20 @@ describe('DiagnosticsComponent', () => {
 
     TestBed.overrideComponent(DiagnosticsComponent, {
       remove: {
-        imports: [ServiceCardComponent, ConflictListComponent, ReadinessMatrixComponent, SuppressedPairsCardComponent],
+        imports: [
+          ServiceCardComponent,
+          ConflictListComponent,
+          ReadinessMatrixComponent,
+          AccuracyLabCardComponent,
+          SuppressedPairsCardComponent,
+        ],
       },
       add: {
         imports: [
           MockServiceCardComponent,
           MockConflictListComponent,
           MockReadinessMatrixComponent,
+          MockAccuracyLabCardComponent,
           MockSuppressedPairsCardComponent,
         ],
       },

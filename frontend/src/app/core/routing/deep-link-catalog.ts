@@ -199,6 +199,14 @@ export const DEEP_LINK_CATALOG: readonly DeepLinkEntry[] = [
     searchTerms: ['diagnostics', 'errors', 'pipeline gate', 'runtime'],
   },
   {
+    key: 'diagnostics.accuracy-lab',
+    label: 'Accuracy Lab',
+    subtitle: 'Read-only local accuracy reports for MATLAB and numeric checks.',
+    route: '/diagnostics',
+    scrollTarget: 'accuracy-lab',
+    searchTerms: ['accuracy lab', 'matlab', 'numeric precision', 'ranking parity'],
+  },
+  {
     key: 'observability.main',
     label: 'Observability',
     subtitle: 'Live health of the monitoring and quality stack (metrics, logs, traces).',

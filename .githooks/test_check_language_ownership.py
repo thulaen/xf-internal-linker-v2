@@ -85,6 +85,11 @@ class LanguageOwnershipTests(unittest.TestCase):
         with _TempFile("backend/apps/zz_tmp/services/plain.py", code) as rel:
             self.assertEqual(hook.scan_paths([rel]), [])
 
+    def test_url_routing_names_do_not_trigger_graph_hot_path_rule(self) -> None:
+        code = "from apps.graph.views import PageRankEquityView\nurlpatterns = []\n"
+        with _TempFile("backend/apps/zz_tmp/urls.py", code) as rel:
+            self.assertEqual(hook.scan_paths([rel]), [])
+
     def test_fail_message_has_three_parts(self) -> None:
         with patch.object(hook.sys.stderr, "write") as werr:
             hook._fail(["v: bad"])

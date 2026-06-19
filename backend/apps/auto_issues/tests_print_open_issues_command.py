@@ -44,6 +44,7 @@ class PrintOpenIssuesCommandTests(TestCase):
             title="Same quota root cause",
             canonical_fingerprint="same-root",
             priority_score=90,
+            affected_files=["backend/apps/auto_issues/models.py"],
         )
         duplicate = _make_issue(
             title="Same quota root cause copy",
@@ -56,9 +57,11 @@ class PrintOpenIssuesCommandTests(TestCase):
         call_command("print_open_issues", "--limit", "2", stdout=out)
         text = out.getvalue()
 
+        self.assertIn("| ID | Source | Severity | Title | Files |", text)
         self.assertIn(f"#{first.id}", text)
         self.assertIn(f"#{unique.id}", text)
         self.assertNotIn(f"#{duplicate.id}", text)
+        self.assertIn("backend/apps/auto_issues/models.py", text)
 
     @mock.patch(
         "apps.auto_issues.management.commands.print_open_issues.subprocess.run",
@@ -82,8 +85,29 @@ class PrintOpenIssuesCommandTests(TestCase):
         text = out.getvalue()
 
         self.assertIn(f"#{glitchtip.id}", text)
+        self.assertIn("| ID | Source | Severity | Title | Files |", text)
         self.assertIn("showing top 1", text)
         self.assertNotIn("agent /", text)
+
+    @mock.patch(
+        "apps.auto_issues.management.commands.print_open_issues.subprocess.run",
+        side_effect=FileNotFoundError,
+    )
+    def test_table_rows_escape_pipes_and_clip_long_cells(self, _mock_run) -> None:
+        issue = _make_issue(
+            title="Long title with | pipe " + ("x" * 120),
+            affected_files=["a|b.py", "second.py", "third.py", "fourth.py"],
+        )
+
+        out = StringIO()
+        call_command("print_open_issues", stdout=out)
+        text = out.getvalue()
+
+        self.assertIn(f"| #{issue.id} |", text)
+        self.assertIn("Long title with / pipe", text)
+        self.assertIn("...", text)
+        self.assertIn("a/b.py, second.py, third.py", text)
+        self.assertNotIn("fourth.py", text)
 
     @mock.patch(
         "apps.auto_issues.management.commands.print_open_issues.subprocess.run",

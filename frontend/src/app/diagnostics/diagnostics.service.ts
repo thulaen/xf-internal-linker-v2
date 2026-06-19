@@ -198,6 +198,85 @@ export interface WeightDiagnosticsResponse {
   };
 }
 
+export type AccuracyLabStatus =
+  | 'not_run'
+  | 'running'
+  | 'passed'
+  | 'warning'
+  | 'failed'
+  | 'missing'
+  | 'unknown';
+
+export interface AccuracyLabCheck {
+  id: string;
+  name: string;
+  status: AccuracyLabStatus;
+  message: string;
+  category?: string;
+  summary?: string;
+}
+
+export interface AccuracyLabFinding {
+  id: string;
+  title: string;
+  risk: 'critical' | 'high' | 'medium' | 'low' | 'info' | string;
+  impact: string;
+  evidence: string;
+  affected: string;
+  suggested_action: string;
+}
+
+export interface AccuracyLabSummary {
+  generated_at: string | null;
+  status: AccuracyLabStatus;
+  message: string;
+  summary: {
+    total_findings: number;
+    status: AccuracyLabStatus;
+    risk_counts: Record<string, number>;
+  };
+  checks: AccuracyLabCheck[];
+  sophisticated_checks?: AccuracyLabCheck[];
+}
+
+export interface AccuracyLabTools {
+  generated_at: string | null;
+  tools: {
+    matlab?: {
+      available: boolean;
+      status: AccuracyLabStatus;
+      version: string | null;
+      java?: string | null;
+      desktop?: boolean | null;
+      path?: string | null;
+      message?: string;
+      cleanup_status?: string;
+      runtime_seconds?: number | null;
+      exit_code?: number | null;
+      lingering_pids?: number[];
+      thread_policy?: {
+        min_cores: number;
+        max_threads: number;
+        thread_cap: number | null;
+        core_count: number | null;
+        status: string;
+      };
+    };
+  };
+}
+
+export interface AccuracyLabFindingsResponse {
+  generated_at: string | null;
+  status: AccuracyLabStatus;
+  findings: AccuracyLabFinding[];
+}
+
+export interface AccuracyLabRunResponse {
+  status: AccuracyLabStatus;
+  message: string;
+  report: AccuracyLabSummary | null;
+}
+
 // Phase GT Step 10 — Runtime context snapshot captured with every error row.
 export interface RuntimeContext {
   node_id: string;
@@ -258,6 +337,8 @@ export interface PipelineGate {
   blockers: PipelineGateBlocker[];
 }
 
+export type DiagnosticsActionResponse = Record<string, unknown>;
+
 /** Polish.B — daily NDCG@K readout over the reviewed-Suggestion stream.
  *  Mirrors the Python ``NdcgResult.to_dict`` shape. */
 export interface NdcgEvalResult {
@@ -294,8 +375,8 @@ export class DiagnosticsService {
     );
   }
 
-  refreshServices(): Observable<any> {
-    return this.http.post(`${this.baseUrl}/services/refresh/`, {}).pipe(
+  refreshServices(): Observable<DiagnosticsActionResponse> {
+    return this.http.post<DiagnosticsActionResponse>(`${this.baseUrl}/services/refresh/`, {}).pipe(
       catchError(err => throwError(() => err))
     );
   }
@@ -306,14 +387,14 @@ export class DiagnosticsService {
     );
   }
 
-  detectConflicts(): Observable<any> {
-    return this.http.post(`${this.baseUrl}/conflicts/detect/`, {}).pipe(
+  detectConflicts(): Observable<DiagnosticsActionResponse> {
+    return this.http.post<DiagnosticsActionResponse>(`${this.baseUrl}/conflicts/detect/`, {}).pipe(
       catchError(err => throwError(() => err))
     );
   }
 
-  resolveConflict(id: number): Observable<any> {
-    return this.http.patch(`${this.baseUrl}/conflicts/${id}/`, { resolved: true }).pipe(
+  resolveConflict(id: number): Observable<DiagnosticsActionResponse> {
+    return this.http.patch<DiagnosticsActionResponse>(`${this.baseUrl}/conflicts/${id}/`, { resolved: true }).pipe(
       catchError(err => throwError(() => err))
     );
   }
@@ -343,8 +424,8 @@ export class DiagnosticsService {
     );
   }
 
-  acknowledgeError(id: number): Observable<any> {
-    return this.http.post(`${this.baseUrl}/errors/${id}/acknowledge/`, {}).pipe(
+  acknowledgeError(id: number): Observable<DiagnosticsActionResponse> {
+    return this.http.post<DiagnosticsActionResponse>(`${this.baseUrl}/errors/${id}/acknowledge/`, {}).pipe(
       catchError(err => throwError(() => err))
     );
   }
@@ -381,6 +462,30 @@ export class DiagnosticsService {
     return this.http.get<WeightDiagnosticsResponse>(`${this.baseUrl}/weights/`).pipe(
       catchError(err => throwError(() => err))
     );
+  }
+
+  getAccuracyTools(): Observable<AccuracyLabTools> {
+    return this.http
+      .get<AccuracyLabTools>(`${this.baseUrl}/accuracy/tools/`)
+      .pipe(catchError(err => throwError(() => err)));
+  }
+
+  getAccuracySummary(): Observable<AccuracyLabSummary> {
+    return this.http
+      .get<AccuracyLabSummary>(`${this.baseUrl}/accuracy/summary/`)
+      .pipe(catchError(err => throwError(() => err)));
+  }
+
+  getAccuracyFindings(): Observable<AccuracyLabFindingsResponse> {
+    return this.http
+      .get<AccuracyLabFindingsResponse>(`${this.baseUrl}/accuracy/findings/`)
+      .pipe(catchError(err => throwError(() => err)));
+  }
+
+  runAccuracyLab(): Observable<AccuracyLabRunResponse> {
+    return this.http
+      .post<AccuracyLabRunResponse>(`${this.baseUrl}/accuracy/run/`, {})
+      .pipe(catchError(err => throwError(() => err)));
   }
 
   /**

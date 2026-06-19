@@ -28,10 +28,9 @@ def test_hard_gates_run_before_language_quality() -> None:
         ),
     )
     hard_gates = (
-        "run_hard_gate check-observability-stack python .githooks/check-observability-stack.py",
-        "run_hard_gate check-msi-docker-free python .githooks/check-msi-docker-free.py",
+        "run_timed_hard_gate 3600 check-observability-stack python .githooks/check-observability-stack.py",
+        "run_timed_hard_gate 3600 check-msi-docker-free python .githooks/check-msi-docker-free.py",
         "run_hard_gate check-no-destructive-docker-commands python .githooks/check-no-destructive-docker-commands.py",
-        "run_hard_gate check-rust-mandate python .githooks/check-rust-mandate.py",
         "run_hard_gate check-debug-code python .githooks/check-debug-code.py",
         "run_hard_gate check-junk-files python .githooks/check-junk-files.py",
         "run_hard_gate check-no-cross-language-import python .githooks/check-no-cross-language-import.py",
@@ -47,14 +46,63 @@ def test_hard_gates_collect_failures_before_exiting() -> None:
 
     assert "hard_block_failures=0" in text
     assert "run_hard_gate()" in text
+    assert "scripts/quality_cache.py check-gate" in text
+    assert "scripts/quality_cache.py record-gate" in text
+    assert "run_uncached_hard_gate()" in text
+    assert "run_timed_hard_gate()" in text
     assert 'hard_block_failures=$((hard_block_failures + 1))' in text
     assert '_finish_precommit "$code"' in text
+
+
+def test_prepush_mutation_reuses_passed_gate_scope() -> None:
+    text = _read_script("scripts/prepush-docker.sh")
+
+    assert "scripts/bazel_affected_targets.py --changed --mode push" in text
+    assert "scripts/commit_scope.py paths --mode push" in text
+    assert "SKIP prepush-mutation: no changed files map to the Bazel mutation target." in text
+    assert "scripts/quality_cache.py check-gate" in text
+    assert "--tool gate:prepush-mutation" in text
+    assert "scripts/quality_cache.py record-gate" in text
+    assert "scripts/bazel_default.py run //tools/quality:mutation" in text
+    assert "SKIP prepush-mutation" in text
+
+
+def test_elcv_gate_caches_passed_files_individually() -> None:
+    text = _read_script(".githooks/check-elcv-gate.py")
+
+    assert "QualityCache(REPO)" in text
+    assert 'cache.filter("elcv", subjects)' in text
+    assert 'cache.record("elcv"' in text
+    assert "blocked_paths" in text
 
 
 def test_tool_readiness_runs_before_staged_file_selection() -> None:
     text = _read_script("scripts/precommit-docker.sh")
 
-    assert text.index("bash scripts/run-tool-readiness.sh") < text.index("staged=")
+    assert text.index("//tools/quality:tool_readiness") < text.index("staged=")
+
+
+def test_autoissue_gates_refresh_hourly() -> None:
+    text = _read_script("scripts/precommit-docker.sh")
+
+    for gate in (
+        "check-autoissue-quota",
+        "check-always-on-quota",
+        "check-codeql-autoissues",
+    ):
+        assert f"run_timed_hard_gate 3600 {gate}" in text
+    assert "run_uncached_hard_gate check-autoissue-quota" not in text
+
+
+def test_precommit_uses_bazel_affected_targets_for_language_quality() -> None:
+    text = _read_script("scripts/precommit-docker.sh")
+
+    assert "scripts/bazel_affected_targets.py --changed --mode staged" in text
+    assert "grep -Fx '//tools/quality:python'" in text
+    assert "grep -Fx '//tools/quality:frontend'" in text
+    assert "grep -Fx '//tools/quality:rust'" in text
+    assert "python scripts/bazel_default.py test \"$bazel_test_target\"" in text
+    assert "python scripts/bazel_default.py run //tools/quality:pbt" in text
 
 
 def test_precommit_resolves_python_before_hooks() -> None:
@@ -63,7 +111,7 @@ def test_precommit_resolves_python_before_hooks() -> None:
     assert "_resolve_python_bin()" in text
     assert 'PYTHON_BIN="${PYTHON_BIN:-$(_resolve_python_bin)}"' in text
     assert text.index('PYTHON_BIN="${PYTHON_BIN:-$(_resolve_python_bin)}"') < text.index(
-        "run_hard_gate tool-readiness"
+        "run_timed_hard_gate 3600 tool-readiness"
     )
 
 

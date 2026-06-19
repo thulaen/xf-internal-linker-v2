@@ -17,15 +17,16 @@ if [[ "${XF_BAZEL_INTERNAL:-0}" != "1" ]]; then
 fi
 
 . "$repo_root/scripts/_dell_only_guard.sh"
+. "$repo_root/scripts/quality_cores.sh"
 if ! xf_on_msi_host && [[ "$RUST_MUTATION_DOCKER_CONTEXT" == "dell" ]]; then
   RUST_MUTATION_DOCKER_CONTEXT="__local__"
 fi
 xf_require_remote_context run-rust-quality "$RUST_MUTATION_DOCKER_CONTEXT"
-XF_RUST_MUTATION_JOBS="${XF_RUST_MUTATION_JOBS:-16}"
+XF_RUST_MUTATION_JOBS="${XF_RUST_MUTATION_JOBS:-$(quality_cores cargo-mutants)}"
 
 if [[ "${XF_QUALITY_INNER:-0}" != "1" && ! -f /.dockerenv ]]; then
   cd "$repo_root"
-  rust_mutation_jobs="${XF_RUST_MUTATION_JOBS:-16}"
+  rust_mutation_jobs="${XF_RUST_MUTATION_JOBS:-$(quality_cores cargo-mutants)}"
   host_scope_mode="${COMMIT_SCOPE_MODE:-staged}"
   # QUALITY_RUST_PATHS forces a run on the given paths even when the commit
   # scope has no Rust changes (operator/CI on-demand runs).
@@ -112,7 +113,6 @@ if [[ "${XF_QUALITY_INNER:-0}" != "1" && ! -f /.dockerenv ]]; then
 fi
 
 . "$repo_root/scripts/_quality_concurrency.sh"
-. "$repo_root/scripts/quality_cores.sh"
 . "$repo_root/scripts/mutation_policy.sh"
 . "$repo_root/scripts/_compiler_warnings_lib.sh"
 compiler_warnings_init rust
@@ -144,7 +144,7 @@ fi
 workers="$(quality_cores cargo-test)"
 clippy_workers="$(quality_cores cargo-clippy)"
 fmt_workers="$(quality_cores cargo-fmt)"
-rust_mutation_jobs="${XF_RUST_MUTATION_JOBS:-16}"
+rust_mutation_jobs="${XF_RUST_MUTATION_JOBS:-$(quality_cores cargo-mutants)}"
 quality_warn_low_memory_per_worker cargo-mutants "$rust_mutation_jobs"
 
 # Scope guard: skip entirely when no Rust-relevant files changed.

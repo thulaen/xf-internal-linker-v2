@@ -136,12 +136,15 @@ class Command(BaseCommand):
                     self.style.SUCCESS("[AUTOISSUE QUOTA VERIFIED: docs — no quota required]")
                 )
                 return
-            errors = _hard_total_quota_errors(_resolved_counts(resolved_after), required)
+            counts = _resolved_counts(resolved_after)
+            hard_reqs, cross_reqs = _scaled_requirements(session_type)
+            errors = _hard_quota_errors_scaled(counts, hard_reqs, cross_reqs)
             if errors:
                 raise CommandError("\n".join(errors))
+            actual_resolved = sum(counts.values())
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"[AUTOISSUE QUOTA VERIFIED: {required} resolved]"
+                    f"[AUTOISSUE QUOTA VERIFIED: {actual_resolved} resolved (target: {required})]"
                 )
             )
             return
@@ -245,11 +248,6 @@ def _hard_quota_errors(counts: dict[str, int]) -> list[str]:
     )
 
 
-def _hard_total_quota_errors(counts: dict[str, int], required: int) -> list[str]:
-    resolved = sum(max(0, count) for count in counts.values())
-    if resolved >= required:
-        return []
-    return [f"AutoIssue quota: {resolved} of {required} resolved ({required - resolved} short)"]
 
 
 def _hard_quota_errors_scaled(

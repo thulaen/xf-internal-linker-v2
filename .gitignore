@@ -241,6 +241,7 @@ services/*/report.json
 # Transcript and audit log artefacts (agent session logs — gitignored, not committed)
 audit/resolved_issues_lookup_log.jsonl
 audit/*.jsonl
+audit/accuracy/
 
 # Accidental / disposable scratch artefacts that have crept into the repo root.
 # These are byproducts of tools and malformed commands, never source:

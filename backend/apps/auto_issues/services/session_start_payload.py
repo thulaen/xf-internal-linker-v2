@@ -66,7 +66,9 @@ def extract_autoissue_lines(text: str) -> list[str]:
             continue
         if inside_registry and stripped.startswith("["):
             break
-        if inside_registry and stripped.startswith("#"):
+        if inside_registry and (
+            stripped.startswith("#") or stripped.startswith("|")
+        ):
             lines.append(stripped)
     return lines
 

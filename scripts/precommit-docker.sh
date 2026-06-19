@@ -33,6 +33,7 @@ python() {
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
+export COMMIT_SCOPE_PATHS="${COMMIT_SCOPE_PATHS:-}"
 
 . scripts/quality-evidence-lib.sh
 . scripts/_quality_concurrency.sh
@@ -43,6 +44,9 @@ hooks_ran=0
 findings_filed=0
 hard_block_failures=0
 findings_transcript="$(xf_findings_transcript_path)"
+quota_reset_enabled=0
+quota_failure_recorded=0
+current_hook_name=""
 
 _print_precommit_summary() {
   printf "Pre-commit done. %s hooks ran, %s findings filed, %s hard-block failures.\n" \
@@ -51,8 +55,25 @@ _print_precommit_summary() {
 
 _finish_precommit() {
   local code="$1"
+  if [[ "$code" -ne 0 && "$quota_failure_recorded" -eq 0 ]]; then
+    _record_commit_quota_failure "${current_hook_name:-precommit}" "$code" "pre-commit exited non-zero"
+  fi
   _print_precommit_summary
   exit "$code"
+}
+
+_record_commit_quota_failure() {
+  local hook="$1"
+  local code="$2"
+  local reason="$3"
+  if [[ "$quota_reset_enabled" -ne 1 || "$code" -eq 0 || "$quota_failure_recorded" -eq 1 ]]; then
+    return 0
+  fi
+  python .githooks/commit_quota_state.py record-failure \
+    --hook "$hook" \
+    --code "$code" \
+    --reason "$reason" >/dev/null 2>&1 || true
+  quota_failure_recorded=1
 }
 
 _reset_findings_transcript() {
@@ -217,6 +238,21 @@ _run_gate() {
   local name="$2"
   shift 2
   hooks_ran=$((hooks_ran + 1))
+  current_hook_name="$name"
+
+  local command_text cache_ttl
+  cache_ttl="${XF_GATE_CACHE_TTL_SECONDS:-1209600}"
+  command_text="$(printf "%q " "$@")"
+  if [[ "$cache_ttl" != "0" ]]; then
+    if python scripts/quality_cache.py check-gate \
+      --tool "gate:${name}" \
+      --paths-env COMMIT_SCOPE_PATHS \
+      --command-text "$command_text" \
+      --ttl-seconds "$cache_ttl" >/dev/null 2>&1; then
+      printf "SKIP %s: passed previously for the current changed-file scope.\n" "$name" >&2
+      return 0
+    fi
+  fi
 
   local output_file
   local code
@@ -232,6 +268,12 @@ _run_gate() {
   _collect_finding_ids "$output_file"
 
   if [[ "$code" -eq 0 ]]; then
+    if [[ "$cache_ttl" != "0" ]]; then
+      python scripts/quality_cache.py record-gate \
+        --tool "gate:${name}" \
+        --paths-env COMMIT_SCOPE_PATHS \
+        --command-text "$command_text" >/dev/null 2>&1 || true
+    fi
     rm -f "$output_file"
     return 0
   fi
@@ -242,12 +284,23 @@ _run_gate() {
 
   hard_block_failures=$((hard_block_failures + 1))
   _print_blocked_marker "$name" "$output_file"
+  _record_commit_quota_failure "$name" "$code" "$(_commit_blocker_reason "$output_file")"
   rm -f "$output_file"
   _finish_precommit "$code"
 }
 
 run_hard_gate() {
   _run_gate hard "$@"
+}
+
+run_uncached_hard_gate() {
+  XF_GATE_CACHE_TTL_SECONDS=0 _run_gate hard "$@"
+}
+
+run_timed_hard_gate() {
+  local ttl_seconds="$1"
+  shift
+  XF_GATE_CACHE_TTL_SECONDS="$ttl_seconds" _run_gate hard "$@"
 }
 
 run_soft_gate() {
@@ -260,22 +313,24 @@ _run_deep_link_check() {
 
 _reset_findings_transcript
 
-run_hard_gate tool-readiness bash scripts/run-tool-readiness.sh
+run_timed_hard_gate 3600 tool-readiness python scripts/bazel_default.py run //tools/quality:tool_readiness
 
 # 2026-05-23 — Phase L: ABSOLUTE Observability-Always-On rule.  Stopping
 # any observability or quality container to dodge a hook is forbidden.
 # Spec: docs/specs/fr-observability-always-on-and-no-deferral.md.
-run_hard_gate check-observability-stack python .githooks/check-observability-stack.py
+run_uncached_hard_gate check-observability-stack python .githooks/check-observability-stack.py
 # After confirming the stack is running, confirm the pipeline is feeding
 # AutoIssues. Silent sources warn; only an unreachable backend blocks.
-run_hard_gate check-observability-pipeline python .githooks/check-observability-pipeline.py
-run_hard_gate check-msi-docker-free python .githooks/check-msi-docker-free.py
+run_uncached_hard_gate check-observability-pipeline python .githooks/check-observability-pipeline.py
+run_timed_hard_gate 3600 check-msi-docker-free python .githooks/check-msi-docker-free.py
 
 staged="$(python scripts/commit_scope.py paths --mode staged || true)"
+export COMMIT_SCOPE_PATHS="$staged"
 if [[ -z "$staged" ]]; then
   echo "No staged files found." >&2
   _finish_precommit 0
 fi
+quota_reset_enabled=1
 
 # 2026-05-23 — Phase L: ABSOLUTE No-Deferral rule.  Forbidden phrases in
 # the staged AGENT-HANDOFF diff + bare deferral-marker tokens in
@@ -293,7 +348,6 @@ run_hard_gate verify-deep-links _run_deep_link_check
 # AutoIssue #295 (CRITICAL: chain revert dropped TDD-pipeline enforcement).
 run_hard_gate check-no-destructive-docker-commands python .githooks/check-no-destructive-docker-commands.py
 run_hard_gate check-mint-first-build python .githooks/check-mint-first-build.py
-run_hard_gate check-rust-mandate python .githooks/check-rust-mandate.py
 # 2026-05-18 user directive — commit-failure lookup. Refuses any commit that
 # has no audit log entry in audit/commit_failures_lookup_log.jsonl under the
 # current task_id. Run `manage.py search_commit_failures` once per task.
@@ -305,12 +359,12 @@ run_hard_gate check-rust-mandate python .githooks/check-rust-mandate.py
 # 2026-05-23 — Phase K.3: Settled-Spec Window (14 days). Edits to
 # settled docs/specs/*.md need a documented reopen marker (user
 # request, citation drift, or KPI drift).
-run_hard_gate check-autoissue-quota python .githooks/check-autoissue-quota.py
+run_uncached_hard_gate check-autoissue-quota python .githooks/check-autoissue-quota.py
 # Always-on, drought-aware per-source quotas (pgexporter health and Rust
 # compiler warnings). Blocks while a source has >= threshold open
 # findings unless threshold were resolved this session; 0 open never blocks.
-run_hard_gate check-always-on-quota python .githooks/check-always-on-quota.py
-run_hard_gate check-codeql-autoissues python .githooks/check-codeql-autoissues.py
+run_timed_hard_gate 3600 check-always-on-quota python .githooks/check-always-on-quota.py
+run_timed_hard_gate 3600 check-codeql-autoissues python .githooks/check-codeql-autoissues.py
 run_hard_gate check-debug-code python .githooks/check-debug-code.py
 run_hard_gate check-junk-files python .githooks/check-junk-files.py
 # ELCV quality gate: hard-blocks NEW code-quality violations in staged Python files
@@ -319,18 +373,9 @@ run_hard_gate check-elcv-gate python .githooks/check-elcv-gate.py
 # ELCV target lock: locked targets (1B atlas / 28M ranklab / 5M aegis / 2B ceiling) may be
 # raised but never lowered/removed without a conscious "unlock" override. Anti-clash.
 run_hard_gate check-elcv-targets python .githooks/check-elcv-targets.py
-# Slice 1.5 — Go services tier boundary + contract enforcement.
-run_hard_gate check-no-cross-language-import python .githooks/check-no-cross-language-import.py
-# Wrong-language IMPLEMENTATIONS (distinct from the import boundary above):
-# MinHash/LSH in Python (belongs in C++), HTTP servers in Python (belongs in
-# Go), domain-invariant classifiers in Python services (belongs in Haskell),
-# Postgres-owning Go services (belongs in Django).
+# Wrong-language IMPLEMENTATIONS: hot-path MinHash/LSH/SimHash in Python
+# instead of the Rust papertrail_dedup extension.
 run_hard_gate check-language-ownership python .githooks/check-language-ownership.py
-# Rules J + L (2026-05-16) — C++ kernel lifecycle invariant + stubs only
-# move when the contract moves. Both fire only when relevant paths are in
-# the staged diff so they cost nothing on unrelated commits.
-run_hard_gate check-cpp-lifecycle python .githooks/check-cpp-lifecycle.py
-run_hard_gate check-stubs-not-regenerated python .githooks/check-stubs-not-regenerated.py
 
 if grep -E '^backend/.*\.py$|^scripts/.*\.py$' <<<"$staged" >/dev/null; then
   run_hard_gate check-mutable-defaults python .githooks/check-mutable-defaults.py
@@ -366,17 +411,32 @@ fi
 # these gates with XF_QUALITY_ENV=ci so they remain authoritative for
 # pull requests and main-branch pushes.
 
-if grep -E '^frontend/.*\.(ts|html|scss)$' <<<"$staged" >/dev/null; then
+affected_bazel_targets="$(python scripts/bazel_affected_targets.py --changed --mode staged || true)"
+
+if grep -Fx '//tools/quality:frontend' <<<"$affected_bazel_targets" >/dev/null; then
   run_soft_gate bazel-frontend-quality python scripts/bazel_default.py run //tools/quality:frontend
 fi
 
-if grep -E '^backend/.*\.py$' <<<"$staged" >/dev/null; then
+if grep -Fx '//tools/quality:python' <<<"$affected_bazel_targets" >/dev/null; then
   # Python quality always stays HARD because pytest + ruff are part of
   # the strict-TDD discipline and are fast (<2 min for focused tests).
   run_hard_gate bazel-python-quality python scripts/bazel_default.py run //tools/quality:python
 fi
 
-run_hard_gate bazel-rust-quality python scripts/bazel_default.py run //tools/quality:rust
+if grep -Fx '//tools/quality:rust' <<<"$affected_bazel_targets" >/dev/null; then
+  run_hard_gate bazel-rust-quality python scripts/bazel_default.py run //tools/quality:rust
+fi
+
+while IFS= read -r bazel_test_target; do
+  [[ -n "$bazel_test_target" ]] || continue
+  case "$bazel_test_target" in
+    //tools/quality:python|//tools/quality:frontend|//tools/quality:rust) continue ;;
+    //tools/quality:*_test)
+      gate_name="bazel-${bazel_test_target##*:}"
+      run_hard_gate "$gate_name" python scripts/bazel_default.py test "$bazel_test_target"
+      ;;
+  esac
+done <<< "$affected_bazel_targets"
 
 # Property-based testing (Hypothesis + proptest), scoped to changed Python/Rust
 # files. HARD-BLOCK. Runs AFTER the unit-test gates above so it reuses the trees
@@ -384,7 +444,9 @@ run_hard_gate bazel-rust-quality python scripts/bazel_default.py run //tools/qua
 # overlays the changed files. Shares a single 5-minute wall-clock budget. It
 # self-skips when no changed file has a property-test scope. Mutation testing is
 # the separate pre-push lane, so the two never run together.
-run_hard_gate run-pbt bash scripts/run-pbt.sh
+if grep -E '^backend/.*\.py$|^rust/|^services/speccheck/|Cargo\.(toml|lock)$' <<<"$staged" >/dev/null; then
+  run_hard_gate run-pbt python scripts/bazel_default.py run //tools/quality:pbt
+fi
 
 # Task-completion reports run outside the commit hook. The commit hook keeps
 # only code-correctness checks and hard project-health checks.

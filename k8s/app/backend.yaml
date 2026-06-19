@@ -29,8 +29,8 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0   # keep at least one backend serving during a roll
+      maxSurge: 0
+      maxUnavailable: 1   # single Dell node: replace carefully, never add a third backend pod
   selector:
     matchLabels:
       app: backend
@@ -57,7 +57,7 @@ spec:
               echo "[startup] collecting static files..."
               python manage.py collectstatic --noinput
               echo "[startup] launching uvicorn..."
-              exec python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --workers 4
+              exec python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --workers 2
           ports:
             - containerPort: 8000
               name: http
@@ -118,7 +118,7 @@ spec:
               cpu: "250m"
               memory: "768Mi"
             limits:
-              memory: "2Gi"   # serving is light; 2 replicas x 2Gi fits Dell
+              memory: "1Gi"      # serving is light; 2 replicas stay within Dell headroom
           startupProbe:
             tcpSocket:
               port: 8000

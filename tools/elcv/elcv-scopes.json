@@ -1,14 +1,15 @@
 {
-  "_comment": "SINGLE SOURCE OF TRUTH for ELCV targets. NEVER hardcode a target in code or a spec. A scope with \"locked\": true may be RAISED but never lowered, removed, or unlocked, UNLESS this file carries a top-level \"unlock\": \"<reason>\" override (a conscious, reviewed action). Enforced as a hard gate by .githooks/check-elcv-targets.py. Global USO de-duplication runs across the whole codebase, so scopes can never duplicate each other's logic — zero overlap/conflict/bloat is enforced.",
+  "_comment": "SINGLE SOURCE OF TRUTH for size targets. NEVER hardcode a target in code or a spec. Two rulers per scope: 'target' = ELCV (unique-logic units, the honesty number, measured today by tools/elcv); 'loc_target' = raw lines of code (the headline mission size, measured by the Atlas dual-meter line counter once Atlas is built). A scope marked \"locked\": true may have either ruler RAISED but never lowered, and the scope may never be removed or unlocked, UNLESS this file carries a top-level \"unlock\": \"<reason>\" override (a conscious, reviewed action). Enforced as a hard gate by .githooks/check-elcv-targets.py. Global USO de-duplication runs across the whole codebase, so scopes can never duplicate each other's logic — zero overlap/conflict/bloat is enforced.",
 
   "global_ceiling": 2000000000,
 
   "scopes": {
     "repo": {
       "target": 2000000000,
+      "loc_target": 2000000000,
       "locked": true,
       "roots": ["backend", "frontend/src", "rust", "tools", "ranklab"],
-      "note": "Whole-repo target = 2,000,000,000 ELCV (the mission goal). Every counted unit is USO-unique across the entire codebase: no duplication, no conflict, no overlap, no vendor code, no bloat. Equals the global ceiling — the whole repo grows into the full 2B of distinct, behaviorally-unique logic."
+      "note": "Whole-repo mission. loc_target = 2,000,000,000 raw LINES OF CODE (the headline goal you reach by building cited, unique features; measured by the Atlas dual-meter line counter once Atlas is built). target = 2,000,000,000 ELCV (the unique-logic honesty ceiling; a 2B-line codebase is only a few hundred million ELCV, so this sits well above the line goal with headroom). Every counted unit is USO-unique across the entire codebase: no duplication, no conflict, no overlap, no vendor code, no bloat."
     },
     "ranklab": {
       "target": 28000000,

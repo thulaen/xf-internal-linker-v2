@@ -26,6 +26,8 @@ from apps.auto_issues.models import AutoIssue
 
 
 _OPEN_STATUSES = (AutoIssue.STATUS_OPEN, AutoIssue.STATUS_PICKED)
+_TITLE_WIDTH = 80
+_FILES_WIDTH = 80
 
 
 class Command(BaseCommand):
@@ -107,12 +109,7 @@ class Command(BaseCommand):
                 f"[REGISTRY READ: {total} open, "
                 f"showing top {len(rows)}]"
             )
-        for r in rows:
-            files = ",".join(r.affected_files[:3]) if r.affected_files else ""
-            file_hint = f" — {files}" if files else ""
-            self.stdout.write(
-                f"  #{r.id} [{r.source}/{r.severity}] {r.title[:80]}{file_hint}"
-            )
+        self._print_issue_table(rows)
 
         # Phase 7: also print the 10 latest failed CI runs so the
         # opening ritual surfaces them before any new work begins.
@@ -125,7 +122,10 @@ class Command(BaseCommand):
 
         # FR-251: emit the guidelines-read marker so the agent acknowledges
         # both the comprehensive coding rules AND the coverage rules.
-        self.stdout.write("[GUIDELINES READ: AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]")
+        self.stdout.write(
+            "[GUIDELINES READ: "
+            "AI-CODING-GUIDELINES.md + docs/CODE-COVERAGE-RULES.md]"
+        )
 
     def _print_ci_failed_runs(self) -> None:
         """Shell out to `gh run list` and print the second marker line.
@@ -219,6 +219,12 @@ class Command(BaseCommand):
                 f"  #{r.id} [agent/{r.severity}] {r.title[:90]}"
             )
 
+    def _print_issue_table(self, rows: list[AutoIssue]) -> None:
+        self.stdout.write("| ID | Source | Severity | Title | Files |")
+        self.stdout.write("| --- | --- | --- | --- | --- |")
+        for row in rows:
+            self.stdout.write(_format_issue_row(row))
+
 
 def _pick_unique_open_issues(
     *,
@@ -250,3 +256,26 @@ def _unique_issue_rows(queryset, limit: int) -> list[AutoIssue]:
 
 def _issue_dedupe_key(issue: AutoIssue) -> str:
     return issue.canonical_fingerprint or f"{issue.source}:{issue.external_id}"
+
+
+def _format_issue_row(issue: AutoIssue) -> str:
+    files = ", ".join(issue.affected_files[:3]) if issue.affected_files else "-"
+    cells = (
+        f"#{issue.id}",
+        issue.source,
+        issue.severity,
+        _clip_cell(issue.title, _TITLE_WIDTH),
+        _clip_cell(files, _FILES_WIDTH),
+    )
+    return "| " + " | ".join(_clean_cell(cell) for cell in cells) + " |"
+
+
+def _clip_cell(value: str, width: int) -> str:
+    cleaned = " ".join(value.split())
+    if len(cleaned) <= width:
+        return cleaned
+    return cleaned[: width - 3] + "..."
+
+
+def _clean_cell(value: str) -> str:
+    return value.replace("|", "/")

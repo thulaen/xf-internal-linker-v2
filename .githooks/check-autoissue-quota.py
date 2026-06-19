@@ -18,6 +18,12 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+HOOK_DIR = Path(__file__).resolve().parent
+if str(HOOK_DIR) not in sys.path:
+    sys.path.insert(0, str(HOOK_DIR))
+
+import commit_quota_state  # noqa: E402
+
 GATE_STATE = REPO_ROOT / "audit" / "session_gate_state.json"
 _VALID_SESSION_TYPES = ("docs", "infrastructure", "reconciliation", "feature")
 
@@ -44,13 +50,18 @@ def _session_type() -> str:
 
 def main() -> int:
     session_type = _session_type()
+    try:
+        cutoff_args = _quota_cutoff_args()
+    except commit_quota_state.QuotaStateError as exc:
+        print(f"FAIL quota: {exc}", file=sys.stderr)
+        return 2
 
     # Hard quota gates — these block the commit.
     for label, command_parts in (
         ("AutoIssue quota", ("verify_autoissue_quota", "--hard",
-                             "--session-type", session_type)),
+                             "--session-type", session_type, *cutoff_args)),
         ("paper-trail quota", ("verify_paper_trail_quota", "--hard",
-                              "--session-type", session_type)),
+                              "--session-type", session_type, *cutoff_args)),
     ):
         code = _run_management_command(label, command_parts)
         if code in {124, 127}:
@@ -60,6 +71,13 @@ def main() -> int:
             print(f"FAIL quota: {label} did not pass.", file=sys.stderr)
             return 2
     return 0
+
+
+def _quota_cutoff_args() -> tuple[str, ...]:
+    cutoff = commit_quota_state.read_cutoff_for_quota()
+    if cutoff is None:
+        return ()
+    return ("--resolved-after", cutoff)
 
 
 def _run_management_command(label: str, command_parts: tuple[str, ...]) -> int:

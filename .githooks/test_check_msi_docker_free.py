@@ -49,3 +49,12 @@ def test_allows_retired_script_text() -> None:
     )
 
     assert findings == []
+
+
+def test_allows_bazel_public_entrypoint_forbidden_list() -> None:
+    findings = hook.scan_text(
+        ".githooks/check-bazel-public-entrypoints.py",
+        '"docker compose build compiled-tools",\n',
+    )
+
+    assert findings == []

@@ -91,7 +91,7 @@ def test_scope_grep_pattern_correctness():
         assert not pattern.search(path), f"Expected scope filter NOT to match {path!r}"
 
 
-MUTATION_SCRIPT = SCRIPTS / "run-rust-mutation.sh"
+MUTATION_SCRIPT = ROOT / "tools" / "quality" / "internal" / "run-rust-mutation.sh"
 
 
 def test_rust_fuzz_is_wired():
@@ -117,12 +117,15 @@ def test_rust_quality_routes_host_runs_to_dell_mutation_image():
     assert "xf-linker-compiled-mutation-tools:latest" in text
 
 
-def test_rust_mutation_defaults_to_sixteen_dell_jobs():
-    """Rust mutation must default to 16 cargo-mutants jobs on Dell."""
+def test_rust_mutation_defaults_to_visible_core_jobs():
+    """Rust mutation must default to the shared visible-core worker count."""
     text = MUTATION_SCRIPT.read_text()
 
-    assert 'XF_RUST_MUTATION_JOBS="${XF_RUST_MUTATION_JOBS:-16}"' in text
-    assert 'rust_mutation_jobs="${XF_RUST_MUTATION_JOBS:-16}"' in text
+    assert ". \"$repo_root/scripts/quality_cores.sh\"" in text
+    assert 'XF_RUST_MUTATION_JOBS="${XF_RUST_MUTATION_JOBS:-$(quality_cores cargo-mutants)}"' in text
+    assert 'rust_mutation_jobs="${XF_RUST_MUTATION_JOBS:-$(quality_cores cargo-mutants)}"' in text
+    assert 'XF_RUST_MUTATION_JOBS="${XF_RUST_MUTATION_JOBS:-16}"' not in text
+    assert 'rust_mutation_jobs="${XF_RUST_MUTATION_JOBS:-16}"' not in text
     assert 'cargo mutants --in-diff "$MUTATION_DIFF_FILE" --jobs "$rust_mutation_jobs"' in text
 
 
@@ -149,6 +152,27 @@ def test_rust_mutation_diff_includes_new_untracked_files():
 
     assert "git ls-files --error-unmatch" in text
     assert "git diff --no-index /dev/null" in text
+
+
+def test_rust_mutation_resolves_python3_when_python_is_missing():
+    """Bazel host runs may have python3 but no python command."""
+    text = MUTATION_SCRIPT.read_text()
+
+    assert 'PY="${PYTHON_CMD:-python}"' in text
+    assert "command -v python3" in text
+    assert 'export PYTHON_CMD="$PY"' in text
+    assert '"$PY" "$repo_root/scripts/commit_scope.py"' in text
+    assert 'exec "$PY" scripts/remote_docker.py' in text
+
+
+def test_rust_mutation_skips_without_git_when_scope_is_empty():
+    """Bazel source copies have no .git folder, so empty Rust scope must skip."""
+    text = MUTATION_SCRIPT.read_text()
+
+    assert '[[ ! -d "$repo_root/.git" ]]' in text
+    assert ': > "$repo_root/.tmp/rust-mutation.diff"' in text
+    assert '[[ -z "$host_rust_paths" && ! -s "$repo_root/.tmp/rust-mutation.diff" ]]' in text
+    assert "skipping Dell sync and Rust mutation run" in text
 
 
 # ── multi-workspace coverage (the new /repo/rust workspace) ───────────────────

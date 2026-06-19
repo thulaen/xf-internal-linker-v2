@@ -13,17 +13,14 @@ tiny edits to the lines you changed (turn a `+` into a `-`, a `True` into a `Fal
 re-runs the tests, and if the tests still pass it means those lines are not really
 tested — the commit is blocked. This check is slow.
 
-Today it runs on the everyday Windows laptop (nicknamed the "MSI"), which has only
-**8 CPU cores**. Mutation testing is CPU-heavy, so on 8 cores the gate can take many
-minutes. Meanwhile there is a second, faster Windows machine on the same home network —
-nicknamed the **"Dell"** (an Intel **i5-13500T**: **14 cores (6 Performance-cores + 8
-Efficient-cores), 20 threads** and ~15.7 GB of RAM) that normally sits
-idle. The goal of this feature is to let the slow mutation gate run on the Dell instead,
-so commits clear faster, without changing the verdict it returns.
-
-This is **opt-in**. You turn it on by setting one environment variable:
-`XF_MUTATION_HOST=dell`. When that variable is not set, nothing changes and the gate runs
-locally exactly as before.
+Before Dell routing, this ran on the everyday Windows laptop (nicknamed the
+"MSI"), which has only **8 CPU cores**. Mutation testing is CPU-heavy, so on 8
+cores the gate can take many minutes. The repo now treats MSI as an editing and
+control machine only. Normal Bazel quality work, mutation, lint, coverage, Rust
+builds, and image checks run on the **Dell** helper, an Intel **i5-13500T** with
+**14 cores (6 Performance-cores + 8 Efficient-cores), 20 threads** and ~15.7 GB
+of RAM. If Dell is unavailable, the gate fails with a Dell recovery message
+instead of running locally on MSI.
 
 ## Sources of truth
 
@@ -92,7 +89,7 @@ argument containing spaces so `cmd.exe` and Docker keep them whole.
 
 ### 4. `--reuse-db` — the root-cause fix for false survivors
 
-This is the most important correctness fix and lives in `.githooks/_mutmut_diff_scope.py`,
+This is the most important correctness fix and now lives behind the Bazel mutation target,
 in both the coverage command and the real mutation runner command. The flag is
 `--reuse-db`.
 
@@ -140,24 +137,25 @@ A clean run prints the usual `[SCOPED MUTATION: diff-mode, 0 surviving mutants o
 lines, files=N]` line. A real surviving mutant on a changed line prints the `LIVE
 <path>:<line> (mutant ...)` detail and exits non-zero, exactly as the local run does.
 
-## Why it is safe and why it is not the default
+## Why it is safe as the default
 
 - **Safe:** mutation only gives a correct answer when it runs against the exact staged
   source. The tar source-snapshot sync provides precisely that snapshot before every run,
   and the Dell's copy is disposable and re-synced each time, so there is no risk of a stale
   or partial checkout silently changing the verdict.
-- **Not default (yet):** remote mutation has historically produced wrong results when a
-  copy was partial, so this path stays **opt-in** behind `XF_MUTATION_HOST=dell` until it
-  has been proven correct across more commits. Until then the local Windows run remains the
-  default, and turning the Dell on is a deliberate, reversible choice.
+- **Default now:** MSI is dev-only. If Dell cannot accept SSH and run Docker-backed
+  quality work, the correct result is a blocked quality gate with the Dell recovery
+  step, not a local MSI run.
 
-## Weighted three-machine turbo split
+## Dell-only quality split
 
 The single hard-gate (`check-scoped-mutation.py`) above runs on ONE machine at a time.
-Separately, the **turbo coordinator** (`scripts/turbo_mutation.py`, activated by
-`XF_TURBO_MUTATION=1`) fans the slow compiled-language mutation work (C++, Go, Rust,
-Haskell) out across **all three machines in parallel by weight**, so the wall-clock time
-drops. This section is the source of truth for that weighted split.
+Separately, the mutation sweep now runs through the **Bazel mutation target**
+(`//tools/quality:mutation`, activated by `XF_TURBO_MUTATION=1`). The current
+policy is Dell-only for required quality work: Windows/MSI has 0% share and is
+not a fallback machine. Optional helpers may be added only when their runner
+marks them optional and idle; they never replace Dell as the required quality
+helper.
 
 ### Sources of truth (this section)
 
@@ -167,39 +165,31 @@ drops. This section is the source of truth for that weighted split.
   to the number of targets, with no target dropped or double-assigned.
 - The mutmt / pytest-django / OpenSSH sources above still apply to the SSH transport.
 
-### The three machines and their weights
+### The machines and their weights
 
 The weights live in `config/mutation-routing.json` under an ordered `machines` array.
 Each entry is a plain-English record:
 
 ```
 "machines": [
-  { "name": "dell",    "transport": "docker_context", "context": "dell", "weight": 0.70, "max_weight": 0.85 },
-  { "name": "windows", "transport": "docker_local",                      "weight": 0.20, "max_weight": 1.0 },
-  { "name": "mint",    "transport": "docker_context", "context": "mint", "weight": 0.10, "max_weight": 1.0 }
+  { "name": "dell", "transport": "docker_context", "context": "dell", "weight": 1.0, "max_weight": 1.0 }
 ]
 ```
 
 - **name** — a stable label used as the report-file suffix and the log tag.
-- **transport** — one of three literal strings: `docker_local` (run `docker compose exec`
-  on this box = the everyday MSI/Windows laptop), `docker_context` (run
-  `docker --context <context> compose exec` = the Dell and the Mint helper, each addressed by
-  its own `context`), or `ssh` (tar-sync the source to the box then `ssh <host> ... docker
-  compose run --rm --no-deps ...` — the legacy single-Dell transport, kept for the opt-in
-  `XF_MUTATION_HOST=dell` path).
+- **transport** — `docker_context` for normal quality work on Dell, or `ssh` for the
+  legacy single-Dell path that tar-syncs the source to the box then runs
+  `ssh <host> ... docker compose run --rm --no-deps ...`. `docker_local` is not a
+  normal MSI quality transport.
 - **weight** — the machine's relative share. The three need **not** pre-sum to 1.0; the
   selector renormalises whatever machines actually answer.
-- **max_weight** — a **ceiling** applied before renormalising. The Dell is capped at `0.85`,
-  so 85 % is a *maximum*, never an exact target. The other two have `1.0` (no cap). The Dell
-  carries the heaviest base share (`0.70`) because it is the fastest box — an Intel i5-13500T
-  with 14 cores (6 P-cores + 8 E-cores) / 20 threads.
-- **context** is required only for `docker_context` (the Dell uses context `dell`, the Mint
-  helper uses context `mint`); **ssh_host** only for the legacy `ssh` transport.
+- **max_weight** — a **ceiling** applied before renormalising. Dell is currently 1.0
+  because it is the required quality helper.
+- **context** is required for `docker_context`; Dell uses context `dell`.
 
-The legacy `split{ local_pct, remote_pct, remote_context }` block is **kept** alongside the
-new `machines` array. The loader prefers `machines` when present and falls back to the old
-block otherwise, so a config in today's mint-only shape keeps working as the same 65/35
-two-way split with zero migration.
+The legacy `split{ local_pct, remote_pct, remote_context }` block is kept only so older
+config shapes still parse. The loader now converts that legacy shape into one remote
+`docker_context` helper. It does not create a Windows/MSI shard.
 
 ### Hamilton (largest-remainder) target split
 
@@ -212,39 +202,24 @@ one-slot-per-machine placeholder for the workspace-wide Go/Rust/Haskell tools) l
    target to the first `leftover` machines.
 3. Slice the targets into contiguous, disjoint blocks by the final per-machine counts.
 
-The counts therefore sum **exactly** to the number of targets. Worked example: 9 C++
-binaries at shares 0.70 / 0.20 / 0.10 → raw 6.3 / 1.8 / 0.9 → floors 6 / 1 / 0 (sum 7),
-leftover 2 goes to the two largest remainders (mint 0.9, windows 0.8) → final
-**dell 6 / windows 2 / mint 1 = 9**. With fewer targets than machines (1 target across 3),
-the single target lands on the largest-share machine (dell) and the other two get empty
-slices and are skipped at dispatch.
+The counts therefore sum **exactly** to the number of targets. With only Dell configured,
+all targets land on Dell. If a future optional remote helper is added, the same math can
+split between remote helpers, but MSI still gets 0 targets.
 
-### Fail-open: a powered-off machine never blocks
+### Fail-closed: Dell being down blocks quality
 
-The Dell (or any machine) can be switched off. All reachability + ceiling + renormalise
+The Dell can be switched off. All reachability + ceiling + renormalise
 logic lives in one place, `_select_machines(cfg, probe)`:
 
 1. **Probe each machine once, up front.** The probe is bounded so a dead box never hangs:
    `docker info` (15 s) for the docker transports, `ssh -o BatchMode=yes -o ConnectTimeout=8
    <host> true` (10 s) for the SSH transport. It never raises.
-2. **Drop every unreachable machine before any work is partitioned.** This is fail-**open**:
-   a dead box's targets are reassigned to the machines that answer, never sent to a box that
-   cannot run them.
-3. **Clamp each survivor to its `max_weight`** (Dell to 0.85), then **renormalise** the
+2. **Required remotes fail closed.** Dell work is not reassigned to MSI.
+3. **Clamp each survivor to its `max_weight`** (Dell to 1.0), then **renormalise** the
    survivors to sum to 1.0, then **re-apply the ceiling** in a short bounded loop so the cap
    holds even after renormalisation pushes an uncapped machine up.
-4. If only one machine answers it gets share 1.0; if **none** answer, fall back to a single
-   synthetic Windows/`docker_local` machine at share 1.0 so the run still happens locally.
-
-Worked redistribution examples (all asserted by unit tests in
-`scripts/test_turbo_mutation.py`):
-
-| Reachable | Resulting shares |
-|---|---|
-| dell + windows + mint | dell 0.70, windows 0.20, mint 0.10 |
-| windows + mint (Dell OFF) | windows 0.667, mint 0.333 (Dell's 70 % redistributed) |
-| dell + windows (Mint OFF) | dell **0.78**, windows 0.22 — 0.78 < the 0.85 ceiling, so NO clamp |
-| windows only (Dell + Mint OFF) | windows 1.0 — identical to today's local-only run |
+4. If no required quality machine answers, the quality command exits non-zero and tells the
+   user to fix Dell.
 
 ### Why SSH-tar for the Dell, not a new docker context
 
@@ -257,16 +232,15 @@ the logic), then `ssh <host> "set DOCKER_CONFIG=<clean dir> && docker compose ru
 --no-deps -T <container> bash -lc <cmd>"`. The ephemeral `compose run --rm` needs no
 long-lived container on the Dell.
 
-### Python and TypeScript stay Windows-only
+### Python and TypeScript are also routed through Bazel
 
-The per-language `split: true|false` flags are unchanged. `python` and `typescript` keep
-`split: false`: their containers exist only on Windows, so fanning them out would copy a
-partial source tree to another box and report **false survivors**. A `split: false` language
-always collapses to the single `docker_local` machine regardless of the `machines` array.
+The public Python and TypeScript quality entry points are Bazel targets. On MSI,
+`scripts/bazel_default.py` sends those targets to Dell by default. Local MSI execution is
+only allowed for an explicit diagnostic override such as `XF_BAZEL_FORCE_LOCAL=1`.
 
 ### One-time setup to enrol the Dell in the turbo split
 
-The operator runs these by hand once (the turbo coordinator never runs live Docker/SSH
+The operator runs these by hand once (the Bazel mutation target never runs live Docker/SSH
 setup itself):
 
 1. Confirm the SSH alias `dell` in `~/.ssh/config` works:
@@ -288,22 +262,21 @@ because the SSH transport uses ephemeral `compose run --rm`, not `compose exec`.
 > Note: a `docker context create dell ...` is deliberately **not** used (see "Why SSH-tar"
 > above). The one-time enrolment is the five steps listed here, not a context creation.
 
-## Per-commit gate three-machine weighted split (XF_MUTATION_SPLIT=1, conservative local-recover model)
+## Per-commit gate remote split (XF_MUTATION_SPLIT=1, fail-closed model)
 
 The everyday **per-commit** scoped-mutation gate above ran on **one** machine and took
-about 35 minutes on the 8-core MSI for a large multi-file commit. This section adds an
-opt-in mode that fans the SAME gate across all three machines in parallel by weight, the
-same way the turbo SWEEP already does — but with a stricter correctness model because this
-is a hard gate hit on every commit. It is turned on with the environment variable
-`XF_MUTATION_SPLIT=1`; with the variable unset the gate behaves exactly as before.
+about 35 minutes on the 8-core MSI for a large multi-file commit. This section keeps the
+remote split design but updates the ownership rule: MSI is not a normal quality runner,
+and required Dell failures stop the gate. The split is turned on with the environment
+variable `XF_MUTATION_SPLIT=1`; normal public entry points go through Bazel.
 
-This split reuses the *same* selector and partitioner the turbo sweep uses. They were
+This split reuses the shared selector and partitioner the Bazel quality paths use. They were
 moved into a new tiny module, `scripts/machine_routing.py`
 (`_select_machines`, `_partition_weighted`, `_renormalise_with_ceilings`,
 `_local_machine`, `_dispatch_to_machines`), which has zero Django imports and does not
-import either caller, so both `scripts/turbo_mutation.py` and
+import either caller, so both the private Bazel mutation coordinator and
 `.githooks/check-scoped-mutation.py` load that one copy of the weighting math. Cross-reference
-the "Weighted three-machine turbo split" section above — the apportionment is identical and
+the "Dell-only quality split" section above — the apportionment is identical and
 is still covered by Balinski & Young (Hamilton / largest-remainder), so no new citation is
 introduced.
 
@@ -312,18 +285,18 @@ introduced.
 The unit of work is the **staged source files** (already capped at 15 files). Each file is a
 self-contained work item: it carries its own changed-line token (`path:line,line` or
 `path:ALL`) and its own naming-convention test file, so a file's mutants can only die to its
-own test on whichever machine owns it. `_partition_weighted` hands Dell about 70 % of the
-files (capped at 85 %), Windows about 20 %, and Mint about 10 %, as **disjoint** contiguous
-slices that sum to the file count exactly once — so total work across the fleet is the staged
-file set exactly once, never doubled. Cost is approximated by file count, not CPU-time, so a
-1-2 file commit lands entirely on one machine or collapses to local; the win is on the large
-multi-file commits that caused the 35-minute pain.
+own test on whichever machine owns it. `_partition_weighted` hands all required work to
+Dell unless a future optional remote helper is both enabled and selected. The resulting
+**disjoint** contiguous slices sum to the file count exactly once — so total work is the staged
+file set exactly once, never doubled. Cost is approximated by file count, not CPU-time. A
+1-2 file commit lands entirely on Dell unless a future optional remote helper is both
+enabled and selected.
 
 ### The manifest-verified snapshot handshake (closes the "no content-hash verification" gap)
 
-Every REMOTE must PROVE it holds a full, exact copy of the staged source before its result is
-trusted. An unverified remote is treated as poison: its files are re-run locally, never
-trusted. Three layers, strongest last:
+Every remote must prove it holds a full, exact copy of the staged source before its result
+is trusted. An unverified remote is treated as poison: its files fail closed, never fall
+back to MSI, and are never trusted. Three layers, strongest last:
 
 1. **Host manifest.** Before dispatch the host computes `sha256` of each `backend/<rel>` file
    in a remote's slice (`_host_hashes`).
@@ -336,12 +309,12 @@ trusted. Three layers, strongest last:
 3. **Remote manifest handshake.** After the tar lands the host asks the remote to recompute
    `sha256sum` of the same slice paths inside its synced copy (`_verify_snapshot`). The slice
    is trusted only if **every** file's remote hash equals the host hash. A mismatch, a missing
-   file, or a non-zero remote exit means the snapshot is NOT verified, so the slice is re-run
-   locally.
+   file, or a non-zero remote exit means the snapshot is not verified, so the slice fails
+   closed.
 
 As a backstop, the helper's `PHASE_A_NO_MUTANTS` sentinel still fires on every machine: an
-empty enumerated-mutant set means stale/missing source, which fails completion and routes to
-the local re-run too. The manifest handshake is an additional layer on top of the eight
+empty enumerated-mutant set means stale/missing source, which fails completion. The
+manifest handshake is an additional layer on top of the eight
 existing false-pass guards, never a replacement.
 
 > Honest limitation (recorded as future work, not a silent gap): a `compose run --rm`
@@ -352,7 +325,7 @@ existing false-pass guards, never a replacement.
 > those three `compose run` invocations on Mint (a named volume or a host-path extract) is the
 > one piece that needs live-Mint validation before Mint is trusted in production. Until that
 > is validated on the live Mint, leave `XF_MUTATION_SPLIT` unset, or a reachable-but-broken
-> Mint simply degrades to a correct local re-run.
+> Mint simply fails closed instead of falling back to MSI.
 
 ### Merge rule — union of confirmed survivors
 
@@ -363,43 +336,34 @@ reconciliation is possible. A mutant is a confirmed real survivor only if it app
 `LIVE` line from the machine that finally owned that file AND that machine's run completed
 (`_parse_live` saw `DONE` or `NO_CHANGED_MUTANTS`) AND, for a remote, its snapshot verified.
 
-### Two fallback axes, never conflated
+### Failure axes, never conflated
 
-- **Powered-off boxes → fail-OPEN at probe time.** `_select_machines` probes each machine
-  once with bounded budgets, drops every unreachable box BEFORE any file is assigned, clamps
-  Dell to its 0.85 ceiling, and renormalises survivors to 1.0 (falling back to a single local
-  Windows machine if nothing answers). A switched-off box never owns a file and never blocks
-  the commit. Same redistribution table as the turbo section.
-- **Reachable-but-broken boxes → fail-CLOSED then local-recover.** A box that answered the
-  probe but whose run breaks after dispatch (sync failure, manifest mismatch, timeout, or a
-  non-completing helper) is NOT redistributed mid-run and NOT passed silently — its files are
-  re-run on the always-trusted local Windows runner (`_local_run`), whose verdict becomes
-  final for those files. Only if the LOCAL re-run *also* cannot complete does the gate
-  hard-fail. So a transient remote hiccup never blocks a good commit, and a broken remote can
-  never produce a false pass.
+- **Dell down at probe time -> fail closed.** `_select_machines` probes each required
+  quality machine once with bounded budgets. If Dell is unavailable, the command stops and
+  tells the user to fix Dell.
+- **Reachable-but-broken boxes -> fail closed.** A box that answered the probe but whose run
+  breaks after dispatch (sync failure, manifest mismatch, timeout, or a non-completing
+  helper) is not redistributed mid-run and is not passed silently. MSI does not become the
+  recovery runner.
 
 ### How a powered-off or stale-source machine can never cause a false pass
 
-- **Powered off:** dropped at probe time, owns zero files, contributes nothing — its share is
-  redistributed to live machines (or collapses to local). It cannot return a verdict at all.
+- **Powered off:** a required Dell helper stops the gate before it owns any files. It cannot
+  return a verdict at all.
 - **Stale / partial source:** caught three ways — the host-vs-remote `sha256` manifest
   mismatch, the helper's `PHASE_A_NO_MUTANTS` zero-mutant sentinel (non-completion), and the
-  `_parse_live` completion gate. Any of the three marks the slice untrusted, and an untrusted
-  slice is re-judged on the local runner, never treated as zero survivors.
+   `_parse_live` completion gate. Any of the three marks the slice untrusted, and an untrusted
+   slice blocks instead of being treated as zero survivors.
 
 ### Backward compatibility
 
-`_run_mutmut` dispatches in an explicit order so the two existing modes are byte-for-byte
-unchanged: (1) `XF_MUTATION_HOST=dell` → the existing single-Dell `_run_mutmut_on_dell`
-(checked FIRST, so the legacy flag wins even if `XF_MUTATION_SPLIT=1` is also set);
-(2) `XF_MUTATION_SPLIT=1` → the new `_run_mutmut_split`; (3) neither → today's single local
-`backend-quality` run with snapshot/restore. When the split path runs but only Windows is
-reachable, `_select_machines` collapses to the single local machine and the result is
-identical to today's single-machine run. No config change is needed — the gate reads the same
-`machines` array in `config/mutation-routing.json` that the turbo sweep reads.
+`_run_mutmut` dispatches through the Bazel-owned quality path for normal work. The legacy
+single-Dell flag can still be understood by older helpers, but MSI is not the default or
+fallback quality runner. No config change is needed; the gate reads the same `machines`
+array in `config/mutation-routing.json` that the Bazel mutation path reads.
 
 ### Mint prerequisite
 
-Like the Dell, Mint must have Postgres up and the `backend-quality` image present for the
-slice's tests to run; a Mint that lacks a DB trips Phase B errors → non-completion → safe
-local re-run (which has a DB), so it degrades to a correct verdict rather than a wrong one.
+Like Dell, any optional remote helper must have Postgres up and the `backend-quality` image
+present for the slice's tests to run. A helper that lacks this fails closed instead of using
+MSI as a recovery runner.

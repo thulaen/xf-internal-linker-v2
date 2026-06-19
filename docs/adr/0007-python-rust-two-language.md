@@ -37,22 +37,16 @@ under a Python public interface, with no Python fallback to maintain.
 
 ## Decision
 
-The backend is **Python + Rust ONLY**. Concretely:
+The backend is **Python + Rust ONLY** for core logic, with **TypeScript/Angular** for the UI. Concretely:
 
-1. **Rust owns the performance hot-paths.** Rust kernels are exposed to Python through
-   PyO3 and built with maturin. The Rust path is **authoritative** — it is the single
-   source of truth for the result, with **no Python fallback** to keep in parity. C, C++,
-   Go, Haskell, and Lua are **removed** from the backend.
-2. **Capabilities use the lightest proven tool, not a home-grown copycat daemon.** Before
-   writing any new service, reach for infrastructure already running — Redis, Postgres,
-   Celery, VictoriaMetrics — or a proven Python/Rust library (for example PyArrow for
-   columnar data, or a Tantivy/Rust search index for full-text search). The former Go
-   sidecars (`streamd`, `snapshotd`, `coordd`, `clusterd`, and peers) are retired in favour
-   of these existing tools.
-3. **Enforced by tooling.** The guard hook `.githooks/check-removed-languages.py` blocks
-   any commit that re-introduces a removed language, and **SUPERSEDED banners** are placed
-   on the legacy plans (the Go services tier, the per-language gauntlet specs) so no future
-   session resurrects them by accident.
+1. **Python owns orchestration and the web layer.** Django, orchestration, module APIs, models, migrations, admin/operator workflows, management commands, schedules, analytics ingestion, report generation, approved offline ML, GUI backend endpoints, and MCP registration. Python may train candidate ranking profiles offline.
+2. **Rust owns the performance hot-paths and production correctness.** This includes domain invariants, ranking validity, governance decisions, never-zero weights, movement budgets, score validation, search execution, reranking, normalization, missing-value policy, score breakdown validation, helper workers, optional GPU dispatch, artifact validation, and performance-sensitive compute. Rust must validate, activate, promote, roll back, and live-score ranking profiles. Rust kernels are exposed to Python through PyO3 and built with maturin. The Rust path is **authoritative** with **no Python fallback**.
+3. **TypeScript/Angular** owns the browser UI, interaction state, visual workflows, forms, dashboards, and user-facing controls.
+4. **PostgreSQL** owns durable relational storage. **ClickHouse, DuckDB, and Polars** own analytics or offline exploration only.
+5. **Java** is reserved for later JVM-specific needs such as enterprise integrations, JVM libraries, search/index tooling, streaming connectors, or long-running services. It must not replace Python orchestration, Rust correctness, or Angular UI without a concrete reason.
+6. **Capabilities use the lightest proven tool, not a home-grown copycat daemon.** Before writing any new service, reach for infrastructure already running (Redis, Postgres, Celery, VictoriaMetrics) or a proven Python/Rust library.
+7. **No other first-party language owns production behavior.** C, C++, Go, Haskell, and Lua are **removed**.
+8. **Enforced by tooling.** The guard hook `.githooks/check-removed-languages.py` blocks any commit that re-introduces a removed language. The guard hook `.githooks/check-language-ownership.py` ensures Rust-owned domains are not implemented in Python.
 
 ## Alternatives rejected
 

@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Turbo distributed pytest runner — fan-out across Dell 60% / Windows 30% / Mint 10%.
+"""Turbo distributed pytest runner — fan-out to Dell by default.
 
 Activated by ``XF_TURBO_TESTS=1``. Only ``SimpleTestCase`` subclasses are fanned
 out; they carry no database state and are safe to run on a remote Linux context
-without a local Postgres. Tests that require the real database stay on Windows.
+without a local Postgres. MSI does not run a normal quality shard.
 
 Apportionment uses the largest-remainder (Hamilton) method so shard file counts
 sum EXACTLY to the total — never one file left on the floor and never one run
 twice. The ``_partition_weighted`` and ``_dispatch_to_machines`` helpers are
 single-sourced in ``scripts/machine_routing.py`` exactly as the mutation runners
-do; this module only calls them. Any machine that is powered off is dropped
-before shards are assigned and its share redistributes to the survivors
-(fail-open).
+do; this module only calls them. Required remote machines fail closed when they
+are unavailable, so Dell work is never moved to MSI.
 
 Usage::
 
@@ -23,8 +22,7 @@ Citations
 ---------
 * Google Testing Blog (2016): "How Google Runs Tests at Scale"
   https://testing.googleblog.com/2016/03/how-google-runs-tests-at-scale.html
-  — distributed sharding by file, fail-open machine selection, local re-run on
-    remote failure.
+  — distributed sharding by file.
 * Balinski & Young, *Fair Representation* (1982), Hamilton apportionment
   (largest-remainder / Hamilton method): ISBN 978-0815700616.
   — shard counts must sum exactly to the item count; the largest-remainder
@@ -48,6 +46,7 @@ _MAX_SHARD_TIMEOUT = 1800
 _TEST_VOLUME = "xf_test_repo"
 _COMPOSE_NETWORK = "xf-internal-linker-v2_default"
 _QUALITY_IMAGE = "xf-linker-backend-quality:latest"
+_LOCAL_DIAGNOSTIC_ENV = "XF_ALLOW_MSI_LOCAL_QUALITY"
 
 # The ONE tar exclude recipe shared with check-scoped-mutation.py (DRY).
 import sys  # noqa: E402
@@ -132,6 +131,10 @@ def _sync_test_source_to_context(
         "alpine:latest", "sh", "-c", "tar -xf - -C /repo",
     ]
     return _pipe_tar_into(extractor, env, context)
+
+
+def _on_msi_without_local_diagnostic() -> bool:
+    return sys.platform == "win32" and os.environ.get(_LOCAL_DIAGNOSTIC_ENV) != "1"
 
 
 # ── test file discovery ───────────────────────────────────────────────────────
@@ -249,7 +252,7 @@ def _collect_simpletest_files(paths: list[str] | None = None) -> list[str]:
 def _run_shard_local(
     files: list[str], cmd_template: str = ""
 ) -> tuple[int, str]:
-    """Run a pytest shard inside the local Windows quality container.
+    """Run a local pytest shard only for an explicit diagnostic.
 
     ``cmd_template`` is currently unused (reserved for future callers that want
     to override the default pytest invocation); the local runner always uses the
@@ -257,6 +260,12 @@ def _run_shard_local(
     ``exec``) so the shard gets a fresh container with no shared state from
     other concurrent shards.
     """
+    if _on_msi_without_local_diagnostic():
+        return (
+            1,
+            "[TURBO TESTS: MSI is dev-only; local quality shard refused. "
+            f"Set {_LOCAL_DIAGNOSTIC_ENV}=1 only for a local diagnostic.]\n",
+        )
     cmd = [
         "docker", "compose", "run", "--rm", "-T",
         "-w", "/repo/backend",
@@ -331,7 +340,8 @@ def _run_shard_on_machine(
 ) -> tuple[int, str]:
     """Dispatch to the right shard runner based on the machine's transport.
 
-    ``docker_local`` uses the local compose quality container.
+    ``docker_local`` is refused on MSI unless an explicit diagnostic override
+    is set.
     ``docker_context`` syncs source and runs on the remote context.
     Unknown transports return ``(1, "Unknown transport …")`` — they are NOT
     silently re-run locally so the caller knows the machine was skipped.
@@ -359,15 +369,23 @@ def _merge_shard_results(
         ``cmd``      — cmd_template string (present when ``rc`` is ``None``)
 
     Any entry whose ``rc`` is ``None`` (thread crashed before recording a
-    result) is re-run locally — a broken remote must never silently become a
-    pass. Final return code is 1 if any shard returned non-zero or if any local
-    re-run also failed.
+    result) fails closed on MSI. A broken remote must never silently become a
+    local MSI run.
     """
     final_rc = 0
     for entry in results:
         name = entry.get("machine", {}).get("name", "?")
         rc = entry.get("rc")
         if rc is None:
+            if _on_msi_without_local_diagnostic():
+                print(
+                    "[TURBO TESTS: shard for "
+                    + str(name)
+                    + " crashed; MSI local rerun refused]",
+                    file=sys.stderr,
+                )
+                final_rc = 1
+                continue
             files = entry.get("files", [])
             cmd = entry.get("cmd", "")
             rc, _ = _run_shard_local(files, cmd)
@@ -436,8 +454,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Turbo distributed pytest runner "
-            "(Dell up to 60%% / Windows 30%% / Mint 10%%; "
-            "offline machines redistribute). "
+            "(Dell by default; MSI local execution requires "
+            f"{_LOCAL_DIAGNOSTIC_ENV}=1). "
             "Activated by XF_TURBO_TESTS=1."
         )
     )

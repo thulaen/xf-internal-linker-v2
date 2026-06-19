@@ -31,7 +31,12 @@ def test_hook_returns_2_when_either_quota_short(monkeypatch, capsys) -> None:
                 "",
                 "quota: 0 of 10 resolved\n",
             )
-        return subprocess.CompletedProcess(command, 0, "[PAPER TRAIL QUOTA VERIFIED: 10 resolved]\n", "")
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            "[PAPER TRAIL QUOTA VERIFIED: 10 resolved]\n",
+            "",
+        )
 
     monkeypatch.setattr(hook.subprocess, "run", fake_run)
 
@@ -65,6 +70,57 @@ def test_hook_runs_quota_verifiers_in_order(monkeypatch) -> None:
     assert "verify_paper_trail_quota" in seen[1]
 
 
+def test_hook_passes_commit_cutoff_to_both_verifiers(monkeypatch) -> None:
+    hook = _load_hook()
+    seen = []
+    monkeypatch.setattr(
+        hook.commit_quota_state,
+        "read_cutoff_for_quota",
+        lambda: "2026-06-18 12:34",
+    )
+
+    def fake_run(command, **kwargs):
+        seen.append(command)
+        return subprocess.CompletedProcess(command, 0, "ok\n", "")
+
+    monkeypatch.setattr(hook.subprocess, "run", fake_run)
+
+    assert hook.main() == 0
+    assert all("--resolved-after" in command for command in seen)
+    assert all("2026-06-18 12:34" in command for command in seen)
+
+
+def test_missing_commit_cutoff_keeps_first_run_behavior(monkeypatch) -> None:
+    hook = _load_hook()
+    seen = []
+    monkeypatch.setattr(
+        hook.commit_quota_state,
+        "read_cutoff_for_quota",
+        lambda: None,
+    )
+
+    def fake_run(command, **kwargs):
+        seen.append(command)
+        return subprocess.CompletedProcess(command, 0, "ok\n", "")
+
+    monkeypatch.setattr(hook.subprocess, "run", fake_run)
+
+    assert hook.main() == 0
+    assert all("--resolved-after" not in command for command in seen)
+
+
+def test_broken_commit_cutoff_state_fails_closed(monkeypatch, capsys) -> None:
+    hook = _load_hook()
+
+    def fail_cutoff():
+        raise hook.commit_quota_state.QuotaStateError("state bad")
+
+    monkeypatch.setattr(hook.commit_quota_state, "read_cutoff_for_quota", fail_cutoff)
+
+    assert hook.main() == 2
+    assert "state bad" in capsys.readouterr().err
+
+
 def test_docker_down_fails_closed(monkeypatch, capsys) -> None:
     hook = _load_hook()
 
@@ -88,8 +144,11 @@ def test_hook_uses_shared_backend_runner(monkeypatch) -> None:
     monkeypatch.setattr(hook.subprocess, "run", fake_run)
 
     assert hook.main() == 0
-    assert all("scripts\\backend_manage.py" in command[1] or "scripts/backend_manage.py" in command[1]
-               for command in seen)
+    assert all(
+        "scripts\\backend_manage.py" in command[1]
+        or "scripts/backend_manage.py" in command[1]
+        for command in seen
+    )
     assert all("docker" not in command for command in seen)
 
 
@@ -115,7 +174,12 @@ def test_ci_mode_does_not_bypass(monkeypatch) -> None:
     monkeypatch.setenv("XF_QUALITY_ENV", "ci")
 
     def fake_run(command, **kwargs):
-        return subprocess.CompletedProcess(command, 2, "", "paper-trail: 6 of 10 resolved (4 short)\n")
+        return subprocess.CompletedProcess(
+            command,
+            2,
+            "",
+            "paper-trail: 6 of 10 resolved (4 short)\n",
+        )
 
     monkeypatch.setattr(hook.subprocess, "run", fake_run)
 
@@ -126,9 +190,25 @@ def test_pre_commit_enforces_both_quotas() -> None:
     precommit = (REPO_ROOT / "scripts" / "precommit-docker.sh").read_text(encoding="utf-8")
 
     quota_index = precommit.index("python .githooks/check-autoissue-quota.py")
-    quality_index = precommit.index("bash scripts/run-tool-readiness.sh")
+    quality_index = precommit.index("//tools/quality:tool_readiness")
 
     assert quality_index < quota_index
+
+
+def test_pre_commit_records_quota_reset_after_staged_files() -> None:
+    precommit = (REPO_ROOT / "scripts" / "precommit-docker.sh").read_text(encoding="utf-8")
+
+    assert "quota_reset_enabled=1" in precommit
+    assert ".githooks/commit_quota_state.py record-failure" in precommit
+    assert precommit.index("quota_reset_enabled=1") < precommit.index(
+        "run_hard_gate verify-deep-links"
+    )
+
+
+def test_post_commit_records_successful_quota_reset() -> None:
+    postcommit = (REPO_ROOT / ".githooks" / "post-commit").read_text(encoding="utf-8")
+
+    assert ".githooks/commit_quota_state.py record-success --commit" in postcommit
 
 
 # --- 2026-05-29 regression tests: the verifiers expose --session-type, not the

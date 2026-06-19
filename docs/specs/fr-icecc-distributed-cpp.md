@@ -98,7 +98,7 @@ change.  The C++ quality gate never fails because icecc is unavailable.
 | `scripts/run-cpp-tests.sh` | Source helper; pass launcher flags to cmake; raise `--parallel` |
 | `scripts/run-cpp-quality.sh` | Pass `-e ICECC_SCHEDULER` into the Docker container |
 | `scripts/run-mint-quality-shard.sh` | Start `iceccd` + `icecc-scheduler` before quality scripts |
-| `scripts/run-scoped-static-quality.ps1` | Resolve Mint IP; set `ICECC_SCHEDULER`; export to cpp job |
+| `python scripts/bazel_default.py run //tools/quality:mutation` | Resolve the Bazel-owned placement and run the scoped mutation job |
 
 ---
 

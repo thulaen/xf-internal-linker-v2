@@ -14,12 +14,12 @@
 #      fast SSD on Dell or the shared NFS drive on Mint, because each storage tier
 #      has its own cap.
 #
-# Sized from measured live usage (requests ~1.15 CPU / ~4 GiB, memory limits
-# ~16.5 GiB, storage ~3 GiB) with generous headroom so normal rollouts and the
-# future test runners are never rejected; these are runaway ceilings, not tight
-# packing. NOTE: no CPU *limit* is quota'd, because the app pods deliberately run
-# CPU-burstable (they set CPU requests but no CPU limit); quota'ing limits.cpu
-# would force a throttle on them.
+# Sized from measured live usage (requests ~1.15 CPU / ~4 GiB). The memory limit
+# ceiling leaves headroom on Dell but no longer allows the app namespace to
+# promise far more memory than the node can survive during rollouts. NOTE: no CPU
+# *limit* is quota'd, because the app pods deliberately run CPU-burstable (they
+# set CPU requests but no CPU limit); quota'ing limits.cpu would force a throttle
+# on them.
 apiVersion: v1
 kind: LimitRange
 metadata:
@@ -36,7 +36,7 @@ spec:
       default:
         memory: "512Mi"
       max:
-        memory: "8Gi"   # accommodates the 5Gi celery-default ceiling + headroom
+        memory: "4Gi"   # one container can still run heavy jobs, but not own Dell
     - type: PersistentVolumeClaim
       defaultRequest:
         storage: "1Gi"
@@ -56,8 +56,8 @@ spec:
   hard:
     # Compute ceilings (well above the ~1.15 CPU / ~4 GiB requested today).
     requests.cpu: "16"
-    requests.memory: "12Gi"
-    limits.memory: "32Gi"
+    requests.memory: "10Gi"
+    limits.memory: "14Gi"
     # Object-count ceilings.
     pods: "40"
     persistentvolumeclaims: "20"

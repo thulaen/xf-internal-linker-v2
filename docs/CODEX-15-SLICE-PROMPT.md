@@ -67,7 +67,7 @@ exposed to Python via **PyO3 + maturin/cargo**, with **no Python fallback**.
 | Clippy (gate is `-D warnings`, pedantic) | `/usr/bin/bash scripts/dell-rust.sh clippy -p <kernel> --all-targets -- -D warnings` |
 | Format check | `/usr/bin/bash scripts/dell-rust.sh fmt --check` |
 | Whole-workspace test | `/usr/bin/bash scripts/dell-rust.sh test --workspace` |
-| **Rust mutation gate** (≥75% kill) | `python scripts/turbo_mutation.py --language rust` |
+| **Rust mutation gate** (>=75% kill) | `python scripts/bazel_default.py run //tools/quality:mutation` |
 | Rust coverage (ratchet → 95%) | `/usr/bin/bash scripts/run-rust-coverage.sh` is wrapped by the Dell shard; for ad-hoc use `/usr/bin/bash scripts/dell-rust.sh llvm-cov -p <kernel>` |
 | **Python tests on Dell** | `XF_PYTEST_SPLIT=1 python scripts/run_pytest_on_context.py <pytest-args>` (Dell's own `xf_dell_test` Postgres/Redis) |
 | Guard gate: removed languages | `python .githooks/check-removed-languages.py` |
@@ -147,7 +147,7 @@ prove the guards pass: `python .githooks/check-removed-languages.py` and
 
 **(g) Commit through the full gauntlet.** Never `--no-verify`. Each hook prints a three-part FAIL
 (what / why / unblock); fix the root cause and re-run. Auto-iterate until the chain passes. Run the
-**turbo Rust mutation gate on Dell** (`python scripts/turbo_mutation.py --language rust`) and record
+**Bazel mutation gate on Dell** (`python scripts/bazel_default.py run //tools/quality:mutation`) and record
 `turbo=used`.
 
 **(h) Close the handoff entry** with:
@@ -271,7 +271,7 @@ signatures + exceptions present? Is `<k>` in `RUST_EXTENSION_NAMES` and out of `
 - stage **only** this kernel's files (NEVER `git add -A backend/extensions` — it sweeps unrelated
   pre-existing modified `.cpp/.h`). Run the two guard gates (must exit 0).
 
-**7. Mutation gate:** `python scripts/turbo_mutation.py --language rust` → kill rate ≥ 0.75 for the new
+**7. Mutation gate:** `python scripts/bazel_default.py run //tools/quality:mutation` -> kill rate >= 0.75 for the new
 package; kill survivors by strengthening tests.
 
 **8. Commit** through the gauntlet. Repeat for the next kernel in the slice.

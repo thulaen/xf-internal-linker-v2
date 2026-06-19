@@ -24,9 +24,11 @@ test --test_summary=terse
 build:remote-cache-smoke --remote_cache=http://bazel-remote.xf-build.svc.cluster.local:8080
 test:remote-cache-smoke --remote_cache=http://bazel-remote.xf-build.svc.cluster.local:8080
 
-# Dell is the build node (ADR 0010) but it ALSO runs the database + tests + the
-# rehearsal cluster in 15 GB / 20 threads. Cap Bazel so a build never starves
-# them: small JVM heap + leave RAM and several cores for everything else.
+# Dell is the build node (ADR 0010). Bazel should use every visible CPU core;
+# per-tool wrappers own any narrower memory safety controls.
 startup --host_jvm_args=-Xmx2g
 build --local_resources=memory=4096
-build --local_resources=cpu=12
+build --jobs=HOST_CPUS
+build --local_resources=cpu=HOST_CPUS
+test --jobs=HOST_CPUS
+test --local_test_jobs=HOST_CPUS

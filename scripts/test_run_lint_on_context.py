@@ -22,6 +22,7 @@ def _mod():
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    mod.dell_ssh_preflight.ssh_base_command = lambda context: ["ssh", context]
     return mod
 
 
@@ -38,7 +39,9 @@ def test_inner_command_per_tool():
 def test_pylint_is_fully_retired():
     """Given the lint router and quality wrapper, When read, Then pylint is gone (ruff's PLE rules replaced it)."""
     router = (ROOT / "scripts" / "run_lint_on_context.py").read_text(encoding="utf-8")
-    wrapper = (ROOT / "scripts" / "run-python-quality.sh").read_text(encoding="utf-8")
+    wrapper = (
+        ROOT / "tools" / "quality" / "internal" / "run-python-quality.sh"
+    ).read_text(encoding="utf-8")
     assert "pylint" not in router.lower()
     assert "pylint" not in wrapper.lower()
 
@@ -74,8 +77,8 @@ def test_remote_lint_cmd_uses_dell_context_volume_and_image():
     """Given a Dell slice, When building the remote command, Then it targets the dell context."""
     m = _mod()
     cmd = m._remote_lint_cmd("dell", "ruff", ["apps/a.py"])
-    assert cmd[:2] == ["ssh", "dell"]
-    remote = cmd[2]
+    assert cmd[0] == "ssh"
+    remote = cmd[-1]
     assert "docker run --rm" in remote
     assert "xf_lint_repo:/repo" in remote
     assert "DJANGO_SETTINGS_MODULE=config.settings.test" in remote
@@ -91,8 +94,8 @@ def test_remote_lint_cmd_mypy_execs_into_warm_dmypy_daemon():
     """Given a mypy slice, When building the remote command, Then it execs into the warm daemon container."""
     m = _mod()
     cmd = m._remote_lint_cmd("dell", "mypy", ["apps/a.py"])
-    assert cmd[:2] == ["ssh", "dell"]
-    remote = cmd[2]
+    assert cmd[0] == "ssh"
+    remote = cmd[-1]
     assert "docker exec xf-dmypy-daemon" in remote
     assert remote.endswith(
         "dmypy run --timeout 7200 -- --config-file /repo/backend/mypy.ini apps/a.py"
@@ -105,8 +108,8 @@ def test_remote_docker_cmd_quotes_as_one_ssh_command():
     """Given a shell-sensitive Docker command, When building it, Then SSH gets one command."""
     m = _mod()
     cmd = m._remote_docker_cmd("dell", "run", "alpine:latest", "sh", "-c", "echo ok")
-    assert cmd[:2] == ["ssh", "dell"]
-    assert cmd[2] == "docker run alpine:latest sh -c 'echo ok'"
+    assert cmd[0] == "ssh"
+    assert cmd[-1] == "docker run alpine:latest sh -c 'echo ok'"
 
 
 def test_remote_docker_cmd_can_use_direct_local_docker():

@@ -24,7 +24,7 @@ fi
 quality_install_cleanup_trap
 quality_acquire_meta_lock
 quality_acquire_tool_lock python-quality
-wrapper_name="scripts/run-python-quality.sh"
+wrapper_name="tools/quality/internal/run-python-quality.sh"
 MAX_SCOPE_FILES_pytest=50
 
 . scripts/quality-evidence-lib.sh
@@ -71,7 +71,7 @@ if [[ "${#changed_python[@]}" -eq 0 ]]; then
     --check-type normal_test \
     --status passed \
     --tool-name python-quality \
-    --command "bash scripts/run-python-quality.sh" \
+    --command "bash tools/quality/internal/run-python-quality.sh" \
     --summary "No changed backend Python file needed scoped Python quality checks." \
     --failure-fingerprint "python-quality:no-changed-targets"
   exit 0
@@ -85,7 +85,7 @@ coverage_targets="$(
     grep -Ev "/(tests?|migrations)/|(^|/)test.*\.py$|(^|/)tests.*\.py$|_test\.py$" |
     sed "s#^backend/##" | tr -d "\r" | tr "\n" " " || true
 )"
-# Mutation logic has been moved to scripts/run-python-mutation.sh
+# Mutation logic lives in the Bazel-owned mutation target.
 bandit_targets="$(
   printf "%s\n" "${changed_python[@]}" |
     grep -Ev "/(tests?|migrations)/|(^|/)test.*\.py$|(^|/)tests.*\.py$|_test\.py$" |
@@ -145,7 +145,8 @@ pytest_split_done=0
 # them inside the CI container because the CI runner has no Dell docker context.
 # machine_routing is fail-CLOSED: if Dell is unreachable the split raises and
 # this gate hard-fails with a "fix Dell" message instead of silently linting on
-# Windows. Set XF_LINT_SPLIT=0 / XF_PYTEST_SPLIT=0 to force a local-only run.
+# Windows. MSI ignores split-off overrides because it is an editing/control
+# machine only.
 if xf_on_msi_host; then
   # This Windows machine (MSI) never runs quality tools locally — force the
   # Dell splits no matter what XF_QUALITY_ENV / XF_*_SPLIT overrides say.

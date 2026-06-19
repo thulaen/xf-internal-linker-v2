@@ -22,17 +22,19 @@ export MSYS2_ARG_CONV_EXCL="*"
 if [[ -f /.dockerenv ]]; then
   git config --global --add safe.directory /repo 2>/dev/null || true
 fi
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-if [[ -z "$repo_root" ]]; then
-  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-fi
+repo_root="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 cd "$repo_root"
+
+if [[ "${XF_BAZEL_PRIVATE_MUTATION:-0}" != "1" ]]; then
+  echo "Bazel is the required quality path; run python scripts/bazel_default.py run //tools/quality:mutation." >&2
+  exit 2
+fi
 
 . scripts/_quality_concurrency.sh
 quality_install_cleanup_trap
 quality_acquire_meta_lock
 quality_acquire_tool_lock python-mutation
-wrapper_name="scripts/run-python-mutation.sh"
+wrapper_name="tools/quality/internal/run-python-mutation.sh"
 MAX_SCOPE_FILES_pytest=50
 PYTHON_MUTATION_DOCKER_CONTEXT="${PYTHON_MUTATION_DOCKER_CONTEXT:-dell}"
 PYTHON_MUTATION_VOLUME="xf_python_mutation_repo"
@@ -149,7 +151,7 @@ fi
 mutation_targets="$(awk '{print $1}' "$to_run_pairs_file" | sed 's|^backend/||' | tr '\n' ' ')"
 mutation_test_targets="$(awk '{print $2}' "$to_run_pairs_file" | sed 's|^backend/||' | tr '\n' ' ')"
 
-if ! ssh "$PYTHON_MUTATION_DOCKER_CONTEXT" docker info >/dev/null 2>&1; then
+if ! xf_remote_context_reachable "$PYTHON_MUTATION_DOCKER_CONTEXT"; then
   fail_three_part \
     "the Dell docker context is unreachable." \
     "all mutation testing runs on Dell only -- there is no Windows fallback." \
@@ -179,6 +181,8 @@ set +e
   -w /repo/backend \
   -e QUALITY_PYTHON_MUTATION_TARGETS="$mutation_targets" \
   -e QUALITY_PYTHON_MUTATION_TEST_TARGETS="$mutation_test_targets" \
+  -e XF_QUALITY_CORES="${XF_QUALITY_CORES:-}" \
+  -e XF_MUTMUT_CHILDREN="${XF_MUTMUT_CHILDREN:-}" \
   "$PYTHON_MUTATION_IMAGE" bash -lc '
   set -eu
   export XF_TEST_CACHE_ROOT="${XF_TEST_CACHE_ROOT:-/tmp/xf-test-cache}"
@@ -191,7 +195,7 @@ set +e
   if test -z "$mutation_targets"; then
     exit 0
   fi
-  mutmut_children="$(python -c "import os; print(max(2, min(16, os.cpu_count() or 2)))")"
+  mutmut_children="$(python -c "import os; raw=os.environ.get('XF_MUTMUT_CHILDREN') or os.environ.get('XF_QUALITY_CORES'); print(max(1, int(raw) if raw and raw.isdigit() else (os.cpu_count() or 1)))")"
 
   workdir=/tmp/xf-mutmut-scope
   rm -rf "$workdir"

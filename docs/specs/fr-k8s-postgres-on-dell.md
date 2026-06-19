@@ -20,6 +20,10 @@ Given Dell is reachable on the private wired address, when the proof script runs
 then each namespace has a selectorless `postgres` Service and an EndpointSlice
 that points to `10.10.10.92:5432`.
 
+Given Dell reboots, when Postgres starts, then systemd waits until Dell owns
+`10.10.10.92` before starting `postgresql@18-main`. If the private address is
+not ready, Postgres fails visibly instead of starting on localhost only.
+
 ## Rehearsal Boundary
 
 This pass does not stop the current MSI database, change application settings, or

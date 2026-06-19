@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Run tool-readiness
-        run: bash scripts/run-tool-readiness.sh
+        run: python scripts/bazel_default.py run //tools/quality:tool_readiness
       - name: Run Python quality checks
         run: python scripts/bazel_default.py run //tools/quality:python
       - name: Run Angular quality checks
@@ -358,116 +358,26 @@ jobs:
   # fingerprinting.py. Surviving mutants fail the build. Scope expands
   # one module per PR via the AutoIssue ratchet (see #162).
   python-mutmut:
-    name: Python Mutation (mutmut)
+    name: Python Mutation (Bazel)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - name: Install backend deps
-        working-directory: backend
-        run: |
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-      - name: Run mutmut on scoped module
-        working-directory: backend
+      - name: Run Bazel mutation target
         env:
           DJANGO_SETTINGS_MODULE: config.settings.test
           DJANGO_SECRET_KEY: ci-fake-secret-key
-        run: |
-          mkdir -p reports
-          python - <<'PY'
-          from pathlib import Path
-          Path("pyproject.toml").write_text(
-              "[tool.mutmut]\n"
-              "paths_to_mutate = ['apps/auto_issues/services/fingerprinting.py']\n"
-              "pytest_add_cli_args = ['apps/auto_issues', '-p', 'randomly', '-x', '-q', '--no-cov']\n",
-              encoding="utf-8",
-          )
-          PY
-          mutmut run --max-children=2
-          mutmut results
-          # Fail the job if ANY mutant survived.
-          mutmut junitxml > reports/mutmut-fingerprinting.xml
-          grep -q 'failures="0"' reports/mutmut-fingerprinting.xml || (
-            echo "FAIL: surviving mutants found — see report above";
-            cat reports/mutmut-fingerprinting.xml;
-            exit 1
-          )
-      - name: Run mutmut on FR-011 scorer
-        working-directory: backend
-        env:
-          DJANGO_SETTINGS_MODULE: config.settings.test
-          DJANGO_SECRET_KEY: ci-fake-secret-key
-        run: |
-          rm -rf .mutmut-cache
-          python - <<'PY'
-          from pathlib import Path
-          Path("pyproject.toml").write_text(
-              "[tool.mutmut]\n"
-              "paths_to_mutate = ['apps/pipeline/services/field_aware_relevance.py']\n"
-              "pytest_add_cli_args = ['apps/pipeline/tests.py::FieldAwareRelevanceServiceTests', '-p', 'randomly', '-x', '-q', '--no-cov']\n",
-              encoding="utf-8",
-          )
-          PY
-          mutmut run --max-children=2
-          mutmut results
-          mutmut junitxml > reports/mutmut-field-aware-relevance.xml
-          grep -q 'failures="0"' reports/mutmut-field-aware-relevance.xml || (
-            echo "FAIL: surviving Python mutants found in field_aware_relevance.py";
-            cat reports/mutmut-field-aware-relevance.xml;
-            exit 1
-          )
-      - name: Mutation-score ratchet (FR-251 Gap #4)
-        if: always()
-        run: |
-          test -f backend/reports/mutmut-fingerprinting.xml
-          test -f backend/reports/mutmut-field-aware-relevance.xml
-          grep -q 'failures="0"' backend/reports/mutmut-fingerprinting.xml
-          grep -q 'failures="0"' backend/reports/mutmut-field-aware-relevance.xml
-      - name: Upload mutmut report
-        if: always()
-        uses: actions/upload-artifact@v5
-        with:
-          name: mutmut-results
-          path: backend/reports/mutmut-*.xml
-          retention-days: 30
+        run: python scripts/bazel_default.py run //tools/quality:mutation
 
   # ── 17d. Angular mutation testing (Stryker, blocking) ────────────
   # Phase 4a — scoped initially to one core service. Surviving mutants
   # below thresholds.break (95%) fail the build.
   frontend-stryker:
-    name: Angular Mutation (Stryker)
+    name: Angular Mutation (Bazel)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v5
-        with:
-          node-version: "22"
-      - name: Install frontend deps
-        working-directory: frontend
-        run: npm ci
-      - name: Run Stryker
-        working-directory: frontend
-        run: npx stryker run
-      - name: Mutation-score ratchet (FR-251 Gap #4)
-        if: always()
-        run: |
-          test -f frontend/reports/stryker.json
-          python .githooks/check-mutation-score.py \
-            --tool stryker \
-            --target src/app \
-            --report frontend/reports/stryker.json
-      - name: Upload Stryker report
-        if: always()
-        uses: actions/upload-artifact@v5
-        with:
-          name: stryker-report
-          path: frontend/reports/
-          retention-days: 30
+      - name: Run Bazel mutation target
+        run: python scripts/bazel_default.py run //tools/quality:mutation
 
   # ── 17g. Rust quality (fmt + clippy + tests, blocking) ───────────
   # Bazel is the public quality entry point. The Rust target owns the
@@ -487,29 +397,12 @@ jobs:
   # link/ABI breaks early. services/speccheck is a plain CLI crate, not
   # a PyO3 extension, so it is built with `cargo build` instead.
   rust-build:
-    name: Rust Build (maturin sanity)
+    name: Rust Build (Bazel)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Build compiled-tools image
-        run: docker compose build compiled-tools
-      - name: maturin build each /repo/rust PyO3 crate
-        run: |
-          docker compose run --rm compiled-tools bash -lc '
-            set -euo pipefail
-            for crate in /repo/rust/xf_kernels /repo/rust/extensions/l2norm; do
-              echo "::group::maturin build $crate"
-              maturin build --release --manifest-path "$crate/Cargo.toml" --out /tmp/wheels
-              echo "::endgroup::"
-            done
-          '
-      - name: cargo build services/speccheck (CLI crate)
-        run: |
-          docker compose run --rm compiled-tools bash -lc '
-            set -euo pipefail
-            cd /repo/services/speccheck
-            cargo build --release
-          '
+      - name: Run Bazel Rust quality target
+        run: python scripts/bazel_default.py run //tools/quality:rust
 
   # ── 17i. Rust coverage (cargo llvm-cov, blocking) ────────────────
   # The Rust-side coverage gate. cargo-llvm-cov
@@ -521,33 +414,12 @@ jobs:
   # excluded via --ignore-filename-regex so the gate is honest. We emit
   # an lcov file and an HTML/text summary, uploaded as an artifact.
   rust-coverage:
-    name: Rust coverage (cargo llvm-cov)
+    name: Rust coverage (Bazel)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Build compiled-tools image
-        run: docker compose build compiled-tools
-      - name: Run cargo llvm-cov over /repo/rust
-        run: |
-          docker compose run --rm compiled-tools bash -lc '
-            set -euo pipefail
-            cd /repo/rust
-            export PYO3_PYTHON="$(command -v python3)"
-            mkdir -p /repo/.tmp/rust-coverage
-            cargo llvm-cov \
-              --workspace \
-              --lcov \
-              --output-path /repo/.tmp/rust-coverage/lcov.info
-            cargo llvm-cov report \
-              --summary-only | tee /repo/.tmp/rust-coverage/summary.txt
-          '
-      - name: Upload Rust coverage report
-        if: always()
-        uses: actions/upload-artifact@v5
-        with:
-          name: rust-coverage
-          path: .tmp/rust-coverage/
-          retention-days: 30
+      - name: Run Bazel Rust quality target
+        run: python scripts/bazel_default.py run //tools/quality:rust
 
   # ── 19a. Per-PR coverage-delta (BLOCKING — FR-251 Gap #2) ────────
   # Reuses `.githooks/check-per-module-coverage.py` against the PR base

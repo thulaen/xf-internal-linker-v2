@@ -1,0 +1,125 @@
+<section class="accuracy-lab-section" id="accuracy-lab">
+  <div class="section-heading">
+    <div>
+      <h2>Accuracy Lab</h2>
+      <p>Read-only checks for MATLAB, numeric agreement, schemas, tests, and agent-ready reports.</p>
+    </div>
+    <div class="section-actions">
+      <button
+        mat-stroked-button
+        type="button"
+        (click)="run()"
+        [disabled]="running()"
+        matTooltip="Start a local read-only Accuracy Lab run on this machine.">
+        <mat-spinner *ngIf="running()" diameter="16"></mat-spinner>
+        <mat-icon *ngIf="!running()">play_arrow</mat-icon>
+        <span>{{ running() ? 'Running' : 'Run' }}</span>
+      </button>
+      <a
+        mat-stroked-button
+        [href]="reportUrl"
+        target="_blank"
+        rel="noreferrer"
+        matTooltip="Open the latest local Markdown report.">
+        <mat-icon>article</mat-icon>
+        Report
+      </a>
+      <button
+        mat-icon-button
+        type="button"
+        (click)="load()"
+        matTooltip="Refresh the Accuracy Lab status from the latest local report."
+        aria-label="Refresh Accuracy Lab status">
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="accuracy-loading" data-testid="accuracy-running-state">
+      <mat-spinner diameter="24"></mat-spinner>
+      <span>Loading Accuracy Lab status...</span>
+    </div>
+  } @else if (loadFailed()) {
+    <div class="accuracy-empty accuracy-status--failed">
+      Accuracy Lab status could not be loaded.
+    </div>
+  } @else if (vm(); as view) {
+    @if (runError()) {
+      <div class="accuracy-empty accuracy-status--failed">
+        {{ runError() }}
+      </div>
+    }
+
+    <div class="accuracy-summary">
+      <span [class]="statusClass(view.summary.status)">{{ view.summary.status }}</span>
+      <span>{{ view.summary.message }}</span>
+      @if (view.summary.generated_at) {
+        <span class="accuracy-date">{{ view.summary.generated_at | date:'medium' }}</span>
+      }
+    </div>
+
+    <div class="accuracy-grid">
+      @for (card of statusCards(); track card.id) {
+        <div class="accuracy-tile">
+          <div class="accuracy-tile__top">
+            <span class="accuracy-tile__label">{{ card.label }}</span>
+            <span [class]="statusClass(card.status)">{{ card.status }}</span>
+          </div>
+          <div class="accuracy-tile__detail">{{ card.detail }}</div>
+        </div>
+      }
+    </div>
+
+    <div class="accuracy-findings">
+      <h3>Advanced checks</h3>
+      @if (advancedChecks().length === 0) {
+        <div class="accuracy-empty">No advanced checks in the latest report.</div>
+      } @else {
+        <div class="accuracy-advanced-list">
+          @for (check of advancedChecks(); track check.id) {
+            <article class="accuracy-advanced">
+              <div class="accuracy-finding__header">
+                <strong>{{ check.name }}</strong>
+                <span [class]="statusClass(check.status)">{{ check.status }}</span>
+              </div>
+              <p>{{ check.summary || check.message }}</p>
+              <small>{{ check.category || 'accuracy' }}</small>
+            </article>
+          }
+        </div>
+      }
+
+      <h3>Findings</h3>
+      @if (view.findings.length === 0) {
+        <div class="accuracy-empty">No findings in the latest report.</div>
+      } @else {
+        <div class="accuracy-finding-list">
+          @for (finding of view.findings; track finding.id) {
+            <article class="accuracy-finding">
+              <div class="accuracy-finding__header">
+                <strong>{{ finding.title }}</strong>
+                <span [class]="statusClass(finding.risk)">{{ finding.risk }}</span>
+              </div>
+              <p>{{ finding.impact }}</p>
+              <dl>
+                <div>
+                  <dt>Evidence</dt>
+                  <dd>{{ finding.evidence }}</dd>
+                </div>
+                <div>
+                  <dt>Affected</dt>
+                  <dd>{{ finding.affected }}</dd>
+                </div>
+                <div>
+                  <dt>Suggested action</dt>
+                  <dd>{{ finding.suggested_action }}</dd>
+                </div>
+              </dl>
+            </article>
+          }
+        </div>
+      }
+    </div>
+  }
+</section>

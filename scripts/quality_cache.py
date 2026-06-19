@@ -38,6 +38,9 @@ _CONFIG_FILES = (
     "backend/pytest.ini",
     "backend/requirements.txt",
     "config/mutation-routing.json",
+    "tools/elcv/gate.py",
+    "tools/elcv/gate-baseline.json",
+    "tools/elcv/uso-index.json",
 )
 
 
@@ -99,8 +102,30 @@ class QualityCache:
         parts = sorted(f"{Path(p).as_posix()}:{_file_hash(Path(p))}" for p in paths)
         return _sha256_text("|".join(parts))
 
-    def has_pass(self, tool: str, subject_hash: str) -> bool:
-        return cache_enabled() and self.key_for(tool, subject_hash) in self._rows
+    def subject_hash_for_gate(self, paths: list[Path], command_text: str) -> str:
+        """Hash a gate command plus the scoped files it checked."""
+        gate_paths = list(paths)
+        for token in command_text.split():
+            candidate = self.root / token
+            if candidate.exists() and candidate.is_file():
+                gate_paths.append(candidate)
+        files_hash = self.subject_hash_for_files(gate_paths)
+        return _sha256_text(f"gate|{command_text}|{files_hash}")
+
+    def has_pass(
+        self,
+        tool: str,
+        subject_hash: str,
+        max_age_seconds: int | None = None,
+    ) -> bool:
+        if not cache_enabled():
+            return False
+        row = self._rows.get(self.key_for(tool, subject_hash))
+        if row is None:
+            return False
+        if max_age_seconds is None:
+            return True
+        return self.now - float(row["ts"]) <= max_age_seconds
 
     def filter(
         self, tool: str, subjects: dict[str, str]
@@ -147,15 +172,48 @@ def _read_pairs(pairs_file: Path) -> list[tuple[str, list[Path]]]:
     return pairs
 
 
+def _paths_from_env(root: Path, env_name: str | None) -> list[Path]:
+    if not env_name:
+        return []
+    value = os.environ.get(env_name, "")
+    paths: list[Path] = []
+    for raw in value.splitlines():
+        rel = raw.strip()
+        if rel:
+            paths.append(root / rel)
+    return paths
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("filter-pairs", "record-pairs"))
+    parser.add_argument(
+        "command",
+        choices=("filter-pairs", "record-pairs", "check-gate", "record-gate"),
+    )
     parser.add_argument("--tool", required=True)
-    parser.add_argument("--pairs-file", required=True)
+    parser.add_argument("--pairs-file")
+    parser.add_argument("--paths-env")
+    parser.add_argument("--command-text", default="")
+    parser.add_argument("--ttl-seconds", type=int)
     parser.add_argument("--root", default=".")
     args = parser.parse_args()
 
     cache = QualityCache(Path(args.root).resolve())
+    if args.command in {"check-gate", "record-gate"}:
+        subject = cache.subject_hash_for_gate(
+            _paths_from_env(cache.root, args.paths_env),
+            args.command_text,
+        )
+        if args.command == "check-gate":
+            if cache.has_pass(args.tool, subject, args.ttl_seconds):
+                print(f"quality-cache:gate-pass-cached {args.tool}")
+                return 0
+            return 1
+        cache.record(args.tool, [subject])
+        return 0
+
+    if not args.pairs_file:
+        parser.error("--pairs-file is required for pair cache commands")
     pairs = _read_pairs(Path(args.pairs_file))
     for raw_line, paths in pairs:
         subject = cache.subject_hash_for_files(paths)

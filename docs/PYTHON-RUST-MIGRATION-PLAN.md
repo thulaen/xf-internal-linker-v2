@@ -4,14 +4,15 @@
 
 ## 1. The decision (source of truth)
 
-The backend uses **exactly two languages**:
+The backend uses **Python + Rust ONLY** for core logic, with **TypeScript/Angular** for the UI.
 
-- **Python** — the web app (Django), orchestration, and the machine-learning core
-  (embeddings, ranking, vector search via `numpy` / `faiss` / `pgvector`).
-- **Rust** — the performance-critical hot-path kernels, exposed to Python as native
-  extension modules built with **PyO3 + maturin**.
+- **Python** owns Django, orchestration, module APIs, models, migrations, admin/operator workflows, management commands, schedules, analytics ingestion, report generation, approved offline ML, GUI backend endpoints, and MCP registration. Python may train candidate ranking profiles offline.
+- **Rust** owns production correctness and hot paths. That includes domain invariants, ranking validity, governance decisions, never-zero weights, movement budgets, score validation, search execution, reranking, normalization, missing-value policy, score breakdown validation, helper workers, optional GPU dispatch, artifact validation, and performance-sensitive compute. Rust must validate, activate, promote, roll back, and live-score ranking profiles.
+- **TypeScript/Angular** owns the browser UI, interaction state, visual workflows, forms, dashboards, and user-facing controls.
+- **PostgreSQL** owns durable relational storage. **ClickHouse, DuckDB, and Polars** own analytics or offline exploration only.
+- **Java** is reserved for later JVM-specific needs such as enterprise integrations, JVM libraries, search/index tooling, streaming connectors, or long-running services. It must not replace Python orchestration, Rust correctness, or Angular UI without a concrete reason.
 
-**Removed entirely: C++, Go, Haskell.**
+**Removed entirely: C, C++, Go, Haskell, Lua.**
 
 **Rust hot paths are authoritative — there is NO Python fallback or reference implementation.**
 This reverses the old "C++ first, Python is the fallback and reference" policy

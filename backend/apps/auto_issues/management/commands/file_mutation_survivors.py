@@ -24,7 +24,7 @@ Tool report shapes supported:
   report. Two accepted shapes: (a) object with a ``"missed"`` array
   (`{"missed": [...], "caught": [...], ...}`), or (b) an array of
   outcome objects where ``summary == "MissedMutant"``.
-- **mucheck** (wrapper-produced JSON): turbo_mutation.py converts
+- **mucheck** (wrapper-produced JSON): the Bazel mutation target converts
   mucheck's stdout into ``{"survivors": [{file, line, mutator,
   replacement}]}``. Survivors are all entries in the array.
 
@@ -51,6 +51,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -250,7 +251,7 @@ def _parse_cargo_mutants(payload: dict | list) -> list[dict[str, Any]]:
 
 
 def _parse_mucheck(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """mucheck wrapper JSON produced by turbo_mutation.py.
+    """mucheck wrapper JSON produced by the Bazel mutation target.
 
     Schema: ``{"survivors": [{"file": str, "line": int, "mutator": str,
     "replacement": str}]}``.
@@ -277,6 +278,14 @@ _PARSERS = {
 }
 
 
+@dataclass(frozen=True)
+class SurvivorWriteContext:
+    category: AutoIssueCategory
+    now: Any
+    tool: str
+    agent: str
+
+
 class Command(BaseCommand):
     help = "File AutoIssues for each surviving mutant (Phase I soft-block)."
 
@@ -290,20 +299,13 @@ class Command(BaseCommand):
         parser.add_argument("--agent", default="claude",
                             help="Agent name recorded as resolved_by / observation source.")
 
-    def handle(self, *args, **opts):
-        tool = opts["tool"]
-        report_path = Path(opts["report"])
-        agent = opts["agent"][:64]
-
+    def _load_survivors(self, tool, report_path):
+        """Parse report and return survivor list, or None for clean/missing."""
         if not report_path.is_file():
-            # Per Phase I: a missing report is treated as a clean run.
-            # The mutation step may have crashed or hit the 5-min cap;
-            # either way, no survivors to file. The chain logs evidence
-            # separately.
             self.stdout.write(
                 f"[MUTATION SURVIVORS: tool={tool} none — report missing at {report_path}]"
             )
-            return
+            return None
 
         try:
             payload = json.loads(report_path.read_text(encoding="utf-8"))
@@ -314,106 +316,179 @@ class Command(BaseCommand):
                 f"UNBLOCK: rerun the mutation tool and check the report path."
             )
 
-        parser_fn = _PARSERS[tool]
-        survivors = parser_fn(payload)
-
+        survivors = _PARSERS[tool](payload)
         if not survivors:
             self.stdout.write(
                 f"[MUTATION SURVIVORS: tool={tool} none — clean run]"
             )
-            return
+            return None
+        return survivors
 
-        category = _get_or_create_category()
-        now = timezone.now()
+    def _file_survivors(self, tool, survivors, agent):
+        """Write AutoIssue rows for each survivor. Returns (filed, deduped)."""
+        context = SurvivorWriteContext(_get_or_create_category(), timezone.now(), tool, agent)
+        ext_ids_map = _survivor_external_ids(tool, survivors)
+        existing_issues = _existing_issues_by_external_id(ext_ids_map)
 
         filed = 0
         deduped = 0
-        for s in survivors:
-            mutator = s["mutator"]
-            file_path = s["file"]
-            line = s["line"]
-            fp = _fingerprint(tool, file_path, line, mutator)
-            severity = severity_for(tool, mutator)
-            title = (
-                f"[{tool}] {file_path}:{line} surviving mutant ({mutator})"
-            )[:512]
-            cf = canonical_fingerprint(title)
-            description = (
-                f"Mutation tool: {tool}\n"
-                f"File: {file_path}:{line}\n"
-                f"Mutator: {mutator}\n"
-                f"Replacement: {s.get('replacement') or '(see tool report)'}\n"
-                f"Severity: {severity} (per apps.auto_issues.services.mutation_severity)\n"
-                f"\n"
-                f"Trap: the test suite covers this line but does not assert "
-                f"the specific behaviour the mutator changed. The mutant "
-                f"survived, so a bug of the same shape could land without "
-                f"any test failing.\n"
-                f"Fix shape: add at least one behavior-asserting test that "
-                f"would fail when the mutator's replacement is applied. "
-                f"Re-run the tool to confirm the mutant is now killed."
+        for ext_id, (s, fp) in ext_ids_map.items():
+            filed_now = _file_single_survivor(
+                context, existing_issues.get(ext_id), ext_id, fp, s
             )
-
-            ext_id = f"mutation::{tool}::{fp}"
-            existing = AutoIssue.objects.filter(
-                external_id=ext_id,
-            ).first()
-
-            if existing is not None:
-                existing.occurrence_count += 1
-                existing.last_seen = now
-                obs = {
-                    "source": "mutation",
-                    "external_id": ext_id,
-                    "first_seen": existing.first_seen.isoformat()
-                    if existing.first_seen else now.isoformat(),
-                    "last_seen": now.isoformat(),
-                    "occurrence_count": existing.occurrence_count,
-                    "tool": tool,
-                    "mutator": mutator,
-                    "agent": agent,
-                }
-                existing.source_observations = [
-                    *(existing.source_observations or []),
-                    obs,
-                ][:50]  # cap observation list
-                merged = list(dict.fromkeys((existing.affected_files or []) + [file_path]))
-                existing.affected_files = merged
-                existing.save()
+            if filed_now:
+                filed += 1
+            else:
                 deduped += 1
-                continue
 
-            AutoIssue.objects.create(
-                source=AutoIssue.SOURCE_MUTATION,
-                external_id=ext_id,
-                fingerprint=fp,
-                canonical_fingerprint=cf,
-                title=title,
-                description=description,
-                affected_files=[file_path],
-                severity=severity,
-                category=category,
-                status=AutoIssue.STATUS_OPEN,
-                first_seen=now,
-                last_seen=now,
-                occurrence_count=1,
-                source_observations=[
-                    {
-                        "source": "mutation",
-                        "external_id": ext_id,
-                        "first_seen": now.isoformat(),
-                        "last_seen": now.isoformat(),
-                        "occurrence_count": 1,
-                        "tool": tool,
-                        "mutator": mutator,
-                        "agent": agent,
-                    }
-                ],
-            )
-            filed += 1
+        return filed, deduped
 
+    def handle(self, *args, **opts):
+        tool = opts["tool"]
+        report_path = Path(opts["report"])
+        agent = opts["agent"][:64]
+
+        survivors = self._load_survivors(tool, report_path)
+        if survivors is None:
+            return
+
+        filed, deduped = self._file_survivors(tool, survivors, agent)
         total = filed + deduped
         self.stdout.write(
             f"[MUTATION SURVIVORS FILED: tool={tool} filed={filed} "
             f"deduped={deduped} total={total}]"
         )
+
+
+def _build_description(tool, file_path, line, mutator, s, severity):
+    """Build the AutoIssue description for a surviving mutant."""
+    return (
+        f"Mutation tool: {tool}\n"
+        f"File: {file_path}:{line}\n"
+        f"Mutator: {mutator}\n"
+        f"Replacement: {s.get('replacement') or '(see tool report)'}\n"
+        f"Severity: {severity} (per apps.auto_issues.services.mutation_severity)\n"
+        f"\n"
+        f"Trap: the test suite covers this line but does not assert "
+        f"the specific behaviour the mutator changed. The mutant "
+        f"survived, so a bug of the same shape could land without "
+        f"any test failing.\n"
+        f"Fix shape: add at least one behavior-asserting test that "
+        f"would fail when the mutator's replacement is applied. "
+        f"Re-run the tool to confirm the mutant is now killed."
+    )
+
+
+def _survivor_external_ids(tool, survivors):
+    """Build stable external ids in one pass before querying existing rows."""
+    ext_ids_map = {}
+    for survivor in survivors:
+        fp = _fingerprint(tool, survivor["file"], survivor["line"], survivor["mutator"])
+        ext_ids_map[f"mutation::{tool}::{fp}"] = (survivor, fp)
+    return ext_ids_map
+
+
+def _existing_issues_by_external_id(ext_ids_map):
+    """Fetch existing mutation AutoIssues without one query per survivor."""
+    return {
+        issue.external_id: issue
+        for issue in AutoIssue.objects.filter(external_id__in=ext_ids_map.keys())
+    }
+
+
+def _file_single_survivor(context, existing, ext_id, fp, survivor):
+    """Create or update one mutation survivor. Returns True when newly filed."""
+    fields = _survivor_issue_fields(context.tool, survivor)
+    if existing is not None:
+        _update_existing(
+            existing,
+            ext_id,
+            context.now,
+            context.tool,
+            fields["mutator"],
+            context.agent,
+            fields["file_path"],
+        )
+        return False
+    _create_survivor_issue(context, ext_id, fp, fields, survivor)
+    return True
+
+
+def _survivor_issue_fields(tool, survivor):
+    """Return display and severity fields for one survivor row."""
+    mutator = survivor["mutator"]
+    file_path = survivor["file"]
+    line = survivor["line"]
+    severity = severity_for(tool, mutator)
+    title = f"[{tool}] {file_path}:{line} surviving mutant ({mutator})"[:512]
+    return {
+        "tool": tool,
+        "file_path": file_path,
+        "line": line,
+        "mutator": mutator,
+        "severity": severity,
+        "title": title,
+        "canonical_fingerprint": canonical_fingerprint(title),
+    }
+
+
+def _create_survivor_issue(context, ext_id, fp, fields, survivor):
+    """Create one AutoIssue for a new surviving mutant."""
+    AutoIssue.objects.create(
+        source=AutoIssue.SOURCE_MUTATION,
+        external_id=ext_id,
+        fingerprint=fp,
+        canonical_fingerprint=fields["canonical_fingerprint"],
+        title=fields["title"],
+        description=_build_description(
+            fields["tool"],
+            fields["file_path"],
+            fields["line"],
+            fields["mutator"],
+            survivor,
+            fields["severity"],
+        ),
+        affected_files=[fields["file_path"]],
+        severity=fields["severity"],
+        category=context.category,
+        status=AutoIssue.STATUS_OPEN,
+        first_seen=context.now,
+        last_seen=context.now,
+        occurrence_count=1,
+        source_observations=[
+            {
+                "source": "mutation",
+                "external_id": ext_id,
+                "first_seen": context.now.isoformat(),
+                "last_seen": context.now.isoformat(),
+                "occurrence_count": 1,
+                "tool": fields["tool"],
+                "mutator": fields["mutator"],
+                "agent": context.agent,
+            }
+        ],
+    )
+
+
+def _update_existing(existing, ext_id, now, tool, mutator, agent, file_path):
+    """Update an existing AutoIssue with a new occurrence."""
+    existing.occurrence_count += 1
+    existing.last_seen = now
+    obs = {
+        "source": "mutation",
+        "external_id": ext_id,
+        "first_seen": existing.first_seen.isoformat()
+        if existing.first_seen else now.isoformat(),
+        "last_seen": now.isoformat(),
+        "occurrence_count": existing.occurrence_count,
+        "tool": tool,
+        "mutator": mutator,
+        "agent": agent,
+    }
+    existing.source_observations = [
+        *(existing.source_observations or []),
+        obs,
+    ][:50]  # cap observation list
+    merged = list(dict.fromkeys((existing.affected_files or []) + [file_path]))
+    existing.affected_files = merged
+    existing.save()

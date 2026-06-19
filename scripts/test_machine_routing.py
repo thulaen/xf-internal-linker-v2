@@ -2,9 +2,8 @@
 """Unit tests for the shared machine-routing module.
 
 These are the pure routing functions (machine selection + weighted partition)
-that BOTH ``scripts/turbo_mutation.py`` (the big sweep) and
-``.githooks/check-scoped-mutation.py`` (the per-commit gate) import, so the
-weighting math lives in exactly one place.
+that the Bazel-owned pytest and lint runners import, so the weighting math
+lives in exactly one place.
 
 Run as a plain script (the host has no pytest)::
 
@@ -20,22 +19,14 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load_routing():
     spec = importlib.util.spec_from_file_location(
         "machine_routing_for_tests", ROOT / "scripts" / "machine_routing.py"
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def _load_turbo():
-    spec = importlib.util.spec_from_file_location(
-        "turbo_mutation_for_routing_tests", ROOT / "scripts" / "turbo_mutation.py"
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -55,7 +46,7 @@ def _machine(name, transport, weight, max_weight=1.0, context=None, ssh_host=Non
 def _three_raw():
     return [
         _machine("dell", "docker_context", 0.60, max_weight=0.60, context="dell"),
-        _machine("windows", "docker_local", 0.30, max_weight=1.0),
+        _machine("lab", "docker_context", 0.30, max_weight=1.0, context="lab"),
         _machine("mint", "docker_context", 0.10, max_weight=1.0, context="mint"),
     ]
 
@@ -74,7 +65,7 @@ def _shares(machines):
 
 def test_partition_sums_exactly_to_len_items() -> None:
     routing = _load_routing()
-    machines = _shared(routing, _three_raw(), {"dell", "windows", "mint"})
+    machines = _shared(routing, _three_raw(), {"dell", "lab", "mint"})
     for n in (0, 1, 9, 100):
         items = list(range(n))
         result = routing._partition_weighted(items, machines)
@@ -84,26 +75,26 @@ def test_partition_sums_exactly_to_len_items() -> None:
 
 def test_partition_nine_files_split_5_3_1() -> None:
     routing = _load_routing()
-    machines = _shared(routing, _three_raw(), {"dell", "windows", "mint"})
+    machines = _shared(routing, _three_raw(), {"dell", "lab", "mint"})
     items = [f"f{i}" for i in range(9)]
     result = routing._partition_weighted(items, machines)
     counts = {m["name"]: len(result[m["name"]]) for m in machines}
-    assert counts == {"dell": 5, "windows": 3, "mint": 1}, counts
+    assert counts == {"dell": 5, "lab": 3, "mint": 1}, counts
 
 
 # ── selection ──────────────────────────────────────────────────────────────────
 
 def test_select_all_up() -> None:
     routing = _load_routing()
-    machines = _shared(routing, _three_raw(), {"dell", "windows", "mint"})
-    assert _shares(machines) == {"dell": 0.60, "windows": 0.30, "mint": 0.10}
+    machines = _shared(routing, _three_raw(), {"dell", "lab", "mint"})
+    assert _shares(machines) == {"dell": 0.60, "lab": 0.30, "mint": 0.10}
 
 
 def test_select_dell_off_raises_fail_closed() -> None:
     # Fail-CLOSED: a down remote (Dell) must NOT have its share moved to Windows.
     routing = _load_routing()
     try:
-        _shared(routing, _three_raw(), {"windows", "mint"})
+        _shared(routing, _three_raw(), {"lab", "mint"})
     except routing.RemoteUnavailableError as exc:
         assert "dell" in str(exc).lower()
         return
@@ -111,11 +102,11 @@ def test_select_dell_off_raises_fail_closed() -> None:
 
 
 def test_select_any_remote_off_raises_fail_closed() -> None:
-    # Even with Dell up, a different down remote (mint) hard-fails — Windows
-    # never absorbs a dead remote's work.
+    # Even with Dell up, a different down remote hard-fails. MSI never absorbs
+    # a dead remote's work.
     routing = _load_routing()
     try:
-        _shared(routing, _three_raw(), {"dell", "windows"})
+        _shared(routing, _three_raw(), {"dell", "mint"})
     except routing.RemoteUnavailableError:
         return
     raise AssertionError("expected RemoteUnavailableError when a remote is unreachable")
@@ -123,16 +114,17 @@ def test_select_any_remote_off_raises_fail_closed() -> None:
 
 def test_renormalise_respects_dell_ceiling_when_clamped() -> None:
     # Keep ceiling-clamp coverage now that the partial-survivor path raises:
-    # Dell weight 0.95 exceeds its 0.92 ceiling → clamped; Windows takes the rest.
+    # Dell weight 0.95 exceeds its 0.92 ceiling, then the other remote takes
+    # the rest.
     routing = _load_routing()
     machines = [
         {"name": "dell", "weight": 0.95, "max_weight": 0.92},
-        {"name": "windows", "weight": 0.05, "max_weight": 1.0},
+        {"name": "lab", "weight": 0.05, "max_weight": 1.0},
     ]
     routing._renormalise_with_ceilings(machines)
     shares = {m["name"]: round(m["share"], 6) for m in machines}
     assert shares["dell"] <= 0.92 + 1e-6, shares
-    assert abs(shares["dell"] + shares["windows"] - 1.0) < 1e-9, shares
+    assert abs(shares["dell"] + shares["lab"] - 1.0) < 1e-9, shares
 
 
 def test_select_all_off_raises_fail_closed() -> None:
@@ -193,6 +185,7 @@ def test_ssh_probe_connection_failure_255_is_unreachable(monkeypatch) -> None:
 def test_docker_probe_still_requires_rc_zero(monkeypatch) -> None:
     # Docker transports keep strict rc==0 (a non-zero `docker info` = not usable).
     routing = _load_routing()
+    monkeypatch.setattr(routing, "_on_windows_host", lambda: False)
     monkeypatch.setattr(routing.subprocess, "run", _fake_proc(1))
     assert routing._probe_reachable(
         {"name": "mint", "transport": "docker_context", "context": "mint"}
@@ -202,28 +195,39 @@ def test_docker_probe_still_requires_rc_zero(monkeypatch) -> None:
         {"name": "windows", "transport": "docker_local"}
     ) is True
 
+    monkeypatch.setattr(routing, "_on_windows_host", lambda: True)
+    assert routing._probe_reachable(
+        {"name": "windows", "transport": "docker_local"}
+    ) is False
+
 
 # ── coverage: legacy config path ───────────────────────────────────────────────
 
 def test_legacy_config_without_machines_key() -> None:
-    # lines 49-51: backward-compat path when config has only the old `split` dict
+    # Backward-compat path now keeps MSI at 0% and uses the named remote.
     routing = _load_routing()
     cfg = {"split": {"local_pct": 0.60, "remote_pct": 0.40, "remote_context": "mint"}}
     machines = routing._machines_from_config(cfg)
-    assert len(machines) == 2
+    assert len(machines) == 1
     names = {m["name"] for m in machines}
-    assert names == {"windows", "mint"}
-    win = next(m for m in machines if m["name"] == "windows")
-    assert win["weight"] == 0.60
+    assert names == {"mint"}
+    assert machines[0]["transport"] == "docker_context"
+    assert machines[0]["weight"] == 1.0
 
 
 def test_legacy_config_defaults_when_split_key_absent() -> None:
-    # lines 49-55: split key missing → defaults (0.65 / 0.35)
+    # Split key missing -> Dell-only default. MSI never gets a legacy shard.
     routing = _load_routing()
     machines = routing._machines_from_config({})
-    assert len(machines) == 2
-    win = next(m for m in machines if m["name"] == "windows")
-    assert win["weight"] == 0.65
+    assert machines == [
+        {
+            "name": "dell",
+            "transport": "docker_context",
+            "context": "dell",
+            "weight": 1.0,
+            "max_weight": 1.0,
+        }
+    ]
 
 
 # ── coverage: probe edge-cases ──────────────────────────────────────────────────
@@ -248,14 +252,19 @@ def test_probe_subprocess_exception_is_unreachable(monkeypatch) -> None:
 def test_select_machines_default_probe_is_used_when_none_passed(monkeypatch) -> None:
     # line 100: probe = _probe_reachable is assigned when caller omits probe kwarg
     routing = _load_routing()
-    # docker info returns 0 → reachable; only local machine in config so one survives
-    monkeypatch.setattr(routing.subprocess, "run", _fake_proc(0))
+    calls = []
+
+    def fake_probe(machine):
+        calls.append(machine["name"])
+        return True
+
+    monkeypatch.setattr(routing, "_probe_reachable", fake_probe)
     cfg = {"machines": [
         {"name": "windows", "transport": "docker_local", "weight": 1.0, "max_weight": 1.0},
     ]}
-    machines = routing._select_machines(cfg)  # no probe= → uses the real _probe_reachable
-    assert len(machines) == 1
-    assert machines[0]["name"] == "windows"
+    machines = routing._select_machines(cfg)  # no probe= -> uses _probe_reachable
+    assert calls == ["windows"]
+    assert [machine["name"] for machine in machines] == ["windows"]
 
 
 # ── coverage: dispatch threading ────────────────────────────────────────────────
@@ -294,18 +303,6 @@ def test_dispatch_skips_machine_with_empty_slice() -> None:
     routing._dispatch_to_machines(machines, {"a": ["f1"], "b": []}, per_machine)
     assert "a" in calls
     assert "b" not in calls   # b got an empty slice → thread must not have spawned
-
-
-# ── single-sourcing proof ──────────────────────────────────────────────────────
-
-def test_turbo_reexports_same_object() -> None:
-    # turbo re-exports from the routing module it loads itself; assert turbo's
-    # public names ARE that module's functions (single-sourced, no copy).
-    turbo = _load_turbo()
-    routing = turbo._routing
-    assert turbo._select_machines is routing._select_machines
-    assert turbo._partition_weighted is routing._partition_weighted
-    assert turbo._renormalise_with_ceilings is routing._renormalise_with_ceilings
 
 
 # ── standalone harness (no pytest on the host) ─────────────────────────────────
@@ -355,7 +352,7 @@ def test_dell_context_is_allowed_on_windows_host(monkeypatch) -> None:
 
 def test_windows_host_detection_exempts_ci(monkeypatch) -> None:
     routing = _load_routing()
-    monkeypatch.setattr(routing.os, "environ", {"GITHUB_ACTIONS": "true"})
+    monkeypatch.setitem(routing.os.environ, "GITHUB_ACTIONS", "true")
     assert routing._on_windows_host() is False
 
 

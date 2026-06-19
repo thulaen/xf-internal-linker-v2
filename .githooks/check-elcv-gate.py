@@ -23,6 +23,8 @@ ELCV = REPO / "tools" / "elcv"
 BASELINE = ELCV / "gate-baseline.json"
 USO_INDEX = ELCV / "uso-index.json"
 sys.path.insert(0, str(ELCV))
+sys.path.insert(0, str(REPO / "scripts"))
+from quality_cache import QualityCache  # noqa: E402
 
 
 def _staged_python_files():
@@ -33,26 +35,27 @@ def _staged_python_files():
     return [Path(line) for line in out.splitlines() if line.endswith(".py")]
 
 
-def main() -> int:
-    os.chdir(REPO)  # repo-relative paths, so finding keys match the baseline/index
-    try:
-        import gate  # noqa: E402
-        files = [p for p in _staged_python_files() if p.exists()]
-        if not files:
-            return 0
-        index = json.loads(USO_INDEX.read_text(encoding="utf-8")) if USO_INDEX.exists() else None
-        findings = gate.run_gate(files, index)
-        if BASELINE.exists():
-            grandfathered = set(json.loads(BASELINE.read_text(encoding="utf-8")))
-            findings = gate.filter_baseline(findings, grandfathered)
-    except Exception as exc:  # never block a commit on a bug in the gate itself
-        print(f"WARN check-elcv-gate skipped (tool error: {exc})")
-        return 0
+def _run_findings(files, cache, subjects):
+    """Scan files and return filtered findings, or None on tool error."""
+    import gate  # noqa: E402
+    index = json.loads(USO_INDEX.read_text(encoding="utf-8")) if USO_INDEX.exists() else None
+    findings = gate.run_gate(files, index)
+    if BASELINE.exists():
+        grandfathered = set(json.loads(BASELINE.read_text(encoding="utf-8")))
+        findings = gate.filter_baseline(findings, grandfathered)
+    return findings
 
-    if not findings:
-        return 0
 
+def _report_findings(findings, files, cache, subjects):
+    """Print violations, cache passing files, and return exit code."""
     ordered = sorted(findings, key=lambda x: (x.path, x.line))
+    blocked_paths = {Path(f.path).as_posix() for f in ordered}
+    passed_hashes = [
+        subjects[p.as_posix()]
+        for p in files
+        if p.as_posix() not in blocked_paths
+    ]
+    cache.record("elcv", passed_hashes)
     first = ordered[0]
     print(f"FAIL check-elcv-gate: {len(findings)} new ELCV quality violation(s) in staged Python files")
     print(f"WHY: {first.rule} at {first.path}:{first.line} -- {first.message} "
@@ -61,6 +64,35 @@ def main() -> int:
     for f in ordered:
         print(f"  BLOCK {f.rule}  {f.path}:{f.line}  {f.message}")
     return 1
+
+
+def main() -> int:
+    os.chdir(REPO)  # repo-relative paths, so finding keys match the baseline/index
+    try:
+        files = [p for p in _staged_python_files() if p.exists()]
+        if not files:
+            return 0
+        cache = QualityCache(REPO)
+        subjects = {
+            p.as_posix(): cache.subject_hash_for_files([REPO / p])
+            for p in files
+        }
+        to_run, skipped = cache.filter("elcv", subjects)
+        if skipped:
+            print(f"SKIP check-elcv-gate: {len(skipped)} staged Python file(s) already passed unchanged")
+        files = [Path(p) for p in to_run]
+        if not files:
+            return 0
+        findings = _run_findings(files, cache, subjects)
+    except Exception as exc:  # never block a commit on a bug in the gate itself
+        print(f"WARN check-elcv-gate skipped (tool error: {exc})")
+        return 0
+
+    if not findings:
+        cache.record("elcv", [subjects[p.as_posix()] for p in files])
+        return 0
+
+    return _report_findings(findings, files, cache, subjects)
 
 
 if __name__ == "__main__":

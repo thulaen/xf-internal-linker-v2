@@ -14,6 +14,7 @@ MINT_DATA_ROOT="${MINT_DATA_ROOT:-/srv/xf}"
 CLUSTER_LAN_CIDR="${CLUSTER_LAN_CIDR:-10.10.10.0/24}"
 HOME_LAN_CIDR="${HOME_LAN_CIDR:-192.168.0.0/24}"
 MSI_CONTROL_CIDR="${MSI_CONTROL_CIDR:-192.168.0.50/32}"
+DELL_POSTGRES_UNIT="${DELL_POSTGRES_UNIT:-postgresql@18-main}"
 
 MINT_OWNED_CHECK_PATHS=(
     "$MINT_DATA_ROOT"
@@ -84,10 +85,49 @@ host_assert_any_service_enabled() {
 
 host_assert_service_active() {
     local label="$1" host="$2" service_name="$3"
-    if ssh_host "$host" "systemctl is-active '$service_name' 2>/dev/null" | grep -qx active; then
+    if ssh_host "$host" "systemctl is-active $service_name 2>/dev/null" | grep -qx active; then
         pass "$label service $service_name is active"
     else
         fail "$label service $service_name is not active"
+    fi
+}
+
+host_install_postgres_private_ip_wait() {
+    local host="$1" private_ip="$2" unit="${3:-$DELL_POSTGRES_UNIT}"
+    local dropin_dir="/etc/systemd/system/${unit}.service.d"
+    local dropin_path="$dropin_dir/wait-private-ip.conf"
+    local encoded
+    encoded="$(cat <<EOF | base64 | tr -d '\n'
+[Unit]
+Wants=NetworkManager-wait-online.service network-online.target
+After=NetworkManager-wait-online.service network-online.target
+
+[Service]
+ExecStartPre=/bin/bash -lc 'for attempt in {1..90}; do ip -4 addr show | grep -q \"inet $private_ip/\" && exit 0; sleep 1; done; echo \"Dell private Postgres IP $private_ip is not ready\" >&2; exit 1'
+EOF
+)"
+    ssh_host "$host" "sudo -n install -d -m 0755 $dropin_dir" || return
+    ssh_host "$host" "printf %s $encoded | base64 -d | sudo -n tee $dropin_path >/dev/null" || return
+    ssh_host "$host" "sudo -n chmod 0644 $dropin_path && sudo -n systemctl daemon-reload" || return
+}
+
+host_assert_postgres_private_ip_wait() {
+    local host="$1" private_ip="$2" unit="${3:-$DELL_POSTGRES_UNIT}"
+    local dropin_path="/etc/systemd/system/${unit}.service.d/wait-private-ip.conf"
+    local marker="Dell private Postgres IP $private_ip is not ready"
+    if ssh_host "$host" "sudo -n test -f $dropin_path && sudo -n grep -Fq \"$marker\" $dropin_path"; then
+        pass "Dell Postgres waits for private IP $private_ip before start"
+    else
+        fail "Dell Postgres does not wait for private IP $private_ip before start"
+    fi
+}
+
+host_assert_tcp_listener() {
+    local label="$1" host="$2" ip="$3" port="$4"
+    if ssh_host "$host" "ss -ltn sport = :$port | grep -Fq \"$ip:$port\""; then
+        pass "$label listens on $ip:$port"
+    else
+        fail "$label is not listening on $ip:$port"
     fi
 }
 

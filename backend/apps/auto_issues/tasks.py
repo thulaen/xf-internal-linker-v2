@@ -541,17 +541,30 @@ def pick_daily_internal_issues():
     expected_seconds_p50=10,
 )
 def refresh_registry_read():
-    """Run the startup registry read so fresh issue counts stay cached."""
+    """Run the startup registry read and return the refreshed marker."""
     if not connection.in_atomic_block:
         connection.close()
     from io import StringIO
 
     from django.core.management import call_command
 
+    from apps.auto_issues.services.session_start_payload import extract_autoissue_lines
+
     out = StringIO()
     call_command("print_open_issues", stdout=out)
-    lines = [line for line in out.getvalue().splitlines() if line.strip()]
-    return {"status": "ok", "line_count": len(lines)}
+    lines = extract_autoissue_lines(out.getvalue())
+    registry_marker = next(
+        (line for line in lines if line.startswith("[REGISTRY READ:")),
+        None,
+    )
+    if registry_marker is None:
+        raise RuntimeError("print_open_issues did not return a registry marker")
+    return {
+        "status": "ok",
+        "line_count": len(lines),
+        "registry_marker": registry_marker,
+        "lines": lines,
+    }
 
 
 @shared_task(name="auto_issues.refresh_session_start_payload")

@@ -2,8 +2,8 @@
 # SLICE-12 verification: selectorless Postgres Services and EndpointSlices.
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=cluster_lib.sh
-. "$HERE/cluster_lib.sh"
+# shellcheck source=host_prep_lib.sh
+. "$HERE/host_prep_lib.sh"
 cluster_require_gitbash "$0"
 
 POSTGRES_SERVICE_MANIFEST="${POSTGRES_SERVICE_MANIFEST:-k8s/database/postgres-external-service.yaml}"
@@ -67,6 +67,9 @@ assert_no_legacy_endpoints() {
 }
 
 assert_manifest_shape
+host_assert_postgres_private_ip_wait "$DELL_SSH" "$DELL_WIRED_IP"
+host_assert_service_active "Dell Postgres" "$DELL_SSH" "$DELL_POSTGRES_UNIT"
+host_assert_tcp_listener "Dell Postgres" "$DELL_SSH" "$DELL_WIRED_IP" "$POSTGRES_SERVICE_PORT"
 for namespace in $POSTGRES_SERVICE_NAMESPACE_LIST; do
     assert_service "$namespace"
     assert_endpointslice "$namespace"

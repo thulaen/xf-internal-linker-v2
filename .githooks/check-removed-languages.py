@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Pre-commit guard: the backend is Python + Rust ONLY.
 
-C, C++, Go, Haskell, Lua, and Java are removed languages (see
+C, C++, Go, Haskell, and Lua are removed languages (see
 ``docs/adr/0007-python-rust-two-language.md`` and
 ``docs/PYTHON-RUST-MIGRATION-PLAN.md``). This hook hard-blocks any staged file
 that ADDS or MODIFIES a removed-language source. It is the backstop that makes
@@ -11,6 +11,7 @@ reintroduces one of these languages is refused.
 What is NOT blocked:
   * Rust (``.rs``, ``Cargo.toml``, ``Cargo.lock``) and Python — the two kept
     languages.
+  * Java (``.java``) — reserved for JVM-specific needs.
   * DELETING a removed-language file — the migration removes them. The staged
     set is filtered to Added/Copied/Modified (``--diff-filter=ACM``), so a
     deletion never reaches this guard.
@@ -86,9 +87,8 @@ def main() -> int:
     sys.stderr.write(
         "FAIL check-removed-languages: a staged file adds/modifies a removed "
         "language.\n"
-        "WHY: this backend is Python + Rust ONLY. C/C++, Go, Haskell, Lua, and "
-        "Java were removed (hot paths are Rust via PyO3; everything else is "
-        "Python). An old plan may still describe these languages — do not build "
+        "WHY: C/C++, Go, Haskell, and Lua were removed. "
+        "An old plan may still describe these languages — do not build "
         "from it. See docs/adr/0007-python-rust-two-language.md and "
         "docs/PYTHON-RUST-MIGRATION-PLAN.md.\n"
         "REMOVED-LANGUAGE FILES:\n" + listed + "\n"

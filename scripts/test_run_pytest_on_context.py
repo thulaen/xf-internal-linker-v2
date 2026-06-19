@@ -7,8 +7,8 @@ monkeypatched so no container ever starts under test. Every target routes to a
 docker_context machine — there is no local-Windows execution path left.
 """
 
+import io
 import json
-import inspect
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,6 +23,7 @@ def _mod():
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    mod.dell_ssh_preflight.ssh_base_command = lambda context: ["ssh", context]
     return mod
 
 
@@ -31,61 +32,249 @@ def test_remote_pytest_cmd_joins_dell_test_net_and_overrides_db_host():
     points the DB/Redis at Dell's own stack — never the live database."""
     m = _mod()
     cmd = m._remote_pytest_cmd("dell", ["apps/foo/tests.py"])
-    assert cmd[:2] == ["ssh", "dell"]
-    remote = cmd[2]
+    assert cmd[0] == "ssh"
+    remote = cmd[-1]
     assert "--network" in remote and "xf_dell_test_net" in remote
     assert "xf_test_repo:/repo" in remote
     assert "xf_dell_compiled_repo:/opt/xf/compiled" in remote
     # DB + Redis point at Dell's test-stack service names, not the live host.
+    assert "POSTGRES_DB=xf_linker_test" in remote
+    assert "POSTGRES_USER=xf_linker_user" in remote
+    assert "POSTGRES_PASSWORD=xf_linker_test_password" in remote
     assert "POSTGRES_HOST=postgres" in remote
+    assert "POSTGRES_PORT=5432" in remote
     assert "REDIS_URL=redis://redis:6379/0" in remote
     assert "PYTHONPATH=/opt/xf/compiled/active:/opt/xf/compiled:/repo/backend" in remote
     assert "config.settings.test" in remote
+    assert "DJANGO_SECRET_KEY=dell-pytest-secret" in remote
     assert remote.endswith("apps/foo/tests.py")
     assert "--reuse-db" in remote
 
 
-def test_sync_roots_feed_the_tar_command_and_cover_test_reads():
+def test_sync_roots_feed_the_tar_command_and_cover_test_reads(monkeypatch):
     """_SYNC_ROOTS is the tar command's actual file list; it must cover every
     path the Dell-run script tests read (scripts, hooks, repo config)."""
     m = _mod()
-    import inspect
-    assert "*_SYNC_ROOTS" in inspect.getsource(m._tar_producer)
+
+    calls = []
+
+    class FakeTar:
+        stdout = io.BytesIO(b"tar")
+        stderr = io.BytesIO(b"")
+
+    def fake_popen(args, **kwargs):
+        calls.append((args, kwargs))
+        return FakeTar()
+
+    monkeypatch.setattr(m.subprocess, "Popen", fake_popen)
+    m._tar_producer({"PATH": "test"})
+
+    assert calls
+    tar_args = calls[0][0]
+    assert tar_args[:3] == ["tar", "-cf", "-"]
     for root in ("backend", "config", "scripts", ".githooks",
                  ".gitattributes", "docker-compose.yml",
                  "grafana", "otelcol-config.yaml"):
         assert root in m._SYNC_ROOTS, f"{root} must sync to Dell"
+        assert root in tar_args, f"{root} must be passed to tar"
     assert "--exclude=backend/backups" in m._TAR_EXCLUDES
 
 
-def test_host_hashes_strip_pytest_node_ids():
+def test_host_hashes_strip_pytest_node_ids(monkeypatch, tmp_path):
     """Given a single-test target, When hashing, Then only the file path is read."""
     m = _mod()
+    test_file = tmp_path / "backend" / "apps" / "auto_issues" / "tests_quality_evidence.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text("def test_one(): pass\n", encoding="utf-8")
+    monkeypatch.setattr(m, "REPO_ROOT", tmp_path)
+
     hashes = m._host_hashes([
         "apps/auto_issues/tests_quality_evidence.py::ProtectedDataMapTests::test_one"
     ])
+
     assert "apps/auto_issues/tests_quality_evidence.py" in hashes
 
 
-def test_sync_source_makes_audit_writable_for_dell_tests():
-    """Given Dell tests write audit logs, When syncing, Then audit is writable."""
+def test_target_files_expands_directory_targets(monkeypatch, tmp_path):
     m = _mod()
-    source = inspect.getsource(m._sync_source_to_context)
-    assert "(\"mkdir\", \"-p\", \"/repo/audit\")" in source
-    assert "(\"chmod\", \"777\", \"/repo/audit\")" in source
+    backend = tmp_path / "backend" / "apps" / "demo"
+    backend.mkdir(parents=True)
+    (backend / "tests_a.py").write_text("def test_a(): pass\n", encoding="utf-8")
+    (backend / "tests_b.py").write_text("def test_b(): pass\n", encoding="utf-8")
+    monkeypatch.setattr(m, "REPO_ROOT", tmp_path)
+
+    assert m._target_files(["apps/demo"]) == [
+        "apps/demo/tests_a.py",
+        "apps/demo/tests_b.py",
+    ]
+
+
+def test_host_hashes_skips_missing_files(monkeypatch, tmp_path):
+    m = _mod()
+    backend = tmp_path / "backend" / "apps" / "demo"
+    backend.mkdir(parents=True)
+    (backend / "tests.py").write_text("def test_a(): pass\n", encoding="utf-8")
+    monkeypatch.setattr(m, "REPO_ROOT", tmp_path)
+
+    hashes = m._host_hashes(["apps/demo/tests.py", "apps/demo/missing.py"])
+
+    assert list(hashes) == ["apps/demo/tests.py"]
 
 
 def test_remote_docker_cmd_quotes_as_one_ssh_command():
     """Given a shell-sensitive Docker command, When building it, Then SSH gets one quoted command."""
     m = _mod()
     cmd = m._remote_docker_cmd("dell", "run", "alpine:latest", "sh", "-c", "echo ok")
-    assert cmd[:2] == ["ssh", "dell"]
-    assert cmd[2] == "docker run alpine:latest sh -c 'echo ok'"
+    assert cmd[0] == "ssh"
+    assert cmd[-1] == "docker run alpine:latest sh -c 'echo ok'"
 
 
 def test_remote_docker_cmd_can_use_direct_local_docker():
     m = _mod()
     assert m._remote_docker_cmd("__local__", "info") == ["docker", "info"]
+
+
+def test_sync_source_success_runs_audit_setup(monkeypatch):
+    m = _mod()
+    setup_commands = []
+
+    class FakeStdout(io.BytesIO):
+        def close(self):
+            super().close()
+
+    class FakeTar:
+        stdout = FakeStdout(b"tar")
+        stderr = io.BytesIO(b"")
+
+        @staticmethod
+        def wait():
+            return 0
+
+    class FakeSink:
+        returncode = 0
+
+        @staticmethod
+        def communicate(timeout):
+            assert timeout == 300
+            return "ok", None
+
+    calls = iter([FakeTar(), FakeSink()])
+    monkeypatch.setattr(m.subprocess, "Popen", lambda *args, **kwargs: next(calls))
+    monkeypatch.setattr(
+        m,
+        "_run_repo_setup",
+        lambda context, command, env: setup_commands.append(command) or None,
+    )
+
+    assert m._sync_source_to_context("dell", {}) is None
+    assert setup_commands == [
+        ("mkdir", "-p", "/repo/audit"),
+        ("chmod", "777", "/repo/audit"),
+    ]
+
+
+def test_sync_source_reports_missing_tar(monkeypatch):
+    m = _mod()
+    monkeypatch.setattr(
+        m,
+        "_tar_producer",
+        lambda env: (_ for _ in ()).throw(FileNotFoundError()),
+    )
+
+    assert "tar or ssh not found" in m._sync_source_to_context("dell", {})
+
+
+def test_run_repo_setup_reports_remote_failure(monkeypatch):
+    m = _mod()
+    monkeypatch.setattr(
+        m.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=2, stdout="out", stderr="err"),
+    )
+
+    assert m._run_repo_setup("dell", ("chmod", "777", "/repo/audit"), {}) == (
+        "dell repo setup failed:\nouterr"
+    )
+
+
+def test_run_remote_sha_success_and_exception(monkeypatch):
+    m = _mod()
+    monkeypatch.setattr(m, "_target_files", lambda rel_slice: ["apps/a/tests.py"])
+    monkeypatch.setattr(
+        m.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0, stdout="abc apps/a/tests.py\n", stderr=""
+        ),
+    )
+
+    rc, out = m._run_remote_sha("dell", {})(["apps/a/tests.py"])
+    assert rc == 0
+    assert "abc apps/a/tests.py" in out
+
+    monkeypatch.setattr(
+        m.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError()),
+    )
+    rc, out = m._run_remote_sha("dell", {})(["apps/a/tests.py"])
+    assert rc == 1
+    assert "manifest handshake could not run" in out
+
+
+def test_verify_snapshot_success_failure_and_mismatch(monkeypatch, capsys):
+    m = _mod()
+    monkeypatch.setattr(m, "_target_files", lambda rel_slice: ["apps/a/tests.py"])
+
+    assert m._verify_snapshot(
+        lambda rel_slice: (0, "abc apps/a/tests.py\n"),
+        ["apps/a/tests.py"],
+        {"apps/a/tests.py": "abc"},
+    )
+    assert not m._verify_snapshot(lambda rel_slice: (1, "bad"), ["apps/a/tests.py"], {})
+    assert not m._verify_snapshot(
+        lambda rel_slice: (0, "wrong apps/a/tests.py\n"),
+        ["apps/a/tests.py"],
+        {"apps/a/tests.py": "abc"},
+    )
+    assert "REMOTE SHA FAILED" in capsys.readouterr().out
+
+
+def test_run_returns_output_and_catches_process_errors(monkeypatch):
+    m = _mod()
+    monkeypatch.setattr(
+        m.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=3, stdout="out", stderr="err"),
+    )
+    assert m._run(["pytest"], {}, 10) == (3, "outerr")
+
+    monkeypatch.setattr(
+        m.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError()),
+    )
+    rc, out = m._run(["pytest"], {}, 10)
+    assert rc == 1
+    assert "could not run" in out
+
+
+def test_pytest_slice_fails_closed_and_runs_after_verification(monkeypatch):
+    m = _mod()
+    monkeypatch.setattr(m, "_sync_source_to_context", lambda context, env: "sync failed")
+    assert m._pytest_slice_on_remote("dell", ["apps/a/tests.py"]) is None
+
+    monkeypatch.setattr(m, "_sync_source_to_context", lambda context, env: None)
+    monkeypatch.setattr(m, "_verify_snapshot", lambda *args, **kwargs: False)
+    assert m._pytest_slice_on_remote("dell", ["apps/a/tests.py"]) is None
+
+    monkeypatch.setattr(m, "_verify_snapshot", lambda *args, **kwargs: True)
+    monkeypatch.setattr(m, "_run_remote_sha", lambda context, env: lambda targets: (0, ""))
+    monkeypatch.setattr(m, "_host_hashes", lambda targets: {})
+    monkeypatch.setattr(m.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(returncode=0))
+    monkeypatch.setattr(m, "_run", lambda cmd, env, timeout: (0, "ok"))
+
+    assert m._pytest_slice_on_remote("dell", ["apps/a/tests.py"]) == (0, "ok")
 
 
 
@@ -157,7 +346,7 @@ def test_cov_targets_add_cov_flags_to_remote_command():
     cmd = m._remote_pytest_cmd(
         "dell", ["apps/foo/tests.py"], cov_targets=["apps.foo", "apps.bar"]
     )
-    remote = cmd[2]
+    remote = cmd[-1]
     assert "--cov=apps.foo" in remote
     assert "--cov=apps.bar" in remote
     assert "--cov-report=term" in remote

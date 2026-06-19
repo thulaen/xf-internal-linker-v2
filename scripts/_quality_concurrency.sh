@@ -113,7 +113,7 @@ _quality_fail_rule_f() {
 
 quality_acquire_meta_lock() {
   # No-op: the sequential gate is replaced by the parallel orchestrator
-  # (scripts/run-scoped-static-quality.ps1). The per-tool lock
+  # (the Bazel mutation target). The per-tool lock
   # (quality_acquire_tool_lock) still prevents two mutmut or two mull
   # runs from colliding with each other.
   return 0

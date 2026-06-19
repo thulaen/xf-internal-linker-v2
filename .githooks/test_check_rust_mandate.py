@@ -389,20 +389,17 @@ def test_coverage_regression_below_floor_blocks(tmp_path: Path):
             assert check_rust_mandate.main(tmp_path) == 2
 
 
-# ── NEW: mutation step is per-workspace (speccheck=catalog, rust=default) ─────
+# ── NEW: mutation step routes through Bazel only ──────────────────────────────
 
 
-def test_mutants_command_is_per_workspace():
+def test_mutants_command_uses_bazel_entrypoint():
     speccheck = next(w for w in check_rust_mandate.RUST_WORKSPACES if w.prefix == "services/speccheck/")
     rust = next(w for w in check_rust_mandate.RUST_WORKSPACES if w.prefix == "rust/")
     speccheck_cmd = check_rust_mandate._mutants_command(speccheck)
     rust_cmd = check_rust_mandate._mutants_command(rust)
-    # speccheck routes mutation runs to its integration test target.
-    assert "-p speccheck-detectors" in speccheck_cmd
-    assert "-- --test catalog" in speccheck_cmd
-    # the rust/ kernels use inline unit tests, so no `--test catalog` selector.
-    assert "-p l2norm" in rust_cmd
-    assert "--test catalog" not in rust_cmd
+
+    assert speccheck_cmd == "python scripts/bazel_default.py run //tools/quality:mutation"
+    assert rust_cmd == "python scripts/bazel_default.py run //tools/quality:mutation"
 
 
 # ── NEW: graceful degradation when a security tool is genuinely absent ────────

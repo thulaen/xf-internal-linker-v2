@@ -2,13 +2,16 @@
 # SLICE-12 installer: apply selectorless Postgres Services and EndpointSlices.
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=cluster_lib.sh
-. "$HERE/cluster_lib.sh"
+# shellcheck source=host_prep_lib.sh
+. "$HERE/host_prep_lib.sh"
 cluster_require_gitbash "$0"
 
 POSTGRES_SERVICE_MANIFEST="${POSTGRES_SERVICE_MANIFEST:-k8s/database/postgres-external-service.yaml}"
 
 [ -f "$POSTGRES_SERVICE_MANIFEST" ] || { fail "Missing $POSTGRES_SERVICE_MANIFEST"; cluster_exit; }
+
+host_install_postgres_private_ip_wait "$DELL_SSH" "$DELL_WIRED_IP" \
+    || { fail "Could not install Dell Postgres private-IP wait rule"; cluster_exit; }
 
 remote="/tmp/$(basename "$POSTGRES_SERVICE_MANIFEST")"
 transfer_with_checksum_retry "$POSTGRES_SERVICE_MANIFEST" "$MINT_SSH" "$remote" >/dev/null \

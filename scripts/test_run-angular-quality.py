@@ -42,7 +42,7 @@ def test_vitest_setup_supplies_zone_fakeasync_and_jsdom_polyfills() -> None:
     assert "getContext" in setup  # canvas mock for ECharts
 
 
-MUTATION_SCRIPT = Path(__file__).resolve().parent / "run-angular-mutation.sh"
+MUTATION_SCRIPT = ROOT / "tools" / "quality" / "internal" / "run-angular-mutation.sh"
 
 
 def test_angular_quality_is_dell_only_lint_and_tests() -> None:
@@ -69,6 +69,20 @@ def test_angular_mutation_script_owns_stryker() -> None:
     assert "STRYKER_TEST_INCLUDES" in text
 
 
+def test_angular_quality_and_mutation_use_visible_core_default() -> None:
+    """Angular wrappers must use the shared visible-core helper, not fixed caps."""
+    quality = SCRIPT.read_text(encoding="utf-8")
+    mutation = MUTATION_SCRIPT.read_text(encoding="utf-8")
+
+    for text in (quality, mutation):
+        assert ". scripts/quality_cores.sh" in text
+        assert "quality_cores angular-" in text
+        assert 'ANGULAR_CORES="${ANGULAR_CORES:-16}"' not in text
+        assert "VITEST_MAX_THREADS" in text
+    assert '[[ "$mutation_cores" -gt 4 ]]' not in mutation
+    assert 'STRYKER_CONCURRENCY="$mutation_cores"' in mutation
+
+
 def test_stryker_uses_command_runner_not_karma() -> None:
     """Stryker drives Vitest via its built-in command runner (npm run test:ci),
     not the retired Karma runner."""
@@ -76,6 +90,16 @@ def test_stryker_uses_command_runner_not_karma() -> None:
     assert cfg["testRunner"] == "command"
     assert "karma" not in cfg
     assert "test:ci" in cfg["commandRunner"]["command"]
+    assert "--include $STRYKER_TEST_INCLUDES" not in cfg["commandRunner"]["command"]
+
+
+def test_angular_mutation_passes_include_flags_as_separate_args() -> None:
+    """Each scoped spec must become its own --include= flag for ng test."""
+    text = MUTATION_SCRIPT.read_text(encoding="utf-8")
+
+    assert 'printf \'%s\\n\' "--include=$spec"' in text
+    assert 'npx stryker run --mutate "$STRYKER_MUTATE"' in text
+    assert 'npx stryker run --mutate "$STRYKER_MUTATE" --concurrency "$STRYKER_CONCURRENCY" || true' not in text
 
 
 def test_frontend_quality_image_installs_git_for_policy_helpers() -> None:

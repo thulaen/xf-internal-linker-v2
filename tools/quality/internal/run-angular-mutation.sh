@@ -8,6 +8,11 @@ export MSYS2_ARG_CONV_EXCL="*"
 repo_root="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 cd "$repo_root"
 
+if [[ "${XF_BAZEL_PRIVATE_MUTATION:-0}" != "1" ]]; then
+  echo "Bazel is the required quality path; run python scripts/bazel_default.py run //tools/quality:mutation." >&2
+  exit 2
+fi
+
 PY="python"
 if ! command -v "$PY" >/dev/null 2>&1; then
   if command -v python3 >/dev/null 2>&1; then
@@ -20,8 +25,8 @@ if ! command -v "$PY" >/dev/null 2>&1; then
 fi
 
 ANGULAR_DOCKER_CONTEXT="${ANGULAR_DOCKER_CONTEXT:-dell}"
-ANGULAR_CORES="${ANGULAR_CORES:-16}"
-[[ "$ANGULAR_CORES" -gt 16 ]] && ANGULAR_CORES=16
+. scripts/quality_cores.sh
+ANGULAR_CORES="${ANGULAR_CORES:-$(quality_cores angular-mutation)}"
 ANGULAR_VOLUME="${ANGULAR_VOLUME:-xf_angular_repo}"
 IMAGE="xf-linker-frontend-mutation-tools:latest"
 
@@ -83,19 +88,23 @@ if ! tar -cf - \
   exit 1
 fi
 
-test_oneline="$(printf '%s' "$test_includes" | tr '\n' ' ')"
+test_oneline="$(
+  while IFS= read -r spec; do
+    [[ -n "$spec" ]] || continue
+    printf '%s\n' "--include=$spec"
+  done <<< "$test_includes" | tr '\n' ' '
+)"
 mutate_oneline="$(printf '%s' "$mutate_targets" | paste -sd, -)"
 
-# Mutation concurrency is capped well below the unit-test cap: Stryker's command
-# runner rebuilds the Angular app once PER MUTANT (~1.5 GB each), so too many in
-# parallel would exhaust Dell's memory.
 mutation_cores="$ANGULAR_CORES"
-[[ "$mutation_cores" -gt 4 ]] && mutation_cores=4
 
 exec "$PY" scripts/remote_docker.py --host "$ANGULAR_DOCKER_CONTEXT" -- run --rm \
   -v "$ANGULAR_VOLUME":/work \
   -e CI=true \
   -e XF_QUALITY_ENV="${XF_QUALITY_ENV:-local}" \
+  -e ANGULAR_CORES="$ANGULAR_CORES" \
+  -e VITEST_MAX_THREADS="$ANGULAR_CORES" \
+  -e VITEST_MIN_THREADS="$ANGULAR_CORES" \
   -e STRYKER_CONCURRENCY="$mutation_cores" \
   -e STRYKER_MUTATE="$mutate_oneline" \
   -e STRYKER_TEST_INCLUDES="$test_oneline" \
@@ -105,15 +114,11 @@ exec "$PY" scripts/remote_docker.py --host "$ANGULAR_DOCKER_CONTEXT" -- run --rm
   # node_modules. The unit-test gate symlinks node_modules into /work, but
   # Strykers per-mutant sandbox copies cannot follow that symlink, so mutation
   # runs from /app where the toolchain resolves. The command runner then runs
-  # `npm run test:ci -- --include $STRYKER_TEST_INCLUDES` (the same Vitest path
+  # `npm run test:ci -- $STRYKER_TEST_INCLUDES` (the same Vitest path
   # the unit-test gate uses) against each mutated source file.
   tar -C /work/frontend --exclude=node_modules --exclude=.stryker-tmp \
       --exclude=dist --exclude=.angular -cf - . | tar -C /app -xf -
   cd /app
   echo "+ stryker run --mutate $STRYKER_MUTATE --concurrency $STRYKER_CONCURRENCY"
-  if [ "${XF_QUALITY_ENV:-local}" = "ci" ]; then
-    npx stryker run --mutate "$STRYKER_MUTATE" --concurrency "$STRYKER_CONCURRENCY"
-  else
-    npx stryker run --mutate "$STRYKER_MUTATE" --concurrency "$STRYKER_CONCURRENCY" || true
-  fi
+  npx stryker run --mutate "$STRYKER_MUTATE" --concurrency "$STRYKER_CONCURRENCY"
   '

@@ -25,11 +25,11 @@ FULL_SCOPE_EXACT = {
     "scripts/commit_scope.py",
     "scripts/precommit-docker.sh",
     "scripts/prepush-docker.sh",
-    "scripts/run-angular-quality.sh",
-    "scripts/run-python-quality.sh",
-    "scripts/run-rust-quality.sh",
-    "scripts/run-scoped-static-quality.ps1",
+    "scripts/bazel_default.py",
+    "scripts/bazel_affected_targets.py",
     "scripts/tdd_write_guard.py",
+    "tools/quality/BUILD.bazel",
+    "tools/quality/mutation.sh",
 }
 
 GENERATED_SCOPE_PREFIXES = (
