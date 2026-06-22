@@ -19,7 +19,7 @@ jobs:
     outputs:
       matrix: ${{ steps.detect.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - id: detect
         name: Build CodeQL language matrix
         shell: bash
@@ -43,7 +43,7 @@ jobs:
       CODEQL_RAM_MB: "6144"
       CODEQL_BUILD_JOBS: "2"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Rust toolchain for CodeQL
         if: ${{ matrix.language == 'rust' }}
@@ -81,7 +81,7 @@ jobs:
     if: ${{ always() && needs.analyze.result != 'skipped' && needs.analyze.result != 'cancelled' }}
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Download CodeQL SARIF artifacts
         uses: actions/download-artifact@v5

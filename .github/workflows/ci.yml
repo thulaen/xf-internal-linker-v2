@@ -15,7 +15,7 @@ jobs:
     name: Docker-managed hard-blocking quality checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run tool-readiness
         run: python scripts/bazel_default.py run //tools/quality:tool_readiness
       - name: Run Python quality checks
@@ -29,7 +29,7 @@ jobs:
     name: Whole-repo quality debt report
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Record whole-repo coverage and mutation debt
         env:
           QUALITY_DEBT_RUN_FULL_MUTATION: "1"
@@ -41,7 +41,7 @@ jobs:
     env:
       POSTGRES_PASSWORD: ci-fake-password
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
@@ -82,7 +82,7 @@ jobs:
   frontend-build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v5
@@ -105,7 +105,7 @@ jobs:
   backend-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
@@ -123,7 +123,7 @@ jobs:
   frontend-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v5
@@ -154,7 +154,7 @@ jobs:
     name: Stylelint (SCSS)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Set up Node.js 22
         uses: actions/setup-node@v5
         with:
@@ -172,7 +172,7 @@ jobs:
     env:
       POSTGRES_PASSWORD: ci-fake-password
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
@@ -195,7 +195,7 @@ jobs:
   backend-security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
@@ -213,7 +213,7 @@ jobs:
   python-deps-audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
@@ -230,7 +230,7 @@ jobs:
   frontend-deps-audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v5
@@ -249,7 +249,7 @@ jobs:
   docker-compose-validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Prepare compose env file
         run: cp .env.example .env
@@ -267,7 +267,7 @@ jobs:
     container:
       image: returntocorp/semgrep
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run Semgrep (Django + Python rules)
         run: >
           semgrep
@@ -296,7 +296,7 @@ jobs:
     name: Trivy Dependency Scan (fixable HIGH/CRITICAL)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@v0.35.0
         with:
@@ -326,7 +326,7 @@ jobs:
     name: Playwright E2E Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Set up Node.js 22
         uses: actions/setup-node@v5
         with:
@@ -361,7 +361,7 @@ jobs:
     name: Python Mutation (Bazel)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run Bazel mutation target
         env:
           DJANGO_SETTINGS_MODULE: config.settings.test
@@ -375,7 +375,7 @@ jobs:
     name: Angular Mutation (Bazel)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run Bazel mutation target
         run: python scripts/bazel_default.py run //tools/quality:mutation
 
@@ -386,7 +386,7 @@ jobs:
     name: Rust Quality (fmt, clippy, tests)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run Bazel Rust quality chain
         run: python scripts/bazel_default.py run //tools/quality:rust
 
@@ -400,7 +400,7 @@ jobs:
     name: Rust Build (Bazel)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run Bazel Rust quality target
         run: python scripts/bazel_default.py run //tools/quality:rust
 
@@ -417,7 +417,7 @@ jobs:
     name: Rust coverage (Bazel)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run Bazel Rust quality target
         run: python scripts/bazel_default.py run //tools/quality:rust
 
@@ -430,7 +430,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # need history to diff against base
       - name: Set up Python 3.12
@@ -460,7 +460,7 @@ jobs:
     name: Super-Linter (gaps)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           # Super-Linter needs full git history to know what's "changed".
           fetch-depth: 0
@@ -493,7 +493,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Detect new modules without tests
